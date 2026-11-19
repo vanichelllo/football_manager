@@ -10,7 +10,7 @@ const ctx = { window: {} };
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'data', 'db.js'), 'utf8'), ctx);
 const db = ctx.window.FM_DB;
 const FM = require('../js/world.js');
-for (const m of ['rng', 'match', 'season', 'data/names', 'develop', 'market', 'board', 'morale', 'cups']) require(`../js/${m}.js`);
+for (const m of ['rng', 'match', 'season', 'data/names', 'develop', 'market', 'board', 'morale', 'cups', 'data/countries', 'club', 'nations']) require(`../js/${m}.js`);
 
 test('два сезони: кількість гравців, рівень ліг, склади, гроші, кубки', { timeout: 600000 }, () => {
   const W = FM.createWorld(db);
@@ -34,6 +34,7 @@ test('два сезони: кількість гравців, рівень лі�
       FM.season.playWeek(state.season, W, { user: user(), dev: { myClub: state.clubId } });
       FM.market.weekly(W, state);
       FM.morale.weekly(W, state);
+      if (FM.nations) FM.nations.weekly(W, state, {});
       if (FM.board.weekly(W, state).fired) FM.board.takeJob(W, state, FM.board.jobOffers(W, state, 1)[0]);
     }
     winners.push(Object.values(state.cups).map((c) => c.winner));
@@ -41,6 +42,8 @@ test('два сезони: кількість гравців, рівень лі�
     FM.board.endSeason(W, state);
     FM.market.endSeason(W, state);
     FM.dev.endSeason(W, state);
+    FM.season.promote(W, state.season);
+    if (FM.nations) FM.nations.tournament(W, state.season.year + 1, state.season.seed);
     FM.dev.newSeason(W, state);
     FM.market.init(W, state);
     FM.board.initSeason(W, state);

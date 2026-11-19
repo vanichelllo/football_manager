@@ -20,16 +20,17 @@ test('календар: кожен з кожним двічі (раз удома
     const fx = S.fixtures.filter((f) => f.l === l.id);
     const n = l.size;
     assert.strictEqual(fx.length, n * (n - 1), l.id);
-    assert.strictEqual(new Set(fx.map((f) => f.w)).size, 2 * (n - 1), `${l.id}: турів`);
+    assert.strictEqual(new Set(fx.map((f) => f.r)).size, 2 * (n - 1), `${l.id}: турів`);
+    assert.ok(Math.max(...fx.map((f) => f.w)) < 38, `${l.id}: вміщається в 38 тижнів`);
     const pairs = new Set(fx.map((f) => f.h + '>' + f.a));
     assert.strictEqual(pairs.size, fx.length, `${l.id}: повторів немає`);
-    for (let w = 0; w < 2 * (n - 1); w++) {
-      const clubs = fx.filter((f) => f.w === w).flatMap((f) => [f.h, f.a]);
-      assert.strictEqual(new Set(clubs).size, n, `${l.id}, тур ${w + 1}`);
+    for (let r = 0; r < 2 * (n - 1); r++) {
+      const clubs = fx.filter((f) => f.r === r).flatMap((f) => [f.h, f.a]);
+      assert.strictEqual(new Set(clubs).size, n, `${l.id}, тур ${r + 1}`);
     }
     // домашніх матчів поспіль не більше трьох
     for (const c of db.clubs.filter((x) => x.league === l.id)) {
-      const seq = fx.filter((f) => f.h === c.id || f.a === c.id).sort((a, b) => a.w - b.w).map((f) => (f.h === c.id ? 'H' : 'A')).join('');
+      const seq = fx.filter((f) => f.h === c.id || f.a === c.id).sort((a, b) => a.r - b.r).map((f) => (f.h === c.id ? 'H' : 'A')).join('');
       assert.ok(!/HHHH|AAAA/.test(seq), `${c.nameEn}: ${seq}`);
     }
   }

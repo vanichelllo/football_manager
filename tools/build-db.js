@@ -23,6 +23,18 @@ const LEAGUES = [
   { id: 'ger', en: 'Bundesliga', name: 'Бундесліга', country: 'GER' },
   { id: 'fra', en: 'Ligue 1', name: 'Ліга 1', country: 'FRA' },
   { id: 'ukr', en: 'Ukrainian Premier League', name: 'Українська Прем’єр-ліга', country: 'UKR' },
+  // другі дивізіони (підвищення й виліт з вищими)
+  { id: 'eng2', en: 'EFL Championship', name: 'Чемпіоншип', country: 'ENG', tier: 2, up: 'eng' },
+  { id: 'esp2', en: 'Segunda División', name: 'Сегунда', country: 'ESP', tier: 2, up: 'esp' },
+  { id: 'ita2', en: 'Serie B', name: 'Серія B', country: 'ITA', tier: 2, up: 'ita' },
+  { id: 'ger2', en: '2. Bundesliga', name: '2. Бундесліга', country: 'GER', tier: 2, up: 'ger' },
+  { id: 'fra2', en: 'Ligue 2', name: 'Ліга 2', country: 'FRA', tier: 2, up: 'fra' },
+  { id: 'ukr2', en: 'Ukrainian First League', name: 'Перша ліга України', country: 'UKR', tier: 2, up: 'ukr' },
+  // ще чотири країни
+  { id: 'por', en: 'Primeira Liga', name: 'Прімейра-ліга', country: 'POR' },
+  { id: 'ned', en: 'Eredivisie', name: 'Ередивізі', country: 'NED' },
+  { id: 'tur', en: 'Süper Lig', name: 'Суперліга Туреччини', country: 'TUR' },
+  { id: 'pol', en: 'Ekstraklasa', name: 'Екстракляса', country: 'POL' },
 ];
 
 const report = [];
@@ -148,7 +160,7 @@ function cleanUk(label) {
 }
 
 function build(clubs, playerArticles, ukLabel) {
-  const leagues = LEAGUES.map((l) => ({ id: l.id, name: l.name, country: l.country, size: l.size }));
+  const leagues = LEAGUES.map((l) => ({ id: l.id, name: l.name, country: l.country, size: l.size, tier: l.tier || 1, up: l.up || null }));
   const outClubs = [];
   const players = [];
   let pid = 0;

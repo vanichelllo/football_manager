@@ -29,13 +29,17 @@
     return rounds.concat(rounds.map((g) => g.map(([h, a]) => [a, h])));
   }
 
+  const SEASON_WEEKS = 38;
   function create(W, seed) {
     const R = FM.rng('calendar-' + seed);
     const fixtures = [];
     for (const l of W.db.leagues) {
       const ids = [...W.clubs.values()].filter((c) => c.league === l.id).map((c) => c.id);
-      roundRobin(ids, R).forEach((games, r) => games.forEach(([h, a]) => {
-        fixtures.push({ id: fixtures.length, l: l.id, w: r, h, a, s: null, g: null });
+      const rounds = roundRobin(ids, R);
+      // ліга з більш ніж 38 турами (Чемпіоншип — 46) грає деякі тури посеред тижня: два тури за тиждень
+      const weekOf = (r) => (rounds.length <= SEASON_WEEKS ? r : Math.floor((r * SEASON_WEEKS) / rounds.length));
+      rounds.forEach((games, r) => games.forEach(([h, a]) => {
+        fixtures.push({ id: fixtures.length, l: l.id, r, w: weekOf(r), h, a, s: null, g: null });
       }));
     }
     const year = Number(String(W.today).slice(0, 4));
@@ -85,7 +89,8 @@
       const diff = W.clubLevel(clubId) - W.clubLevel(oppId) + (home ? 3 : -3);
       mentality = diff > 12 ? 'attacking' : diff > 5 ? 'positive' : diff < -12 ? 'defensive' : diff < -5 ? 'cautious' : 'balanced';
     }
-    return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(pool, formation), mentality };
+    const st = FM.club ? FM.club.aiStyle(W.club(clubId), mentality) : { mentality }; // стиль тренера ШІ
+    return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(pool, formation), mentality: st.mentality, pressing: st.pressing, passing: st.passing };
   }
 
   /** Параметри матчу для двигуна (FM.match.create або play). */
@@ -200,21 +205,42 @@
   }
 
   // Зони таблиці: єврокубки й виліт (формат 2026/27, спрощено)
+  // Зони таблиці. Для вищих ліг ucl/uel — місця в єврокубках гри (js/cups.js EURO_SPOTS), rel — виліт;
+  // для других дивізіонів promo — підвищення (скільки ж вилітає з вищої ліги).
   const ZONES = {
-    eng: { ucl: 4, uel: 5, uecl: 6, rel: 3 }, esp: { ucl: 4, uel: 5, uecl: 6, rel: 3 }, ita: { ucl: 4, uel: 5, uecl: 6, rel: 3 },
-    ger: { ucl: 4, uel: 5, uecl: 6, rel: 2, playoff: 1 }, fra: { ucl: 3, uel: 4, uecl: 5, rel: 2, playoff: 1 },
-    ukr: { ucl: 1, uel: 2, uecl: 3, rel: 2, playoff: 2 },
+    eng: { ucl: 5, uel: 7, rel: 3 }, esp: { ucl: 5, uel: 7, rel: 3 }, ita: { ucl: 4, uel: 7, rel: 3 },
+    ger: { ucl: 4, uel: 7, rel: 2 }, fra: { ucl: 3, uel: 7, rel: 2 }, ukr: { ucl: 3, uel: 7, rel: 2 },
+    por: { ucl: 3, uel: 7, rel: 0 }, ned: { ucl: 3, uel: 7, rel: 0 }, tur: { ucl: 3, uel: 8, rel: 0 }, pol: { ucl: 3, uel: 8, rel: 0 },
+    eng2: { promo: 3 }, esp2: { promo: 3 }, ita2: { promo: 3 }, ger2: { promo: 2 }, fra2: { promo: 2 }, ukr2: { promo: 2 },
   };
   function zone(leagueId, pos, size) {
-    const z = ZONES[leagueId];
+    const z = ZONES[leagueId] || {};
+    if (z.promo) return pos <= z.promo ? 'promo' : null;
     if (pos <= z.ucl) return 'ucl';
     if (pos <= z.uel) return 'uel';
-    if (pos <= z.uecl) return 'uecl';
-    if (pos > size - z.rel) return 'rel';
+    if (z.uecl && pos <= z.uecl) return 'uecl';
+    if (z.rel && pos > size - z.rel) return 'rel';
     if (z.playoff && pos > size - z.rel - z.playoff) return 'playoff';
     return null;
   }
 
-  FM.season = { unavailable, firstSaturday, create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, prepare, play, record, playOthers, advance, playWeek, table, leaders, zone, roundRobin };
+  /**
+   * Підвищення й виліт між вищою й другою лігою країни (кількість — ZONES[друга].promo).
+   * Повертає [{ club, from, to, up }]. Викликати після сезону, до створення нового календаря.
+   */
+  function promote(W, S) {
+    const moves = [];
+    for (const l of W.db.leagues) {
+      if (!l.up || !ZONES[l.id] || !ZONES[l.id].promo) continue;
+      const n = ZONES[l.id].promo;
+      const upTable = table(S, W, l.up), downTable = table(S, W, l.id);
+      const down = upTable.slice(-n).map((r) => r.id), up = downTable.slice(0, n).map((r) => r.id);
+      for (const id of down) { W.club(id).league = l.id; moves.push({ club: id, from: l.up, to: l.id, up: false }); }
+      for (const id of up) { W.club(id).league = l.up; moves.push({ club: id, from: l.id, to: l.up, up: true }); }
+    }
+    return moves;
+  }
+
+  FM.season = { promote, ZONES, unavailable, firstSaturday, create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, prepare, play, record, playOthers, advance, playWeek, table, leaders, zone, roundRobin };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

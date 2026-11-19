@@ -24,6 +24,9 @@ const LEAGUE = {
   ger: { base: 121, spread: 21 },
   fra: { base: 115, spread: 22 },
   ukr: { base: 95, spread: 19 },
+  eng2: { base: 104, spread: 14 }, esp2: { base: 99, spread: 12 }, ita2: { base: 97, spread: 12 },
+  ger2: { base: 101, spread: 13 }, fra2: { base: 95, spread: 12 }, ukr2: { base: 68, spread: 12 },
+  por: { base: 108, spread: 24 }, ned: { base: 107, spread: 22 }, tur: { base: 106, spread: 20 }, pol: { base: 96, spread: 15 },
 };
 
 // Рівень збірних (приблизно за рейтингом ФІФА 2025–2026). Решта країн — рівень 4.
@@ -126,7 +129,7 @@ function attributes(p, ca) {
 /** Орієнтовна ринкова ціна, млн €. */
 function marketValue(ca, age, league, pa = ca) {
   if (age < 24) ca = ca + (pa - ca) * 0.5 * (24 - age) / 6; // за молодь платять наперед
-  const leagueMult = { eng: 1.6, esp: 1.3, ita: 1.15, ger: 1.2, fra: 1.1, ukr: 0.9 }[league];
+  const leagueMult = { eng: 1.6, esp: 1.3, ita: 1.15, ger: 1.2, fra: 1.1, ukr: 0.9, eng2: 0.9, esp2: 0.6, ita2: 0.55, ger2: 0.65, fra2: 0.5, ukr2: 0.3, por: 0.95, ned: 0.95, tur: 0.85, pol: 0.5 }[league] || 1;
   const ageMult = age <= 23 ? 1.35 : age <= 27 ? 1.15 : age <= 29 ? 0.9 : age <= 31 ? 0.6 : age <= 33 ? 0.35 : 0.15;
   const v = 0.22 * Math.exp((ca - 80) / 16) * leagueMult * ageMult;
   return Math.round(clamp(v, 0.05, 200) * 20) / 20; // крок 50 тис.

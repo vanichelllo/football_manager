@@ -21,6 +21,8 @@
     europe: { label: 'Потрапити в єврокубки' },
     tophalf: { label: 'Фінішувати у верхній половині' },
     survive: { label: 'Зберегти місце в лізі' },
+    promotion: { label: 'Вийти до вищої ліги' },
+    midtable: { label: 'Не опинитися внизу таблиці' },
   };
 
   /** Ціль на сезон за силою складу: { kind, pos } — pos — найгірше місце, з яким ціль виконано. */
@@ -29,12 +31,18 @@
     const ranked = W.clubsOf(c.league).map((x) => ({ id: x.id, lvl: W.clubLevel(x.id) })).sort((a, b) => b.lvl - a.lvl);
     const r = ranked.findIndex((x) => x.id === clubId) + 1;
     const n = ranked.length;
-    const z = { eng: [4, 6, 3], esp: [4, 6, 3], ita: [4, 6, 3], ger: [4, 6, 3], fra: [3, 5, 3], ukr: [1, 3, 2] }[c.league];
+    const Z = FM.season.ZONES[c.league] || {};
+    if (Z.promo) { // другий дивізіон: підвищення
+      if (r <= Z.promo + 1) return { kind: 'promotion', pos: Z.promo, rank: r };
+      if (r <= Math.ceil(n / 2) + 1) return { kind: 'tophalf', pos: Math.ceil(n / 2), rank: r };
+      return { kind: 'midtable', pos: n - 3, rank: r };
+    }
+    const z = [Z.ucl || 1, Z.uel || 3, Z.rel || 3];
     if (r === 1) return { kind: 'title', pos: 1, rank: r };
     if (r <= z[0]) return { kind: 'ucl', pos: z[0], rank: r };
     if (r <= z[1] + 1) return { kind: 'europe', pos: z[1], rank: r };
     if (r <= Math.ceil(n / 2) + 1) return { kind: 'tophalf', pos: Math.ceil(n / 2), rank: r };
-    return { kind: 'survive', pos: n - z[2], rank: r };
+    return { kind: 'survive', pos: n - (z[2] || 3), rank: r };
   }
 
   function initSeason(W, state) {
@@ -69,8 +77,8 @@
       const pos = t.findIndex((r) => r.id === c.id) + 1;
       const rel = t.length > 1 ? 1 - (pos - 1) / (t.length - 1) : 0.5; // 1 — лідер
       const fixed = c.income0 * 0.7;
-      const tickets = home.has(c.id) ? c.income0 * 0.6 * (0.8 + 0.35 * rel) : 0; // удома — подвійна частка матчдею
-      const wages = FM.market.wageBill(W, c.id) / 1000;
+      const tickets = home.has(c.id) ? c.income0 * 0.6 * (0.8 + 0.35 * rel) * (FM.club ? FM.club.ticketFactor(W, c.id, rel) : 1) : 0; // удома — подвійна частка матчдею
+      const wages = FM.market.wageBill(W, c.id) / 1000 + (c.id === state.clubId && FM.club ? FM.club.staffBill(state) / 1000 : 0);
       c.balance = r2(c.balance + fixed + tickets - wages);
       if (c.id === state.clubId) {
         b.fin.tv = r2(b.fin.tv + fixed); b.fin.tickets = r2(b.fin.tickets + tickets); b.fin.wages = r2(b.fin.wages + wages);

@@ -93,11 +93,12 @@
       const inten = INTENSITY[(mine && tr.intensity) || 'normal'];
       const plan = PLANS[(mine && tr.plan) || 'balanced'];
       // травма на тренуванні
-      if (p.club && !p.injury && R.chance(0.006 * inten.injury * plan.injury)) { p.injury = Math.min(4, injuryWeeks(R)); hurt.push({ id: p.id, weeks: p.injury }); }
+      if (p.club && !p.injury && R.chance(0.006 * inten.injury * plan.injury * (mine && opts.injuryMult ? opts.injuryMult : 1))) { p.injury = Math.min(4, injuryWeeks(R)); hurt.push({ id: p.id, weeks: p.injury }); }
       const clubGames = p.club ? games[p.club] || 0 : 0;
       const apps = (S.ps[p.id] && S.ps[p.id][0]) || 0;
       const share = clubGames ? Math.min(1, apps / clubGames) : 0.4;
-      let g = Math.max(0, p.pa - p.ca) * growthRate(age) * (0.55 + 0.9 * share) * inten.growth * plan.growth * (0.8 + ((p.h && p.h.pro) || 10) / 50); // професіоналізм
+      let g = Math.max(0, p.pa - p.ca) * growthRate(age) * (0.55 + 0.9 * share) * inten.growth * plan.growth * (0.8 + ((p.h && p.h.pro) || 10) / 50) // професіоналізм
+        * (mine && opts.growthMult ? opts.growthMult(p) : 1); // тренери й база
       if (p.injury) g *= 0.3;
       if (!p.club) g *= 0.5; // без клубу розвиток повільніший
       if (age >= 30) g -= 0.02 + (age - 30) * 0.03;
@@ -128,7 +129,7 @@
   };
   const NEED = { GK: 3, CB: 5, FB: 4, DM: 2, CM: 4, AM: 2, W: 3, ST: 4 }; // скільки гравців ролі тримає клуб
 
-  function makeYouth(W, clubId, R, year, forceRole, golden) {
+  function makeYouth(W, clubId, R, year, forceRole, golden, bonus = 0) {
     const c = W.club(clubId);
     const country = LEAGUE_NAT[c.league];
     const nat = R.chance(0.82) ? country : R.pick(['UKR', 'ENG', 'ESP', 'ITA', 'GER', 'FRA', 'BRA', 'NGA', 'SEN', 'POR', 'NED', 'BEL', 'CRO', 'SRB', 'POL', 'MAR', 'CIV', 'ARG']);
@@ -144,6 +145,7 @@
     let pa = lvl + R.range(-28, 22);
     if (R.chance(0.04)) pa += 25; // рідкісний талант
     if (golden) pa += 15; // «золоте покоління» академії
+    pa += bonus; // тренер молоді й академія
     pa = Math.round(Math.max(ca + 20, Math.min(195, pa)));
     const mid = ca / 10.5 + 0.8;
     const attrs = {};
@@ -200,7 +202,8 @@
       const golden = R.chance(0.03); // зрідка академія видає «золоте покоління»
       if (golden) report.golden.push(c.id);
       const n = 2 + R.int(3) + (golden ? 2 : 0);
-      for (let i = 0; i < n; i++) report.youth.push(makeYouth(W, c.id, R, year, null, golden));
+      const bonus = c.id === state.clubId ? state.youthBonus || 0 : c.fac ? (c.fac.youth - 10) * 0.8 : 0;
+      for (let i = 0; i < n; i++) report.youth.push(makeYouth(W, c.id, R, year, null, golden, bonus));
     }
     // клуби ШІ тримають не більше 30 гравців: відпускають найслабших дорослих
     for (const c of W.clubs.values()) {

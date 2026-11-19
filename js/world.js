@@ -214,7 +214,7 @@
     return Math.max(1, Math.min(200, Math.round(a + b * roleScore(p, p.roles[0]))));
   }
 
-  const LEAGUE_MULT = { eng: 1.6, esp: 1.3, ita: 1.15, ger: 1.2, fra: 1.1, ukr: 0.9 };
+  const LEAGUE_MULT = { eng: 1.6, esp: 1.3, ita: 1.15, ger: 1.2, fra: 1.1, ukr: 0.9, eng2: 0.9, esp2: 0.6, ita2: 0.55, ger2: 0.65, fra2: 0.5, ukr2: 0.3, por: 0.95, ned: 0.95, tur: 0.85, pol: 0.5 };
   /** Орієнтовна ринкова ціна, млн € (та сама формула, що й у збирачі бази). */
   function marketValue(ca, age, league, pa = ca) {
     if (age < 24) ca = ca + (pa - ca) * 0.5 * (24 - age) / 6;

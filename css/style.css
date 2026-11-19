@@ -438,3 +438,9 @@ details.opp .facts { margin-top: 0.5rem; }
 .panel-head h3 { margin: 0; }
 .loan-box { margin-top: 0.9rem; padding: 0.7rem; border: 1px dashed var(--line); border-radius: var(--radius); display: flex; flex-direction: column; gap: 0.4rem; }
 .rival { color: var(--warn); font-weight: 600; }
+
+/* ---------- Клуб ---------- */
+.staff { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.staff-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.4rem 1rem; align-items: center; padding: 0.6rem 0; border-bottom: 1px dashed var(--line); }
+.staff-row:last-child { border-bottom: 0; }
+.staff-row .cands { grid-column: 1 / -1; }
