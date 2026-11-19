@@ -71,7 +71,7 @@ async function main() {
       const n = prev.standings.length;
       prev.standings.forEach((code, i) => {
         const team = prev.teams.find((t) => t.code === code);
-        (prevRank[team.title] = prevRank[team.title] || [])[k] = 1 - i / (n - 1);
+        (prevRank[team.title] = prevRank[team.title] || [])[k] = { r: 1 - i / (n - 1), league: l.id };
       });
     }
     log(`  ${l.name}: ${cur.teams.length} клубів`);
@@ -99,7 +99,17 @@ async function main() {
     const fy = /\b(18[5-9]\d|19\d\d|20[0-2]\d)\b/.exec(ib.founded || '');
     c.founded = fy ? Number(fy[1]) : null;
     c.colors = [P.kitColor(ib.body1), P.kitColor(ib.shorts1), P.kitColor(ib.socks1)].filter(Boolean);
-    const ranks = rankByFinal[art.qid] || rankByFinal[c.title] || [];
+    // місце в таблиці тієї ліги, де клуб грав тоді → сила в нинішній лізі (через абсолютний рівень ліги)
+    const LG = R.LEAGUE, cur = LG[c.leagueId], tierOf = (id) => (LEAGUES.find((x) => x.id === id) || {}).tier || 1;
+    const ranks = (rankByFinal[art.qid] || rankByFinal[c.title] || []).map((x) => {
+      if (!x) return x;
+      if (x.league === c.leagueId) return x.r;
+      const src = LG[x.league];
+      let s = 0.5 + (src.base + (x.r - 0.5) * 2 * src.spread - cur.base) / (2 * cur.spread);
+      if (tierOf(x.league) > tierOf(c.leagueId)) s = Math.min(s, 0); // новачок вищої ліги — у нижній частині
+      if (tierOf(x.league) < tierOf(c.leagueId)) s = Math.max(s, 0.6); // хто вилетів — серед сильніших
+      return Math.max(-0.15, Math.min(1.1, s));
+    });
     // сила: 65% минулий сезон, 35% позаминулий; новачок ліги — нижче за останнього
     const r0 = ranks[0] != null ? ranks[0] : -0.12;
     const r1 = ranks[1] != null ? ranks[1] : r0 - 0.05;

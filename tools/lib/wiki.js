@@ -110,8 +110,31 @@ async function entities(qids) {
  * Вікітекст багатьох статей пачками (з продовженням, якщо відповідь завелика).
  * Повертає { 'Назва з запиту': { title, qid, text } } — ключ той, що передали, навіть якщо було перенаправлення.
  */
+// Кеш окремих статей: пачки змінюються, коли змінюється список назв, а стаття — та сама.
+const pageFile = (lang, section, title) => cachePath(`page|${lang}|${section == null ? 'full' : section}|${title}`);
+function readPage(lang, section, title, maxAgeHours = 24 * 7) {
+  for (const sec of section == null ? [null] : [section, null]) { // для вступу згодиться й повна стаття
+    try {
+      const f = pageFile(lang, sec, title);
+      if (Date.now() - fs.statSync(f).mtimeMs < maxAgeHours * 3600e3) return JSON.parse(fs.readFileSync(f, 'utf8'));
+    } catch (_) { /* немає */ }
+  }
+  return undefined;
+}
+function writePage(lang, section, title, rec) {
+  fs.mkdirSync(CACHE_DIR, { recursive: true });
+  fs.writeFileSync(pageFile(lang, section, title), JSON.stringify(rec || { missing: true }));
+}
+
 async function pagesContent(titles, { lang = 'en', batch = 20, section = null } = {}) {
   const out = {};
+  const todo = [];
+  for (const t of titles) {
+    const rec = readPage(lang, section, t);
+    if (rec === undefined) todo.push(t); else if (!rec.missing) out[t] = rec;
+  }
+  if (process.env.VERBOSE && titles.length !== todo.length) console.error(`  у кеші статей: ${titles.length - todo.length}, завантажити: ${todo.length}`);
+  titles = todo;
   for (let i = 0; i < titles.length; i += batch) {
     const chunk = titles.slice(i, i + batch);
     const alias = {}; // кінцева назва -> назви з запиту
@@ -136,6 +159,7 @@ async function pagesContent(titles, { lang = 'en', batch = 20, section = null } 
       }
       cont = d.continue && d.continue.rvcontinue ? { rvcontinue: d.continue.rvcontinue, continue: d.continue.continue } : null;
     } while (cont);
+    for (const t of chunk) writePage(lang, section, t, out[t] || null);
     if (process.env.VERBOSE) console.error(`  статті: ${Math.min(i + batch, titles.length)}/${titles.length}`);
   }
   return out;
@@ -151,4 +175,4 @@ async function sparql(query) {
   });
 }
 
-module.exports = { getJson, wikitext, pagesContent, qidsForTitles, entities, sparql, sleep };
+module.exports = { writePage, pageFile, getJson, wikitext, pagesContent, qidsForTitles, entities, sparql, sleep };
