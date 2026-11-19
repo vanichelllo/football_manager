@@ -80,7 +80,7 @@ async function main() {
     if (!art) { report.push(`Немає статті клубу ${c.title}`); c.players = []; continue; }
     c.qid = art.qid;
     const ib = P.infobox(art.text) || {};
-    c.fullName = P.plain(ib.fullname) || null;
+    c.fullName = P.firstLine(ib.fullname) || null;
     c.ground = P.firstLine(ib.ground || ib.stadium).replace(/\s*\(.*$/, '') || null;
     c.capacity = P.parseNum(ib.capacity);
     if (c.capacity && c.capacity < 1000) c.capacity = null;
@@ -117,8 +117,8 @@ async function main() {
 
 async function ukrainianLabels(qids) {
   const out = {};
-  for (let i = 0; i < qids.length; i += 400) {
-    const values = qids.slice(i, i + 400).map((q) => 'wd:' + q).join(' ');
+  for (let i = 0; i < qids.length; i += 120) {
+    const values = qids.slice(i, i + 120).map((q) => 'wd:' + q).join(' ');
     const rows = await wiki.sparql(`SELECT ?item ?uk WHERE { VALUES ?item { ${values} } ?item rdfs:label ?uk . FILTER(LANG(?uk) = "uk") }`);
     for (const r of rows) out[r.item.split('/').pop()] = r.uk;
   }
@@ -138,8 +138,13 @@ const ROLE_GROUP = { GK: 'GK', CB: 'DF', FB: 'DF', DM: 'MF', CM: 'MF', AM: 'MF',
 function cleanUk(label) {
   // «Арсенал (футбольний клуб)» → «Арсенал»; «Динамо (Київ)» → «Динамо Київ»; «Мудрик (футболіст)» → «Мудрик»
   if (!label) return null;
-  return label.replace(/\s*\(([^)]*)\)\s*$/, (m, inner) =>
+  let s = label.replace(/\s*\(([^)]*)\)\s*$/, (m, inner) =>
     /футбол|клуб|спорт|команда|значення|\d/.test(inner) ? '' : ' ' + inner.split(',')[0].trim()).trim();
+  // «Забарний Ілля Борисович» → «Ілля Забарний» (так подають імена в українській Wikipedia)
+  const w = s.split(/\s+/);
+  if (w.length === 3 && /(ович|евич|євич|йович|івна|ївна|овна)$/.test(w[2])) s = `${w[1]} ${w[0]}`;
+  else if (w.length === 4 && /^(огли|огли́|кизи)$/.test(w[3])) s = `${w[1]} ${w[0]}`; // «Дадашов Руфат Олег огли»
+  return s;
 }
 
 function build(clubs, playerArticles, ukLabel) {
@@ -173,7 +178,7 @@ function build(clubs, playerArticles, ukLabel) {
       if (!nat && s.nat) unknownNat.add(s.nat);
       const car = art ? P.career(ib) : { leagueApps: null, leagueGoals: null, caps: 0, intlGoals: 0 };
       const key = (art && art.title) || `${c.title}/${s.name}`;
-      const facts = { key, age, caps: car.caps, nat: nat || '', leagueApps: car.leagueApps, leagueGoals: car.leagueGoals,
+      const facts = { key, age, caps: car.caps, intlGoals: car.intlGoals, nat: nat || '', leagueApps: car.leagueApps, leagueGoals: car.leagueGoals,
         pos: main, posGroup: s.group || ROLE_GROUP[main], height: P.height(ib.height) };
       const { ca, pa } = R.abilities(facts, { league: c.leagueId, strength: Math.max(0, c.strength) });
       const attrs = R.attributes(facts, ca);
@@ -185,7 +190,7 @@ function build(clubs, playerArticles, ukLabel) {
         height: facts.height, caps: car.caps, intlGoals: car.intlGoals,
         leagueApps: car.leagueApps, leagueGoals: car.leagueGoals,
         onLoanFrom: s.onLoanFrom, captain: s.captain || undefined,
-        ca, pa, attrs, value: R.marketValue(ca, age, c.leagueId),
+        ca, pa, attrs, value: R.marketValue(ca, age, c.leagueId, pa),
         wiki: art ? art.title : null,
       });
       club.players.push(id);

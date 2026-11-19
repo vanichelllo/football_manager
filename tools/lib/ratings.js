@@ -61,22 +61,27 @@ function abilities(p, club) {
   const caps = p.caps || 0;
   ca += Math.sqrt(Math.min(caps, 100) / 100) * CAPS_WEIGHT[tier];
   if (caps === 0 && p.age >= 24) ca -= 4;
-  // молодий гравець основи сильної збірної — окремий сигнал якості
-  if (caps >= 5 && p.age <= 22) ca += tier <= 2 ? 6 : 3;
+  // молодий гравець, що вже постійно грає за збірну, — сильний сигнал якості (Ямаль, Мусіала…)
+  if (p.age <= 24 && caps >= 5) {
+    const perYear = caps / Math.max(1, p.age - 16);
+    ca += clamp((perYear - 2) * (tier <= 2 ? 2.5 : 1.5), 0, tier <= 2 ? 14 : 7);
+  }
+  // забиває за збірну — ще плюс (для атакувальних)
+  if (p.intlGoals && ['ST', 'W', 'AM'].includes(p.pos)) ca += Math.min(p.intlGoals, 50) / 50 * (tier <= 2 ? 6 : 3);
 
-  if (p.age >= 20 && p.leagueApps != null) {
+  if (p.age >= 18 && p.leagueApps != null) {
     const rate = p.leagueApps / Math.max(1, p.age - 17); // ігор у лігах за рік кар'єри
     ca += clamp((rate - 16) * 0.45, -9, 6);
   }
-  ca += noise(p.key + ':ca', 6);
+  ca += noise(p.key + ':ca', 5);
   ca = Math.round(clamp(ca, 35, 192));
 
   let pa = ca;
-  if (p.age < 29) {
-    const room = Math.max(0, 27 - p.age) * (4 + 5 * hash01(p.key + ':pa'));
-    pa = ca + room * (0.7 + 0.6 * club.strength);
+  if (p.age < 28) {
+    const room = Math.max(0, 26 - p.age) * (2 + 4 * hash01(p.key + ':pa'));
+    pa = ca + room * (0.6 + 0.6 * club.strength);
   }
-  pa = Math.round(clamp(Math.max(pa, ca), ca, 200));
+  pa = Math.round(clamp(Math.max(pa, ca), ca, 198));
   return { ca, pa };
 }
 
@@ -119,11 +124,12 @@ function attributes(p, ca) {
 }
 
 /** Орієнтовна ринкова ціна, млн €. */
-function marketValue(ca, age, league) {
-  const leagueMult = { eng: 1.9, esp: 1.3, ita: 1.2, ger: 1.25, fra: 1.15, ukr: 0.5 }[league];
+function marketValue(ca, age, league, pa = ca) {
+  if (age < 24) ca = ca + (pa - ca) * 0.5 * (24 - age) / 6; // за молодь платять наперед
+  const leagueMult = { eng: 1.6, esp: 1.3, ita: 1.15, ger: 1.2, fra: 1.1, ukr: 0.9 }[league];
   const ageMult = age <= 23 ? 1.35 : age <= 27 ? 1.15 : age <= 29 ? 0.9 : age <= 31 ? 0.6 : age <= 33 ? 0.35 : 0.15;
-  const v = 0.06 * Math.exp((ca - 80) / 14.5) * leagueMult * ageMult;
-  return Math.round(clamp(v, 0.05, 250) * 20) / 20; // крок 50 тис.
+  const v = 0.22 * Math.exp((ca - 80) / 16) * leagueMult * ageMult;
+  return Math.round(clamp(v, 0.05, 200) * 20) / 20; // крок 50 тис.
 }
 
 module.exports = { abilities, attributes, marketValue, hash01, TIER_OF, OUTFIELD, GOALKEEPER, LEAGUE };

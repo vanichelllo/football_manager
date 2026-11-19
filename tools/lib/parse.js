@@ -227,13 +227,18 @@ function career(ib) {
     if (g != null) goals += g;
   }
   let caps = 0, intlGoals = 0, team = null;
+  // у статтях трапляються обидва написання: nationalteam1 і national_team1
+  const field = (base, i) => {
+    const sfx = i || '';
+    return ib[base + sfx] ?? ib[base.replace('national', 'national_') + sfx];
+  };
   for (let i = 0; i <= 12; i++) {
-    const nt = ib['nationalteam' + (i || '')];
+    const nt = field('nationalteam', i);
     if (nt === undefined) continue;
     const name = plain(nt);
     if (/\bU-?\s?\d\d|under[- ]\d\d|youth|olympic|\bB\b|amateur|futsal|beach/i.test(name)) continue;
-    const c = parseNum(ib['nationalcaps' + (i || '')]);
-    if (c != null && c >= caps) { caps = c; intlGoals = parseNum(ib['nationalgoals' + (i || '')]) || 0; team = name; }
+    const c = parseNum(field('nationalcaps', i));
+    if (c != null && c >= caps) { caps = c; intlGoals = parseNum(field('nationalgoals', i)) || 0; team = name; }
   }
   return { leagueApps: seen ? apps : null, leagueGoals: seen ? goals : null, caps, intlGoals, nationalTeam: team };
 }
