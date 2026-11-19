@@ -164,6 +164,7 @@
     yellow: ['Жовта картка: {p} ({team}).', 'Жорсткий підкат, жовта — {p} ({team}).'],
     red2: ['Друга жовта й червона: {p} ({team}) залишає поле.'],
     red: ['Пряма червона! Вилучено: {p} ({team}).'],
+    injury: ['Травма: {p} ({team}) не може продовжувати гру.', '{p} ({team}) кульгає й просить заміну — схоже на травму.'],
     sub: ['Заміна, {team}: виходить {on}, залишає поле {off}.'],
     half: ['Перерва. {score}.'],
     second: ['Почався другий тайм.'],
@@ -294,6 +295,27 @@
       say(min, 'yellow', t, 'yellow', vars);
     }
 
+    /** Травма: гравця міняють (навіть якщо заміни ручні), а як замін немає — команда грає в меншості. */
+    function injury(t, min) {
+      const x = R.weighted(t.onPitch.filter((y) => !y.out), (y) => (y.slot.role === 'GK' ? 0.3 : 1) * (125 - y.cond));
+      if (!x) return;
+      const pf = t.perf.get(x.p.id);
+      pf.injury = FM.dev ? FM.dev.injuryWeeks(R) : 1 + R.int(3);
+      say(min, 'injury', t, 'injury', { p: name(x.p), team: t.club.name });
+      const pool = t.bench.filter((b) => (x.slot.role === 'GK') === (b.roles[0] === 'GK'));
+      if (t.subsLeft > 0 && pool.length) {
+        let best = pool[0], bv = -1;
+        for (const b of pool) { const v = slotValue(b, x.slot); if (v > bv) { bv = v; best = b; } }
+        t.bench.splice(t.bench.indexOf(best), 1);
+        x.out = true; x.subbedOff = minuteNum;
+        t.onPitch.push({ p: best, slot: x.slot, cond: 100, yellow: 0, out: false, subbedOn: minuteNum });
+        t.perf.set(best.id, { min: 0, goals: 0, assists: 0, shots: 0, saves: 0, conceded: 0, yellow: 0, red: false, played: true, from: minuteNum });
+        t.subsLeft--;
+        say(min, 'sub', t, 'sub', { team: t.club.name, on: name(best), off: name(x.p) });
+      } else { x.out = true; x.subbedOff = minuteNum; }
+      compute(t);
+    }
+
     function aiSubs(t, o, min) {
       if (opts.subs === false || !t.autoSubs || t.subsLeft <= 0 || t.subWindows <= 0 || !t.bench.length) return;
       if (!(min === 60 || min === 70 || min === 80)) return;
@@ -369,6 +391,7 @@
       if (R.chance(cr.h)) chance(H, A, e.label);
       if (R.chance(cr.a)) chance(A, H, e.label);
       for (const t of sides) if (R.chance(1.9 / 94 * (1 + 0.2 * t.pressing))) card(t, e.label);
+      for (const t of sides) if (R.chance(0.003 * (1 + 0.3 * t.pressing))) injury(t, e.label);
       if (R.chance(0.035)) {
         const t = R.chance(cr.share) ? H : A;
         say(e.label, 'info', t, 'pressure', { team: t.club.name });
@@ -402,7 +425,7 @@
           r += (slotValue(x.p, x.slot) - 12) * 0.06 + R.range(-0.35, 0.35);
           if (minutes < 20) r = 6 + (r - 6) * 0.5;
           ratings.push({ team: t.k, id: x.p.id, player: x.p, role: x.slot.role, rating: Math.round(Math.max(3, Math.min(10, r)) * 10) / 10,
-            goals: pf.goals, assists: pf.assists, yellow: pf.yellow, red: pf.red, on: x.subbedOn || null, off: x.subbedOff || null });
+            goals: pf.goals, assists: pf.assists, yellow: pf.yellow, red: pf.red, injury: pf.injury || 0, on: x.subbedOn || null, off: x.subbedOff || null });
         }
       }
       const motm = [...ratings].sort((a, b) => b.rating - a.rating)[0];

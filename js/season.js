@@ -54,7 +54,8 @@
   const nextFixture = (S, clubId) => clubFixtures(S, clubId).find((f) => !f.s) || null;
 
   /** Гравці, які пропускають матч (червона або 5 жовтих). */
-  const unavailable = (S, clubId, W) => new Set(W.club(clubId).players.filter((id) => S.bans[id]));
+  /** Хто не може грати: дискваліфіковані й травмовані. */
+  const unavailable = (S, clubId, W) => new Set(W.club(clubId).players.filter((id) => S.bans[id] || W.player(id).injury > 0));
 
   /**
    * Склад і тактика клубу на матч. user — { clubId, tactics } гравця-людини: його склад береться з тактики.
@@ -64,6 +65,11 @@
     const players = W.squad(clubId);
     const out = unavailable(S, clubId, W);
     const available = players.filter((p) => !out.has(p.id));
+    // криза: здорових замало — у заявку йдуть ті, хто травмований найлегше
+    if (available.length < 14) {
+      const extra = players.filter((p) => out.has(p.id) && !S.bans[p.id]).sort((a, b) => (a.injury || 0) - (b.injury || 0));
+      available.push(...extra.slice(0, 14 - available.length));
+    }
     if (user && user.clubId === clubId && user.tactics) {
       const t = user.tactics;
       const lineup = FM.lineupFromIds(available, t.formation, t.ids);
@@ -101,6 +107,7 @@
       for (let k = 0; k < r.goals; k++) f.sc.push([r.team, r.id]);
       // дискваліфікація: [скільки матчів, тиждень, коли отримав] — відбувається лише в наступних турах
       const ban = () => { const b = S.bans[r.id]; S.bans[r.id] = [(b ? b[0] : 0) + 1, f.w]; };
+      if (r.injury) r.player.injury = Math.max(r.player.injury || 0, r.injury);
       if (r.red) ban();
       else if (r.yellow) {
         S.yc[r.id] = (S.yc[r.id] || 0) + r.yellow;
@@ -128,14 +135,17 @@
       const p = W.player(id);
       if (p && playedClubs.has(p.club)) { S.bans[id][0]--; if (S.bans[id][0] <= 0) delete S.bans[id]; }
     }
+    // травми: мінус тиждень
+    for (const p of W.players.values()) if (p.injury > 0) { p.injury--; if (p.injury <= 0) delete p.injury; }
     S.week++;
   }
 
-  /** Зіграти весь поточний тиждень і перейти до наступного. */
+  /** Зіграти весь поточний тиждень і перейти до наступного (з тижнем розвитку гравців, якщо підключено develop.js). */
   function playWeek(S, W, opts = {}) {
     const list = fixturesOfWeek(S, S.week);
     playOthers(S, W, { name: opts.name, user: opts.user });
     advance(S, W);
+    if (FM.dev && opts.develop !== false) FM.dev.weekly(W, S, opts.dev || {});
     return list;
   }
 
@@ -180,6 +190,6 @@
     return null;
   }
 
-  FM.season = { firstSaturday, create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, prepare, play, record, playOthers, advance, playWeek, table, leaders, zone, roundRobin };
+  FM.season = { unavailable, firstSaturday, create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, prepare, play, record, playOthers, advance, playWeek, table, leaders, zone, roundRobin };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

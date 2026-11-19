@@ -359,3 +359,5 @@ tr.z-rel td.zone { border-left-color: #cf4040; }
 .msg-ok { color: var(--accent); }
 .msg-bad { color: var(--warn); }
 .chip { background: var(--accent-soft); color: var(--fg); }
+b.up { color: var(--accent); } b.down { color: var(--warn); }
+select.tiny { padding: 0.25rem 0.35rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); max-width: 11rem; }

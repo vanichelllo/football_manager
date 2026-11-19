@@ -83,7 +83,8 @@ test('покроковий матч: заміни, ліміт 5, зміна та
   const M = FM.match.create({ home: { ...team(club('Arsenal')), manual: true }, away: team(club('Chelsea')), seed: 'live' });
   for (let i = 0; i < 60; i++) M.step();
   const me = M.sides[0];
-  const out = me.onPitch.find((x) => !x.out && x.slot.role === 'ST');
+  const left = me.subsLeft; // якщо була травма — одну заміну вже використано
+  const out = me.onPitch.find((x) => !x.out && x.slot.role !== 'GK' && !x.subbedOn);
   const sub = me.bench.find((p) => p.roles[0] !== 'GK');
   assert.ok(M.sub(0, out.p.id, sub.id));
   assert.ok(!M.sub(0, out.p.id, me.bench[0].id), 'двічі одного не замінити');
@@ -92,7 +93,7 @@ test('покроковий матч: заміни, ліміт 5, зміна та
     const x = me.onPitch.find((y) => !y.out && y.slot.role !== 'GK' && !y.subbedOn);
     if (b.roles[0] !== 'GK' && x && M.sub(0, x.p.id, b.id)) made++;
   }
-  assert.strictEqual(made, 5, 'не більше п’яти замін');
+  assert.strictEqual(made, left, 'не більше п’яти замін');
   assert.strictEqual(me.subsLeft, 0);
   assert.ok(M.setTactics(0, { mentality: 'attacking', pressing: 'high' }));
   const r = M.result();
