@@ -200,6 +200,7 @@
         ])]),
       ]),
       seasonPanel(),
+      tipsPanel(4),
       newsPanel(),
       el('div.grid', [mini(best, 'Найкращі гравці'), mini(young, 'Найперспективніша молодь (до 21)')]),
     ];
@@ -611,6 +612,27 @@
     return W.squad(clubId).filter((p) => !banned(p.id) && !(p.injury > 0));
   }
 
+  const TSETS = ['A', 'B', 'C'];
+  const TSET_UK = { A: 'А', B: 'Б', C: 'В' };
+  /** Знайомство зі схемами (0–100): звична схема на старті — 100, решта — 30. */
+  function familiarity() {
+    if (!state.familiarity) {
+      state.familiarity = {};
+      for (const f of Object.keys(FM.FORMATIONS)) state.familiarity[f] = 30;
+      if (state.tactics) state.familiarity[state.tactics.formation] = 100;
+    }
+    return state.familiarity;
+  }
+  /** Перемкнути активну тактику (А/Б/В). Нова — копія поточної. */
+  function switchTacticSet(key) {
+    myTactics();
+    state.tacticSets = state.tacticSets || {};
+    state.tacticSets[state.tacticKey || 'A'] = state.tactics;
+    state.tacticKey = key;
+    state.tactics = state.tacticSets[key] || JSON.parse(JSON.stringify(state.tactics));
+    state.tacticSets[key] = state.tactics;
+  }
+
   /** Тактика гравця: створюється помічником при першому зверненні. */
   function myTactics() {
     if (!state.tactics) {
@@ -623,14 +645,14 @@
     t.roles = t.roles || {}; t.variants = t.variants || {}; t.instr = t.instr || {}; t.takers = t.takers || {};
     return t;
   }
-  const USER = () => ({ clubId: state.clubId, tactics: myTactics() });
+  const USER = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity() });
 
   function mySide() {
     const t = myTactics();
     const players = availablePlayers(state.clubId);
     const lineup = FM.lineupFromIds(players, t.formation, t.ids, t);
     return { club: W.club(state.clubId), players, formation: t.formation, lineup, units: FM.lineupUnits(lineup),
-      mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers };
+      mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers, familiarity: Math.min(1, (familiarity()[t.formation] || 0) / 100) };
   }
 
   const shortName = (p) => { const n = nameOf(p).split(' '); return n.length > 1 ? n.slice(1).join(' ') : n[0]; };
@@ -682,7 +704,7 @@
           t.ids = ids; save();
         },
       }, options.map((p) => el('option', { value: p.id, selected: p.id === x.player.id || null },
-        `${nameOf(p)} · ${f1(FM.slotValue(p, x.slot))}${side.lineup.xi.some((y) => y.player.id === p.id) && p.id !== x.player.id ? ' (у складі)' : ''}`)));
+        `${nameOf(p)} · ${f1(FM.slotValue(p, x.slot))}${(p.fitness ?? 100) < 85 ? ` · ${Math.round(p.fitness)}%` : ''}${side.lineup.xi.some((y) => y.player.id === p.id) && p.id !== x.player.id ? ' (у складі)' : ''}`)));
       const roleSel = i === 0 ? el('span.pos.line-gk', 'ВР') : el('select.tiny', { id: 'role-' + i, 'aria-label': 'Роль на позиції', onchange: (e) => {
         t.roles[i] = e.target.value; delete t.variants[i]; save();
       } }, ROLES_ALL.map((r) => el('option', { value: r, selected: r === x.slot.role || null }, FM.roleLabel(r, x.slot.side))));
@@ -705,11 +727,18 @@
     return [
       el('header', [el('h1', 'Тактика'), el('span.muted', 'Зміни зберігаються одразу й діють у наступному матчі')]),
       el('div.panel', [
+        el('h3', 'Набір тактик'),
+        el('div.tabs', TSETS.map((k) => el('button', { type: 'button', 'aria-pressed': String((state.tacticKey || 'A') === k), onclick: () => { switchTacticSet(k); save(); } },
+          `Тактика ${TSET_UK[k]}${(state.tacticSets || {})[k] || k === (state.tacticKey || 'A') ? ` · ${((state.tacticSets || {})[k] || t).formation}` : ' (нова)'}`))),
+        el('p.note', 'Три тактики можна перемикати посеред матчу. Активна — та, з якою команда виходить на поле.'),
+      ]),
+      el('div.panel', [
         el('h3', 'Схема'),
         el('div.tabs', Object.keys(FM.FORMATIONS).map((f) => el('button', {
           type: 'button', 'aria-pressed': String(f === t.formation),
           onclick: () => { t.formation = f; resetSlots(); t.ids = FM.pickLineup(avail, f).xi.map((x) => x.player.id); save(); },
-        }, f))),
+        }, [f, el('small.fam', ` ${Math.round(familiarity()[f] || 0)}%`)]))),
+        el('p.note', `Знайомство зі схемою ${t.formation}: ${Math.round(familiarity()[t.formation] || 0)}%. Незнайома схема працює до 5% гірше; команда звикає в матчах і на тренуваннях «Підготовка до матчу».`),
         Object.keys(t.roles).length ? el('p.note', 'Власна розстановка: ролі окремих позицій змінено.') : null,
       ]),
       el('div.tactics-grid', [
@@ -739,8 +768,39 @@
           el('small.muted', TACTIC_HELP[g]),
         ]))),
       ]),
+      tipsPanel(8),
       el('div.panel', [el('h3', 'Сила ліній'), compareBarsSingle([['Атака', side.units.att], ['Контроль м’яча', side.units.mid], ['Оборона', side.units.def], ['Воротар', side.units.gk]])]),
     ];
+  }
+
+  /** Поради асистента: що варто виправити перед наступним матчем. */
+  function assistantTips() {
+    const tips = [];
+    const t = myTactics(), side = mySide();
+    for (const x of side.lineup.xi) {
+      const f = FM.fit(x.player, x.slot);
+      if (f < 0.85) tips.push(['bad', `${nameOf(x.player)} грає не на своїй позиції (${ROLE_SHORT(x.slot)}). Знайдіть когось кращого або змініть роль.`]);
+      if ((x.player.fitness ?? 100) < 72) tips.push(['warn', `${nameOf(x.player)} втомлений (${Math.round(x.player.fitness)}%). Варто дати відпочити.`]);
+      if (x.auto) tips.push(['warn', `На позиції ${ROLE_SHORT(x.slot)} обраний гравець недоступний — помічник поставив ${nameOf(x.player)}.`]);
+    }
+    const fam = familiarity()[t.formation] || 0;
+    if (fam < 60) tips.push(['warn', `Команда погано знає схему ${t.formation} (${Math.round(fam)}%). Тренування «Підготовка до матчу» допоможе.`]);
+    const sq = W.squad(state.clubId);
+    const unhappy = sq.filter((p) => FM.morale.get(p) < 30);
+    if (unhappy.length) tips.push(['warn', `Незадоволені: ${unhappy.slice(0, 3).map(nameOf).join(', ')}${unhappy.length > 3 ? ' та інші' : ''}. Причини — у картках гравців.`]);
+    const S = state.season;
+    const expiring = sq.filter((p) => (p.contract || 9999) <= S.year + 1 && FM.morale.status(W, p) === 'key');
+    if (expiring.length) tips.push(['warn', `Контракти лідерів закінчуються цього сезону: ${expiring.map(nameOf).join(', ')}.`]);
+    const talents = sq.filter((p) => (W.age(p) ?? 30) <= 20 && p.pa - p.ca >= 30 && !(S.ps[p.id] && S.ps[p.id][0] >= 3) && S.week >= 10);
+    if (talents.length) tips.push(['info', `Талановитій молоді бракує ігор: ${talents.slice(0, 3).map(nameOf).join(', ')}. Без ігрового часу ростуть повільніше — можна віддати в оренду.`]);
+    const me = W.club(state.clubId);
+    if (me.wageBudget && FM.market.wageBill(W, me.id) > me.wageBudget * 0.97) tips.push(['info', 'Фонд зарплат майже вичерпано: нові контракти правління не погодить.']);
+    if (sq.filter((p) => p.roles[0] === 'GK' && !p.injury).length < 2) tips.push(['bad', 'У команди лише один здоровий воротар.']);
+    return tips;
+  }
+  function tipsPanel(limit = 5) {
+    const tips = assistantTips();
+    return el('div.panel', [el('h3', 'Поради асистента'), tips.length ? el('ul.tips', tips.slice(0, limit).map(([k, txt]) => el('li.tip-' + k, txt))) : el('p.muted', 'Усе гаразд — можна грати.')]);
   }
 
   function compareBarsSingle(rows) {
@@ -831,7 +891,7 @@
 
   function engineSide(side, manual) {
     return { club: { ...side.club, name: clubName(side.club) }, players: side.players, formation: side.formation, lineup: side.lineup,
-      mentality: side.mentality, pressing: side.pressing, passing: side.passing, takers: side.takers, manual };
+      mentality: side.mentality, pressing: side.pressing, passing: side.passing, takers: side.takers, familiarity: side.familiarity, manual };
   }
 
   function startFriendly() {
@@ -990,9 +1050,16 @@
         } }, d.label))),
         el('small.muted', 'Наведіть на варіант, щоб побачити, коли він доречний.'),
       ]) : talkMsg ? el('p.msg-ok', talkMsg) : null;
+      const sets = state && myK != null ? TSETS.filter((k) => (state.tacticSets || {})[k] || k === (state.tacticKey || 'A')) : [];
+      const setBtns = sets.length > 1 ? el('div.field', [el('b', 'Тактика'), el('div.tabs', sets.map((k) => el('button', { type: 'button', 'aria-pressed': String(t.setKey === k || (!t.setKey && k === (state.tacticKey || 'A'))), onclick: () => {
+        const ts = (state.tacticSets || {})[k] || state.tactics;
+        M.setShape(myK, ts.formation, { ...ts, familiarity: Math.min(1, (familiarity()[ts.formation] || 0) / 100) });
+        t.setKey = k; flush(); drawControl();
+      } }, `${TSET_UK[k]} · ${((state.tacticSets || {})[k] || state.tactics).formation}`)))]) : null;
       control.replaceChildren(
         el('h3', paused ? 'Пауза — рішення тренера' : 'Рішення тренера'),
         talk,
+        setBtns,
         el('div.instr', ['mentality', 'pressing', 'passing'].map((g) => el('div.field', [
           el('b', { mentality: 'Ментальність', pressing: 'Пресинг', passing: 'Передачі' }[g]),
           segmented(g, tac[g], (v) => { M.setTactics(myK, { [g]: v }); flush(); drawControl(); }),
@@ -1205,6 +1272,28 @@
     }
   }
 
+  /** Аналіз суперника: схема, підхід, лідери, форма, слабке місце. */
+  function opponentReport(oppId, oppHome) {
+    const S = state.season;
+    const side = FM.season.sideFor(S, W, oppId, null, state.clubId, oppHome);
+    const u = FM.lineupUnits(side.lineup), mine = mySide().units;
+    const t = FM.season.table(S, W, W.club(oppId).league).find((r) => r.id === oppId);
+    const best = [...side.lineup.xi].sort((a, b) => FM.slotValue(b.player, b.slot) - FM.slotValue(a.player, a.slot)).slice(0, 3);
+    const scorer = Object.entries(S.ps).map(([id, st]) => [W.player(id), st]).filter(([p]) => p && p.club === oppId).sort((a, b) => b[1][1] - a[1][1])[0];
+    const lines = [['атака', 'att'], ['контроль м\u2019яча', 'mid'], ['оборона', 'def'], ['воротар', 'gk']];
+    const weak = lines.map(([n, k]) => [n, u[k] - mine[k]]).sort((a, b) => a[1] - b[1])[0];
+    const strong = lines.map(([n, k]) => [n, u[k] - mine[k]]).sort((a, b) => b[1] - a[1])[0];
+    const out = W.club(oppId).players.filter((id) => W.player(id).injury > 0 || S.bans[id]).map((id) => nameOf(W.player(id)));
+    return el('details.opp', [el('summary', 'Аналіз суперника'), el('dl.facts', [
+      el('dt', 'Схема й підхід'), el('dd', `${side.formation}, ${FM.match.TACTIC_UK.mentality[side.mentality]}`),
+      el('dt', 'Ключові гравці'), el('dd', best.map((x) => `${nameOf(x.player)} (${FM.roleLabel(x.slot.role, x.slot.side)})`).join(', ')),
+      scorer && scorer[1][1] ? el('dt', 'Бомбардир') : null, scorer && scorer[1][1] ? el('dd', `${nameOf(scorer[0])}, ${scorer[1][1]} гол.`) : null,
+      el('dt', 'Форма'), el('dd', t && t.form.length ? formEl(t.form) : '—'),
+      el('dt', 'Порівняно з вами'), el('dd', `найсильніше — ${strong[0]}, найслабше — ${weak[0]}`),
+      out.length ? el('dt', 'Не зіграють') : null, out.length ? el('dd', out.join(', ')) : null,
+    ])]);
+  }
+
   function cupNote() {
     const pend = FM.cups.pendingTie(state, state.clubId);
     if (!pend) return null;
@@ -1234,6 +1323,8 @@
   }
 
   function boardWeek() {
+    const S = state.season;
+    familiarityWeek(FM.season.fixturesOfWeek(S, S.week - 1).some((f) => f.h === state.clubId || f.a === state.clubId));
     for (const e of FM.morale.weekly(W, state)) FM.market.news(state, e.text);
     const r = FM.board.weekly(W, state);
     if (r.fired) state.sacked = { reason: r.reason, offers: FM.board.jobOffers(W, state, 3, 'sack') };
@@ -1241,9 +1332,19 @@
 
   function training() {
     if (!state.training) state.training = { focus: 'balanced', intensity: 'normal', individual: {} };
+    if (!state.training.plan) state.training.plan = 'balanced';
     return state.training;
   }
-  const devOpts = () => ({ training: training(), myClub: state.clubId });
+  const devOpts = () => ({ training: training(), myClub: state.clubId, recovery: FM.dev.PLANS[training().plan || 'balanced'].recovery });
+  /** Після тижня: знайомство зі схемою росте від матчів і підготовки, без практики — забувається. */
+  function familiarityWeek(played) {
+    const fam = familiarity(), cur = myTactics().formation;
+    const plan = FM.dev.PLANS[training().plan || 'balanced'];
+    for (const f of Object.keys(fam)) {
+      if (f === cur) fam[f] = Math.min(100, fam[f] + (played ? 8 : 0) + plan.fam);
+      else fam[f] = Math.max(20, fam[f] - 1);
+    }
+  }
 
   /** Завершити сезон і почати наступний: історія, завершення кар'єри, юнаки, новий календар. */
   function startNextSeason() {
@@ -1403,6 +1504,7 @@
     return [
       el('header', [el('h1', 'Тренування'), el('span.muted', 'Діє щотижня на всіх гравців клубу')]),
       el('div.panel', [el('div.instr', [
+        el('div.field', [el('b', 'План тижня'), seg(t, 'plan', FM.dev.PLANS), el('small.muted', FM.dev.PLANS[t.plan || 'balanced'].hint)]),
         el('div.field', [el('b', 'Наголос'), seg(t, 'focus', FM.dev.FOCUS), el('small.muted', 'Які атрибути ростуть першими.')]),
         el('div.field', [el('b', 'Інтенсивність'), seg(t, 'intensity', FM.dev.INTENSITY), el('small.muted', 'Інтенсивне — швидший ріст, але більше травм; легке — навпаки.')]),
       ])]),
@@ -1417,7 +1519,7 @@
             el('td.num', el('b' + (d > 0 ? '.up' : d < 0 ? '.down' : ''), d > 0 ? '+' + d : d)),
             el('td', el('select.tiny', { 'aria-label': 'Індивідуальне тренування ' + nameOf(p), onchange: (e) => { if (e.target.value) t.individual[p.id] = e.target.value; else delete t.individual[p.id]; saveGame(); } },
               attrOptions(p).map(([k, n]) => el('option', { value: k, selected: (t.individual[p.id] || '') === k || null }, n)))),
-            el('td', p.injury ? el('span.chip.bad', `травма, ${p.injury} тиж.`) : banned(p.id) ? el('span.chip.bad', 'дискв.') : 'готовий'),
+            el('td', p.injury ? el('span.chip.bad', `травма, ${p.injury} тиж.`) : banned(p.id) ? el('span.chip.bad', 'дискв.') : (p.fitness ?? 100) < 85 ? el('span.chip', `свіжість ${Math.round(p.fitness)}%`) : 'готовий'),
           ]);
         })),
       ]))]),
@@ -1471,6 +1573,7 @@
         ]),
         el('p.muted', `Суперник: ${clubName(opp)}, ${oppPos ? oppPos + '-е місце' : ''}${t[oppPos - 1] && t[oppPos - 1].p ? `, ${t[oppPos - 1].pts} ${FM.plural(t[oppPos - 1].pts, 'очко', 'очки', 'очок')}` : ''}.` + (out.length ? ` Не зіграють: ${out.join(', ')}.` : '')),
         cupNote(),
+        opponentReport(opp.id, thisWeek.h === opp.id),
         pressPanel(),
         el('div.actions', [
           el('button.btn.primary', { type: 'button', onclick: () => playMyMatch(true) }, 'Грати з трансляцією'),

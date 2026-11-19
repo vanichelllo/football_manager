@@ -23,6 +23,13 @@
     physical: { label: 'Фізика', w: { pac: 2, sta: 2.2, str: 2, wor: 1.4 } },
     technique: { label: 'Техніка й гра в пас', w: { pas: 2.2, dri: 1.8, dec: 1.8, cro: 1.3, kic: 1.5 } },
   };
+  // План тижня: відновлення свіжості, ріст, знайомство з тактикою, ризик травм
+  const PLANS = {
+    balanced: { label: 'Збалансований', hint: 'Усього потроху.', recovery: 22, growth: 1, fam: 2, injury: 1 },
+    prep: { label: 'Підготовка до матчу', hint: 'Відпрацювання тактики: команда швидше звикає до схеми.', recovery: 24, growth: 0.9, fam: 6, injury: 0.9 },
+    recovery: { label: 'Відновлення', hint: 'Найкраще після кубка посеред тижня: свіжість відновлюється швидше.', recovery: 32, growth: 0.85, fam: 1, injury: 0.7 },
+    development: { label: 'Розвиток', hint: 'Більше роботи над атрибутами, але гравці гірше відновлюються.', recovery: 14, growth: 1.15, fam: 1, injury: 1.25 },
+  };
   const INTENSITY = {
     low: { label: 'Легке', growth: 0.85, injury: 0.6 },
     normal: { label: 'Звичайне', growth: 1, injury: 1 },
@@ -84,12 +91,13 @@
       const age = W.age(p) ?? 24;
       const mine = p.club && p.club === opts.myClub;
       const inten = INTENSITY[(mine && tr.intensity) || 'normal'];
+      const plan = PLANS[(mine && tr.plan) || 'balanced'];
       // травма на тренуванні
-      if (p.club && !p.injury && R.chance(0.006 * inten.injury)) { p.injury = Math.min(4, injuryWeeks(R)); hurt.push({ id: p.id, weeks: p.injury }); }
+      if (p.club && !p.injury && R.chance(0.006 * inten.injury * plan.injury)) { p.injury = Math.min(4, injuryWeeks(R)); hurt.push({ id: p.id, weeks: p.injury }); }
       const clubGames = p.club ? games[p.club] || 0 : 0;
       const apps = (S.ps[p.id] && S.ps[p.id][0]) || 0;
       const share = clubGames ? Math.min(1, apps / clubGames) : 0.4;
-      let g = Math.max(0, p.pa - p.ca) * growthRate(age) * (0.55 + 0.9 * share) * inten.growth;
+      let g = Math.max(0, p.pa - p.ca) * growthRate(age) * (0.55 + 0.9 * share) * inten.growth * plan.growth;
       if (p.injury) g *= 0.3;
       if (!p.club) g *= 0.5; // без клубу розвиток повільніший
       if (age >= 30) g -= 0.02 + (age - 30) * 0.03;
@@ -212,6 +220,6 @@
     state.season = FM.season.create(W, `${state.season.seed}-${year}`);
   }
 
-  FM.dev = { weekly, endSeason, newSeason, makeYouth, injuryWeeks, FOCUS, INTENSITY, ROLE_W };
+  FM.dev = { PLANS, weekly, endSeason, newSeason, makeYouth, injuryWeeks, FOCUS, INTENSITY, ROLE_W };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

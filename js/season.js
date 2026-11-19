@@ -73,22 +73,26 @@
     if (user && user.clubId === clubId && user.tactics) {
       const t = user.tactics;
       const lineup = FM.lineupFromIds(available, t.formation, t.ids, t);
-      return { club: W.club(clubId), players: available, formation: t.formation, lineup, mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers || {} };
+      return { club: W.club(clubId), players: available, formation: t.formation, lineup, mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers || {},
+        familiarity: user.familiarity ? Math.min(1, (user.familiarity[t.formation] || 0) / 100) : 1 };
     }
-    const formation = FM.bestFormation(available);
+    // ШІ дає відпочити втомленим (свіжість < 72), якщо є кому їх замінити
+    const fresh = available.filter((p) => (p.fitness ?? 100) >= 72);
+    const pool = fresh.length >= 15 && fresh.filter((p) => p.roles[0] === 'GK').length ? fresh : available;
+    const formation = FM.bestFormation(pool);
     let mentality = 'balanced';
     if (oppId) {
       const diff = W.clubLevel(clubId) - W.clubLevel(oppId) + (home ? 3 : -3);
       mentality = diff > 12 ? 'attacking' : diff > 5 ? 'positive' : diff < -12 ? 'defensive' : diff < -5 ? 'cautious' : 'balanced';
     }
-    return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(available, formation), mentality };
+    return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(pool, formation), mentality };
   }
 
   /** Параметри матчу для двигуна (FM.match.create або play). */
   function prepare(S, W, f, name, user) {
     const hs = sideFor(S, W, f.h, user, f.a, true), as = sideFor(S, W, f.a, user, f.h, false);
     const side = (x) => ({ club: { ...x.club, name: name ? name.club(x.club) : x.club.name }, players: x.players, formation: x.formation,
-      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing, takers: x.takers });
+      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing, takers: x.takers, familiarity: x.familiarity });
     // погода — за датою й країною господарів (детерміновано для матчу)
     const weather = FM.weatherFor ? FM.weatherFor(dateOf(f.w != null ? f.w : S.week, S), W.club(f.h).league, FM.rng(`wx-${S.seed}-${f.id}`)) : null;
     return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined, gen: name ? name.gen : undefined, weather } };
@@ -111,6 +115,7 @@
       // дискваліфікація: [скільки матчів, тиждень, коли отримав] — відбувається лише в наступних турах
       const ban = () => { const b = S.bans[r.id]; S.bans[r.id] = [(b ? b[0] : 0) + 1, f.w]; };
       if (r.injury) r.player.injury = Math.max(r.player.injury || 0, r.injury);
+      if (r.cond != null) r.player.fitness = r.cond;
       if (r.red) ban();
       else if (r.yellow) {
         S.yc[r.id] = (S.yc[r.id] || 0) + r.yellow;
@@ -129,7 +134,7 @@
   }
 
   /** Закрити тиждень: дискваліфікації тих, хто пропустив матч, минають; наступний тиждень. */
-  function advance(S, W) {
+  function advance(S, W, opts = {}) {
     const playedClubs = new Set();
     for (const f of fixturesOfWeek(S, S.week)) { playedClubs.add(f.h); playedClubs.add(f.a); }
     // дискваліфікований ще до цього туру — саме він пропустив матч
@@ -138,8 +143,15 @@
       const p = W.player(id);
       if (p && playedClubs.has(p.club)) { S.bans[id][0]--; if (S.bans[id][0] <= 0) delete S.bans[id]; }
     }
-    // травми: мінус тиждень
-    for (const p of W.players.values()) if (p.injury > 0) { p.injury--; if (p.injury <= 0) delete p.injury; }
+    // травми: мінус тиждень; свіжість відновлюється (у людини — за планом тренувань)
+    for (const p of W.players.values()) {
+      if (p.injury > 0) { p.injury--; if (p.injury <= 0) delete p.injury; }
+      if (p.fitness != null) {
+        const plan = opts.recovery && p.club === opts.myClub ? opts.recovery : 22;
+        p.fitness = Math.min(100, p.fitness + plan + (p.attrs.sta || 10) * 0.6);
+        if (p.fitness >= 100) delete p.fitness;
+      }
+    }
     S.week++;
   }
 
@@ -147,7 +159,7 @@
   function playWeek(S, W, opts = {}) {
     const list = fixturesOfWeek(S, S.week);
     playOthers(S, W, { name: opts.name, user: opts.user });
-    advance(S, W);
+    advance(S, W, { recovery: opts.dev && opts.dev.recovery, myClub: opts.dev && opts.dev.myClub });
     if (FM.dev && opts.develop !== false) FM.dev.weekly(W, S, opts.dev || {});
     return list;
   }

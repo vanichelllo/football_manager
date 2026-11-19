@@ -91,7 +91,10 @@
   function applyLeg(W, state, cup, ri, ti, leg, m) {
     const round = cup.rounds[ri], tie = round.ties[ti];
     const [h, a] = leg === 1 ? [tie.b, tie.a] : [tie.a, tie.b];
-    for (const r of m.ratings) if (r.injury) r.player.injury = Math.max(r.player.injury || 0, r.injury);
+    for (const r of m.ratings) {
+      if (r.injury) r.player.injury = Math.max(r.player.injury || 0, r.injury);
+      if (r.cond != null) r.player.fitness = r.cond; // свіжість після кубкового матчу
+    }
     tie.legs.push(leg === 1 ? [m.score[1], m.score[0]] : m.score.slice());
     const entry = { cup: cup.id, cupName: cup.name, round: round.name, h, a, score: m.score, mine: h === state.clubId || a === state.clubId };
     if (leg === round.weeks.length - 1) {

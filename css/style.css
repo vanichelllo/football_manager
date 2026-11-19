@@ -424,3 +424,11 @@ table.cup .badge { width: 1.3rem; height: 1.3rem; font-size: 0; vertical-align: 
 .sm-axis { stroke: var(--line); stroke-width: 0.5; }
 .sm-grid { stroke: var(--line); stroke-width: 0.4; stroke-dasharray: 1 1; }
 .shotmap circle { stroke-width: 0.6; }
+
+/* ---------- Група Б ---------- */
+small.fam { opacity: 0.6; font-size: 0.75em; }
+.tips { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.tips li.tip-bad::marker { color: #cf4040; } .tips li.tip-warn::marker { color: #e0a21a; } .tips li.tip-info::marker { color: var(--accent); }
+details.opp { margin: 0.6rem 0; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem 0.75rem; }
+details.opp summary { cursor: pointer; font-weight: 600; }
+details.opp .facts { margin-top: 0.5rem; }

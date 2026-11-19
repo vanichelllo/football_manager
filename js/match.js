@@ -286,7 +286,7 @@
         bench: lu.bench.slice(), subsLeft: 5, subWindows: 3, units: null,
         stats: { goals: 0, shots: 0, onTarget: 0, poss: 0, yellow: 0, red: 0, xg: 0 },
         perf: new Map(lu.xi.map((x) => [x.player.id, { min: 0, goals: 0, assists: 0, shots: 0, saves: 0, conceded: 0, yellow: 0, red: false, played: true }])),
-        lineup: lu, takers: t.takers || {}, marked: new Set(),
+        lineup: lu, takers: t.takers || {}, marked: new Set(), familiarity: t.familiarity == null ? 1 : t.familiarity,
         stats_extra: null,
       };
     });
@@ -303,6 +303,8 @@
     function compute(t) {
       t.units = unitsFrom(t.onPitch, t.marked);
       if (t.boost && t.boost !== 1) for (const k of ['att', 'mid', 'def']) t.units[k] *= t.boost; // ефект промови в перерві
+      const fam = 0.95 + 0.05 * t.familiarity; // незнайома тактика — до −5%
+      for (const k of ['att', 'mid', 'def']) t.units[k] *= fam;
     }
 
     function chanceRates(min) {
@@ -508,6 +510,31 @@
       return changed.length > 0;
     }
 
+    /** Перейти на іншу схему посеред матчу: гравці на полі перерозподіляються по нових позиціях. */
+    function setShape(k, formation, tac) {
+      const t = sides[k];
+      if (done || !FORMATIONS[formation]) return false;
+      const slots = slotsFor(formation, tac);
+      const live = t.onPitch.filter((x) => !x.out);
+      const free = live.slice();
+      const order = slots.map((sl, i) => i).sort((i, j) => (slots[i].role === 'GK' ? -1 : 0) - (slots[j].role === 'GK' ? -1 : 0));
+      const assigned = new Map();
+      for (const i of order) {
+        if (!free.length) break;
+        let best = free[0], bv = -1;
+        for (const x of free) { const v = slotValue(x.p, slots[i]); if (v > bv) { bv = v; best = x; } }
+        assigned.set(best, slots[i]);
+        free.splice(free.indexOf(best), 1);
+      }
+      for (const [x, sl] of assigned) x.slot = sl;
+      t.formation = formation;
+      if (tac) setTactics(k, tac);
+      t.familiarity = tac && tac.familiarity != null ? tac.familiarity : t.familiarity;
+      compute(t);
+      say(current, 'info', t, [`${t.club.name} перебудовується на ${formation}.`]);
+      return true;
+    }
+
     /** Промова в перерві: множник сили на другий тайм і мораль гравців на полі. */
     function halftimeTalk(k, kind) {
       const t = sides[k], o = sides[1 - k];
@@ -586,7 +613,7 @@
           r += (slotValue(x.p, x.slot) - 12) * 0.06 + R.range(-0.35, 0.35);
           if (minutes < 20) r = 6 + (r - 6) * 0.5;
           ratings.push({ team: t.k, id: x.p.id, player: x.p, role: x.slot.role, rating: Math.round(Math.max(3, Math.min(10, r)) * 10) / 10,
-            goals: pf.goals, assists: pf.assists, yellow: pf.yellow, red: pf.red, injury: pf.injury || 0, on: x.subbedOn || null, off: x.subbedOff || null });
+            goals: pf.goals, assists: pf.assists, yellow: pf.yellow, red: pf.red, injury: pf.injury || 0, on: x.subbedOn || null, off: x.subbedOff || null, cond: Math.round(x.cond) });
         }
       }
       const motm = [...ratings].sort((a, b) => b.rating - a.rating)[0];
@@ -607,7 +634,7 @@
     }
 
     return {
-      step, result, sub, setTactics, halftimeTalk, liveStats, sides, events, shots: shotLog, weather,
+      step, result, sub, setTactics, setShape, halftimeTalk, liveStats, sides, events, shots: shotLog, weather,
       get halftime() { return idx > 0 && idx < timeline.length && timeline[idx - 1].pi === 0 && timeline[idx].pi === 1; },
       get done() { return done; },
       get minute() { return current; },
