@@ -338,3 +338,24 @@ tr.z-rel td.zone { border-left-color: #cf4040; }
 .cond i { display: block; height: 100%; background: var(--accent); }
 .cond i.low { background: var(--warn); }
 .ev.ours .min { color: var(--fg); }
+
+/* ---------- Редактор і збереження ---------- */
+.edit-btn { margin-left: auto; text-decoration: none; color: var(--fg); }
+.head-actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.head-actions .btn { text-decoration: none; color: var(--fg); }
+.edit-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 760px) { .edit-grid { grid-template-columns: minmax(0, 1fr); } }
+.form { display: grid; gap: 0.75rem 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+.form .wide { grid-column: 1 / -1; }
+.form input, .form select, .field select, .field textarea, .panel .field input[type="number"] {
+  padding: 0.45rem 0.55rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); min-width: 0; width: 100%;
+}
+.form input[type="color"] { padding: 0.15rem; height: 2.3rem; }
+.field textarea { font: 0.8rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+.checks { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
+.attr-edit { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+.attr-edit li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.2rem 0; border-bottom: 1px dashed var(--line); }
+.attr-edit input { width: 4.2rem; padding: 0.3rem 0.4rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); text-align: right; }
+.msg-ok { color: var(--accent); }
+.msg-bad { color: var(--warn); }
+.chip { background: var(--accent-soft); color: var(--fg); }

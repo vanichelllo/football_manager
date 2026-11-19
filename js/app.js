@@ -12,11 +12,24 @@
     return;
   }
 
-  const W = FM.createWorld(window.FM_DB);
   let state = store.load();
-  if (state && !W.club(state.clubId)) state = null; // база змінилась — клубу вже немає
+  // Світ кар'єри: реальна база + зміни цієї кар'єри (розвиток, трансфери, редагування)
+  let W = FM.createWorld(window.FM_DB, state && state.world);
+  if (state && !W.club(state.clubId)) { state = null; W = FM.createWorld(window.FM_DB); } // база змінилась — клубу вже немає
   // давніші збереження (до етапу 3) — створюємо сезон
-  if (state && !state.season) { state.season = FM.season.create(W, String(Date.now())); store.save(state); }
+  if (state && !state.season) { state.season = FM.season.create(W, String(Date.now())); saveGame(); }
+
+  /** Зберегти кар'єру разом зі змінами світу. */
+  function saveGame() {
+    state.world = W.export();
+    if (!store.save(state)) console.warn('Не вдалося зберегти гру в браузері');
+  }
+  /** Почати з чистого аркуша: свіжий світ з реальної бази. */
+  function resetCareer() {
+    store.clear(); state = null; W = FM.createWorld(window.FM_DB);
+    pre = null; tableLeague = null; browseLeague = null;
+  }
+  const seasonLabel = () => { const y = state ? state.season.year : 2026; return `${y}/${String(y + 1).slice(2)}`; };
 
   const nameOf = (p) => (state && state.names === 'en' ? p.nameEn : p.name);
   const clubName = (c) => (state && state.names === 'en' ? c.nameEn : c.name);
@@ -50,7 +63,7 @@
     if (!state) return renderStart();
     const view = location.hash.slice(1) || 'overview';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, fixtures: screenSeason, table: screenTable, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
     const body = (screens[name] || screenOverview)(arg);
     app.replaceChildren(shell(name, body));
     window.scrollTo(0, 0);
@@ -70,7 +83,7 @@
           item('tactics', 'Тактика'), item('transfers', 'Трансфери', true),
           item('options', 'Налаштування'),
         ]),
-        el('div.foot', [`Тренер: ${state.manager}`, el('br'), `Сезон ${W.db.season}`]),
+        el('div.foot', [`Тренер: ${state.manager}`, el('br'), `Сезон ${seasonLabel()}`]),
       ]),
       el('main.main', body),
     ]);
@@ -102,14 +115,14 @@
       if (!clubId) return;
       state = { version: 1, manager: nameInput.value.trim() || 'Новий тренер', clubId, names: 'uk', started: W.today,
         season: FM.season.create(W, String(Date.now())) };
-      store.save(state);
+      saveGame();
       go('overview');
     }
     drawTabs(); drawClubs();
     app.replaceChildren(el('div.start', [
       el('div.hero', [
         el('h1', 'Головний тренер'),
-        el('p', `Реальні клуби й гравці шести ліг, сезон ${W.db.season}. Оберіть команду, яку очолите.`),
+        el('p', `Реальні клуби й гравці шести ліг, сезон 2026/27. Оберіть команду, яку очолите.`),
       ]),
       el('div.field', [el('label', { for: 'manager-name' }, 'Ваше ім’я'), nameInput]),
       tabs,
@@ -135,7 +148,7 @@
     return [
       el('header', [
         el('div', { style: { display: 'flex', gap: '0.9rem', alignItems: 'center' } }, [badge(c, true), el('div', [el('h1', clubName(c)), el('div.muted', `${W.league(c.league).name} · ${c.fullName || c.nameEn}`)])]),
-        starsEl(W.clubLevel(c.id), 'Рівень клубу'),
+        el('div.head-actions', [starsEl(W.clubLevel(c.id), 'Рівень клубу'), el('a.btn', { href: '#editclub-' + c.id }, 'Редагувати клуб')]),
       ]),
       el('div.grid', [
         el('div.panel', [el('h3', 'Клуб'), el('dl.facts', [
@@ -194,7 +207,8 @@
         const td = el('td' + (cls ? '.' + cls : ''), [f(p)]);
         if (k === 'pos') td.className = 'pos line-' + FM.ROLE_LINE[p.roles[0]];
         if (k === 'name') td.append(...(p.captain ? [' ', el('span.muted', { title: 'Капітан' }, '(К)')] : []), ...(p.onLoanFrom ? [' ', el('span.soon', { title: 'В оренді з ' + p.onLoanFrom }, 'оренда')] : []),
-          ...(banned(p.id) ? [' ', el('span.chip.bad', { title: 'Пропускає наступний матч' }, 'дискв.')] : []));
+          ...(banned(p.id) ? [' ', el('span.chip.bad', { title: 'Пропускає наступний матч' }, 'дискв.')] : []),
+          ...(p.edited ? [' ', el('span.chip', { title: 'Дані змінено в редакторі' }, '✎')] : []));
         return td;
       })))),
     ]));
@@ -225,6 +239,7 @@
           el('h1', nameOf(p)),
           el('div.muted', [el('a', { href: c.id === state.clubId ? '#squad' : '#club-' + c.id }, clubName(c)), ` · ${FM.ROLE_NAME[p.roles[0]]} (${FM.positions(p)})`]),
         ]),
+        el('a.btn.edit-btn', { href: '#edit-' + p.id }, p.edited ? 'Редагувати (змінено)' : 'Редагувати'),
       ]),
       el('div.grid', [
         el('div.panel', [el('h3', 'Особисте'), el('dl.facts', [
@@ -288,7 +303,7 @@
     return [
       el('header', [
         el('div', { style: { display: 'flex', gap: '0.9rem', alignItems: 'center' } }, [badge(c, true), el('div', [el('h1', clubName(c)), el('div.muted', `${W.league(c.league).name} · ${c.stadium || ''}`)])]),
-        starsEl(W.clubLevel(c.id), 'Рівень клубу'),
+        el('div.head-actions', [starsEl(W.clubLevel(c.id), 'Рівень клубу'), el('a.btn', { href: '#editclub-' + c.id }, 'Редагувати клуб')]),
       ]),
       squadTable(c.id),
     ];
@@ -315,7 +330,7 @@
       const avail = availablePlayers(state.clubId);
       const formation = FM.bestFormation(avail);
       state.tactics = { formation, ids: FM.pickLineup(avail, formation).xi.map((x) => x.player.id), mentality: 'balanced', pressing: 'normal', passing: 'mixed' };
-      store.save(state);
+      saveGame();
     }
     return state.tactics;
   }
@@ -358,7 +373,7 @@
   function screenTactics() {
     const t = myTactics();
     const side = mySide();
-    const save = () => { store.save(state); render(); };
+    const save = () => { saveGame(); render(); };
     const avail = side.players;
     const slots = FM.FORMATIONS[t.formation];
     const outBanned = W.club(state.clubId).players.filter((id) => banned(id)).map((id) => nameOf(W.player(id)));
@@ -517,7 +532,7 @@
     const M = FM.match.create({ home: engineSide(hs, myK === 0), away: engineSide(as, myK === 1), seed: `${hs.club.id}-${as.club.id}-${Date.now()}`, name: nameOf });
     showLive('match', hs, as, M, myK, (r) => {
       state.friendlies = (state.friendlies || []).concat([{ home: clubName(hs.club), away: clubName(as.club), score: r.score.join(':') }]).slice(-20);
-      store.save(state);
+      saveGame();
     }, [['Зіграти ще раз', () => startFriendly(), true], ['Інший суперник', () => render()]]);
   }
 
@@ -700,9 +715,9 @@
     ];
     if (f) {
       const opp = W.club(f.h === c.id ? f.a : f.h);
-      facts.push(el('dt', 'Наступний матч'), el('dd', [el('a', { href: '#fixtures' }, `${clubName(opp)} (${f.h === c.id ? 'вдома' : 'на виїзді'})`), `, ${roundOf(f)}-й тур, ${fmt.date(FM.season.dateOf(f.w))}`]));
+      facts.push(el('dt', 'Наступний матч'), el('dd', [el('a', { href: '#fixtures' }, `${clubName(opp)} (${f.h === c.id ? 'вдома' : 'на виїзді'})`), `, ${roundOf(f)}-й тур, ${fmt.date(FM.season.dateOf(f.w, state.season))}`]));
     } else facts.push(el('dt', 'Наступний матч'), el('dd', 'сезон завершено'));
-    return el('div.panel', [el('h3', `Сезон ${W.db.season}`), el('dl.facts', facts)]);
+    return el('div.panel', [el('h3', `Сезон ${seasonLabel()}`), el('dl.facts', facts)]);
   }
 
   function playMyMatch(live) {
@@ -710,12 +725,12 @@
     const f = FM.season.fixturesOfWeek(S, S.week).find((x) => x.h === state.clubId || x.a === state.clubId);
     if (!f || !live) {
       FM.season.playWeek(S, W, { name: NAMES, user: USER() });
-      store.save(state);
+      saveGame();
       return go('fixtures');
     }
     // решта матчів туру — одразу; наш — наживо з керуванням
     FM.season.playOthers(S, W, { skip: f.id, name: NAMES, user: USER() });
-    store.save(state);
+    saveGame();
     const { hs, as, opts } = FM.season.prepare(S, W, f, NAMES, USER());
     const myK = f.h === state.clubId ? 0 : 1;
     opts[myK === 0 ? 'home' : 'away'].manual = true;
@@ -723,7 +738,7 @@
     showLive('fixtures', hs, as, M, myK, (r) => {
       FM.season.record(S, f, r);
       FM.season.advance(S, W);
-      store.save(state);
+      saveGame();
     }, [['Далі', () => go('fixtures'), true], ['Таблиця', () => go('table')]]);
   }
 
@@ -733,7 +748,7 @@
     // у календарі власного клубу підсвічувати нічого — там усі матчі «наші»
     return el('tr' + (!clubId && (f.h === state.clubId || f.a === state.clubId) ? '.mine' : ''), [
       opts.round ? el('td.num', roundOf(f)) : null,
-      opts.date ? el('td', fmt.date(FM.season.dateOf(f.w)).slice(0, 5)) : null,
+      opts.date ? el('td', fmt.date(FM.season.dateOf(f.w, state.season)).slice(0, 5)) : null,
       el('td.num.team-h', [clubName(home), ' ', badge(home)]),
       el('td.score', f.s ? f.s.join(' : ') : '–'),
       el('td.team-a', [badge(away), ' ', clubName(away)]),
@@ -749,7 +764,7 @@
     const mine = FM.season.clubFixtures(S, c.id);
     const last = [...mine].reverse().find((f) => f.s);
     const { pos, size } = myPosition();
-    const blocks = [el('header', [el('h1', `Сезон ${W.db.season}`), el('span.muted', over ? 'Сезон завершено' : `Тиждень ${S.week + 1} з ${total} · ${fmt.date(FM.season.dateOf(S.week))}`)])];
+    const blocks = [el('header', [el('h1', `Сезон ${seasonLabel()}`), el('span.muted', over ? 'Сезон завершено' : `Тиждень ${S.week + 1} з ${total} · ${fmt.date(FM.season.dateOf(S.week, state.season))}`)])];
 
     if (over) {
       blocks.push(el('div.panel', [el('h3', 'Підсумки сезону'),
@@ -765,7 +780,7 @@
       const oppPos = t.findIndex((r) => r.id === opp.id) + 1;
       const out = W.club(c.id).players.filter((id) => banned(id)).map((id) => nameOf(W.player(id)));
       blocks.push(el('div.panel.next', [
-        el('h3', `${roundOf(thisWeek)}-й тур · ${fmt.date(FM.season.dateOf(thisWeek.w))}`),
+        el('h3', `${roundOf(thisWeek)}-й тур · ${fmt.date(FM.season.dateOf(thisWeek.w, state.season))}`),
         el('div.vs', [
           el('div.vs-team', [badge(W.club(thisWeek.h), true), el('b', clubName(W.club(thisWeek.h))), el('small.muted', 'господарі')]),
           el('div.vs-mid', 'проти'),
@@ -834,7 +849,7 @@
       el('div.panel', [
         el('div.round-nav', [
           el('button.btn', { type: 'button', disabled: tableRound <= 1 || null, onclick: () => { tableRound--; render(); }, 'aria-label': 'Попередній тур' }, '←'),
-          el('h3', `${tableRound}-й тур · ${fmt.date(FM.season.dateOf(tableRound - 1))}`),
+          el('h3', `${tableRound}-й тур · ${fmt.date(FM.season.dateOf(tableRound - 1, state.season))}`),
           el('button.btn', { type: 'button', disabled: tableRound >= rounds || null, onclick: () => { tableRound++; render(); }, 'aria-label': 'Наступний тур' }, '→'),
         ]),
         el('div.table-wrap.flat', el('table.fixtures', el('tbody', roundFx.map((f) => fixtureRow(f, null))))),
@@ -842,10 +857,189 @@
     ];
   }
 
+  // ---------------- Редактор ----------------
+  const ROLES = ['GK', 'CB', 'FB', 'DM', 'CM', 'AM', 'W', 'ST'];
+  let editDraft = null;
+
+  function numInput(id, value, min, max, onInput) {
+    return el('input', { id, type: 'number', inputmode: 'numeric', min, max, step: 1, value, oninput: (e) => onInput(Number(e.target.value)) });
+  }
+  const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(v) || lo)));
+
+  function screenEditPlayer(id) {
+    const p = W.player(id);
+    if (!p) return [el('p', 'Гравця не знайдено.')];
+    if (!editDraft || editDraft.id !== id) {
+      editDraft = { id, name: p.name, nameEn: p.nameEn, number: p.number ?? '', born: p.born || '', nat: p.nat, height: p.height || '',
+        roles: p.roles.slice(), side: p.side || '', attrs: { ...p.attrs }, pa: p.pa };
+    }
+    const d = editDraft;
+    const isGK = d.roles[0] === 'GK';
+    const keys = FM.ATTR_GROUPS[isGK ? 'gk' : 'outfield'];
+    const preview = el('div.edit-preview');
+    const age = () => (d.born ? W.age({ born: d.born }) : W.age(p)) ?? 24;
+    const ca = () => FM.caFromAttrs({ roles: d.roles, attrs: d.attrs });
+    const drawPreview = () => {
+      const c = ca(), pa = Math.max(c, clampInt(d.pa, 1, 200));
+      preview.replaceChildren(el('dl.facts', [
+        el('dt', 'Рівень'), el('dd', [starsEl(c, 'Рівень'), ` ${c}`]),
+        el('dt', 'Потенціал'), el('dd', [starsEl(pa, 'Потенціал'), ` ${pa}`]),
+        el('dt', 'Ціна'), el('dd', fmt.money(FM.marketValue(c, age(), W.club(p.club || state.clubId).league, pa))),
+      ]));
+    };
+    // GK має інший набір атрибутів: при зміні позиції на/з воротаря доповнюємо відсутні
+    const ensureAttrs = () => {
+      for (const [, ks] of FM.ATTR_GROUPS[d.roles[0] === 'GK' ? 'gk' : 'outfield']) for (const k of ks) if (d.attrs[k] == null) d.attrs[k] = 8;
+    };
+    const save = () => {
+      ensureAttrs();
+      const keep = new Set(FM.ATTR_GROUPS[d.roles[0] === 'GK' ? 'gk' : 'outfield'].flatMap(([, ks]) => ks));
+      const attrs = {};
+      for (const k of keep) attrs[k] = clampInt(d.attrs[k], 1, 20);
+      Object.assign(p, {
+        name: d.name.trim() || p.name, nameEn: d.nameEn.trim() || p.nameEn, number: d.number === '' ? null : clampInt(d.number, 1, 99),
+        born: d.born || p.born, nat: d.nat, height: d.height === '' ? null : clampInt(d.height, 150, 210),
+        roles: [...new Set(d.roles)], side: d.side || null, attrs, edited: true,
+      });
+      p.ca = FM.caFromAttrs(p);
+      p.pa = Math.max(p.ca, clampInt(d.pa, 1, 200));
+      p.value = FM.marketValue(p.ca, W.age(p) ?? 24, W.club(p.club || state.clubId).league, p.pa);
+      editDraft = null; saveGame(); go('player-' + id);
+    };
+    const resetReal = () => { W.resetPlayer(id); delete p.edited; editDraft = null; saveGame(); go('player-' + id); };
+
+    const text = (label, key, attrs = {}) => {
+      const inp = el('input', { id: 'f-' + key, type: 'text', value: d[key] ?? '', ...attrs, oninput: (e) => { d[key] = e.target.value; } });
+      return el('div.field', [el('label', { for: 'f-' + key }, label), inp]);
+    };
+    const roleSel = el('select', { id: 'f-role', onchange: (e) => { d.roles = [e.target.value, ...d.roles.filter((r) => r !== e.target.value)]; ensureAttrs(); render(); } },
+      ROLES.map((r) => el('option', { value: r, selected: r === d.roles[0] || null }, FM.ROLE_NAME[r])));
+    const extra = el('div.checks', ROLES.filter((r) => r !== d.roles[0]).map((r) => el('label.check', [
+      el('input', { type: 'checkbox', checked: d.roles.includes(r) || null, onchange: (e) => { d.roles = e.target.checked ? [...d.roles, r] : d.roles.filter((x) => x !== r); drawPreview(); } }),
+      ' ' + FM.roleLabel(r)])));
+    const natSel = el('select', { id: 'f-nat', onchange: (e) => { d.nat = e.target.value; } },
+      [...FM.countries.all(), ...(FM.countries.name(d.nat) === d.nat ? [[d.nat, d.nat]] : [])].map(([code, n]) => el('option', { value: code, selected: code === d.nat || null }, n)));
+    const sideSel = el('select', { id: 'f-side', onchange: (e) => { d.side = e.target.value; } },
+      [['', 'Обидві'], ['L', 'Ліва'], ['R', 'Права']].map(([v, n]) => el('option', { value: v, selected: v === (d.side || '') || null }, n)));
+    drawPreview();
+
+    return [
+      el('header', [el('h1', 'Редагування гравця'), el('span.muted', nameOf(p))]),
+      el('div.edit-grid', [
+        el('div.panel', [el('h3', 'Особисте'), el('div.form', [
+          text('Ім’я українською', 'name'), text('Ім’я в оригіналі', 'nameEn'),
+          el('div.field', [el('label', { for: 'f-number' }, 'Номер'), numInput('f-number', d.number, 1, 99, (v) => { d.number = v; })]),
+          el('div.field', [el('label', { for: 'f-born' }, 'Дата народження'), el('input', { id: 'f-born', type: 'date', value: d.born, oninput: (e) => { d.born = e.target.value; drawPreview(); } })]),
+          el('div.field', [el('label', { for: 'f-nat' }, 'Країна'), natSel]),
+          el('div.field', [el('label', { for: 'f-height' }, 'Зріст, см'), numInput('f-height', d.height, 150, 210, (v) => { d.height = v; })]),
+          el('div.field', [el('label', { for: 'f-role' }, 'Основна позиція'), roleSel]),
+          el('div.field', [el('label', { for: 'f-side' }, 'Сторона'), sideSel]),
+          el('div.field.wide', [el('span', 'Може грати також'), extra]),
+        ])]),
+        el('div.panel', [el('h3', 'Оцінка'), preview,
+          el('div.field', [el('label', { for: 'f-pa' }, 'Потенціал (1–200)'), numInput('f-pa', d.pa, 1, 200, (v) => { d.pa = v; drawPreview(); })]),
+          el('p.note', 'Рівень рахується з атрибутів на основній позиції. Потенціал не може бути нижчим за рівень.')]),
+      ]),
+      el('div.panel', [el('div.attrs', keys.map(([title, ks]) => el('div', [
+        el('h3', title),
+        el('ul.attr-edit', ks.map((k) => el('li', [el('label', { for: 'a-' + k }, FM.ATTRS[k]),
+          numInput('a-' + k, d.attrs[k] ?? 8, 1, 20, (v) => { d.attrs[k] = v; drawPreview(); })]))),
+      ])))]),
+      el('div.actions', [
+        el('button.btn.primary', { type: 'button', onclick: save }, 'Зберегти'),
+        el('button.btn', { type: 'button', onclick: () => { editDraft = null; go('player-' + id); } }, 'Скасувати'),
+        W.base(id) ? el('button.btn', { type: 'button', onclick: resetReal }, 'Повернути реальні дані') : null,
+      ]),
+      el('p.note', 'Зміни діють лише в цій кар’єрі. Ім’я, вік і позиції можна виправити, якщо в Wikipedia були неточності.'),
+    ];
+  }
+
+  function screenEditClub(id) {
+    const c = W.club(id);
+    if (!c) return [el('p', 'Клуб не знайдено.')];
+    const d = { name: c.name, nameEn: c.nameEn, code: c.code, stadium: c.stadium || '', capacity: c.capacity || '', founded: c.founded || '', c1: c.colors[0] || '#cccccc', c2: c.colors[1] || '#333333' };
+    const field = (label, key, type = 'text', extra = {}) => el('div.field', [el('label', { for: 'c-' + key }, label),
+      el('input', { id: 'c-' + key, type, value: d[key], ...extra, oninput: (e) => { d[key] = e.target.value; if (key === 'c1' || key === 'c2' || key === 'code') drawBadge(); } })]);
+    const badgeBox = el('div');
+    const drawBadge = () => badgeBox.replaceChildren(badge({ ...c, code: d.code.toUpperCase().slice(0, 4), colors: [d.c1, d.c2] }, true));
+    drawBadge();
+    const save = () => {
+      Object.assign(c, {
+        name: d.name.trim() || c.name, nameEn: d.nameEn.trim() || c.nameEn, code: (d.code.trim() || c.code).toUpperCase().slice(0, 4),
+        stadium: d.stadium.trim() || null, capacity: d.capacity === '' ? null : clampInt(d.capacity, 100, 150000),
+        founded: d.founded === '' ? null : clampInt(d.founded, 1850, 2026), colors: [d.c1, d.c2], edited: true,
+      });
+      saveGame(); go(id === state.clubId ? 'overview' : 'club-' + id);
+    };
+    return [
+      el('header', [el('h1', 'Редагування клубу'), badgeBox]),
+      el('div.panel', el('div.form', [
+        field('Назва українською', 'name'), field('Назва в оригіналі', 'nameEn'), field('Код (до 4 літер)', 'code', 'text', { maxlength: 4 }),
+        field('Стадіон', 'stadium'), field('Місткість', 'capacity', 'number', { min: 100, max: 150000 }), field('Рік заснування', 'founded', 'number', { min: 1850, max: 2026 }),
+        field('Колір 1', 'c1', 'color'), field('Колір 2', 'c2', 'color'),
+      ])),
+      el('div.actions', [
+        el('button.btn.primary', { type: 'button', onclick: save }, 'Зберегти'),
+        el('button.btn', { type: 'button', onclick: () => go(id === state.clubId ? 'overview' : 'club-' + id) }, 'Скасувати'),
+        el('button.btn', { type: 'button', onclick: () => { W.resetClub(id, ['name', 'nameEn', 'code', 'stadium', 'capacity', 'founded', 'colors']); delete c.edited; saveGame(); render(); } }, 'Повернути реальні дані'),
+      ]),
+    ];
+  }
+
+  // ---------------- Збереження у файл ----------------
+  let ioMsg = null;
+  async function exportSave() {
+    saveGame();
+    return FM.saveio.encode({ app: 'golovnyi-trener', v: 1, saved: new Date().toISOString(), state });
+  }
+  async function importSave(text) {
+    try {
+      const data = await FM.saveio.decode(text);
+      const st = data && data.app === 'golovnyi-trener' ? data.state : null;
+      if (!st || !st.clubId || !st.season) throw new Error('У файлі немає кар’єри цієї гри.');
+      const w = FM.createWorld(window.FM_DB, st.world);
+      if (!w.club(st.clubId)) throw new Error('Клуб із цього збереження не знайдено в базі.');
+      state = st; W = w; pre = null; tableLeague = null; browseLeague = null;
+      saveGame();
+      ioMsg = ['ok', `Завантажено: ${state.manager}, ${clubName(W.club(state.clubId))}, сезон ${seasonLabel()}.`];
+    } catch (e) {
+      ioMsg = ['bad', 'Не вдалося завантажити: ' + e.message];
+    }
+    render();
+  }
+
+  function savePanel() {
+    const codeBox = el('textarea', { id: 'save-code', rows: 3, placeholder: 'Вставте сюди код збереження', spellcheck: 'false' });
+    const fileInput = el('input', { type: 'file', accept: '.json,.txt,application/json,text/plain', hidden: true, onchange: async (e) => {
+      const f = e.target.files[0]; if (f) importSave(await f.text());
+    } });
+    const status = el('p.note', ioMsg ? { class: 'note msg-' + ioMsg[0] } : {}, ioMsg ? ioMsg[1] : 'Гра зберігається в цьому браузері автоматично. Щоб перенести кар’єру на інший пристрій, збережіть її у файл або скопіюйте код.');
+    ioMsg = null;
+    return el('div.panel', [el('h3', 'Збереження'), status,
+      el('div.actions', [
+        el('button.btn', { type: 'button', onclick: async () => {
+          const code = await exportSave();
+          const a = el('a', { href: URL.createObjectURL(new Blob([code], { type: 'text/plain' })), download: `golovnyi-trener-${state.season.year}-tyzhden-${state.season.week + 1}.txt` });
+          document.body.append(a); a.click(); a.remove();
+        } }, 'Зберегти у файл'),
+        el('button.btn', { type: 'button', onclick: async () => {
+          const code = await exportSave();
+          try { await navigator.clipboard.writeText(code); ioMsg = ['ok', `Код скопійовано (${Math.round(code.length / 1024)} КБ). Вставте його на іншому пристрої.`]; render(); }
+          catch (_) { codeBox.value = code; codeBox.select(); status.textContent = 'Скопіюйте код із поля нижче (Ctrl+C).'; }
+        } }, 'Скопіювати код'),
+        el('button.btn', { type: 'button', onclick: () => fileInput.click() }, 'Завантажити з файлу'),
+      ]),
+      fileInput,
+      el('div.field', { style: { marginTop: '0.75rem' } }, [el('label', { for: 'save-code' }, 'Код збереження'), codeBox]),
+      el('div.actions', [el('button.btn', { type: 'button', onclick: () => { if (codeBox.value.trim()) importSave(codeBox.value); } }, 'Завантажити з коду')]),
+      el('p.note', 'Завантаження замінить поточну кар’єру в цьому браузері.'),
+    ]);
+  }
+
   // ---------------- Налаштування ----------------
   let confirmReset = false;
   function screenSettings() {
-    const setNames = (v) => { state.names = v; store.save(state); render(); };
+    const setNames = (v) => { state.names = v; saveGame(); render(); };
     return [
       el('header', [el('h1', 'Налаштування')]),
       el('div.panel', [el('h3', 'Імена'), el('div.tabs', { style: { marginTop: '0.5rem' } }, [
@@ -856,9 +1050,10 @@
         confirmReset
           ? el('div', { style: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' } }, [
             el('span', 'Видалити збереження й почати заново?'),
-            el('button.btn.primary', { type: 'button', onclick: () => { store.clear(); state = null; confirmReset = false; location.hash = ''; render(); } }, 'Так, почати заново'),
+            el('button.btn.primary', { type: 'button', onclick: () => { resetCareer(); confirmReset = false; location.hash = ''; render(); } }, 'Так, почати заново'),
             el('button.btn', { type: 'button', onclick: () => { confirmReset = false; render(); } }, 'Скасувати')])
           : el('button.btn', { type: 'button', onclick: () => { confirmReset = true; render(); } }, 'Почати нову кар’єру')]),
+      savePanel(),
       el('div.panel', [el('h3', 'Про базу'), el('dl.facts', [
         el('dt', 'Знімок'), el('dd', fmt.date(W.db.snapshot)),
         el('dt', 'Клубів'), el('dd', W.db.clubs.length),

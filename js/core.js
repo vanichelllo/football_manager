@@ -40,6 +40,36 @@
     return node;
   };
 
+  /**
+   * Збереження у вигляді тексту: «GT1.» + base64 стиснутого gzip JSON (якщо браузер уміє стискати),
+   * інакше «GT0.» + base64 звичайного JSON. Розпізнає й просто JSON.
+   */
+  const b64 = {
+    from(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); },
+    to(str) { const bin = atob(str); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; },
+  };
+  async function pipe(bytes, stream) {
+    const res = new Response(new Blob([bytes]).stream().pipeThrough(stream));
+    return new Uint8Array(await res.arrayBuffer());
+  }
+  FM.saveio = {
+    async encode(obj) {
+      const bytes = new TextEncoder().encode(JSON.stringify(obj));
+      if (typeof CompressionStream === 'function') return 'GT1.' + b64.from(await pipe(bytes, new CompressionStream('gzip')));
+      return 'GT0.' + b64.from(bytes);
+    },
+    async decode(text) {
+      const t = String(text).trim();
+      if (t.startsWith('{')) return JSON.parse(t);
+      if (t.startsWith('GT0.')) return JSON.parse(new TextDecoder().decode(b64.to(t.slice(4))));
+      if (t.startsWith('GT1.')) {
+        if (typeof DecompressionStream !== 'function') throw new Error('Цей браузер не вміє розпаковувати збереження.');
+        return JSON.parse(new TextDecoder().decode(await pipe(b64.to(t.slice(4)), new DecompressionStream('gzip'))));
+      }
+      throw new Error('Це не схоже на збереження гри.');
+    },
+  };
+
   FM.fmt = {
     money(mln) {
       if (mln == null) return '—';

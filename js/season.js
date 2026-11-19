@@ -4,7 +4,12 @@
   'use strict';
   const FM = (root.FM = root.FM || {});
 
-  const START = '2026-08-15'; // перша субота сезону
+  /** Перша субота сезону: не раніше 9 серпня року, у якому починається сезон. */
+  function firstSaturday(year) {
+    const d = new Date(Date.UTC(year, 7, 9, 12));
+    while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
 
   /** Двоколовий календар методом кола; ліга з непарною кількістю отримала б «вихідний», але в нас усі парні. */
   function roundRobin(ids, R) {
@@ -28,18 +33,19 @@
     const R = FM.rng('calendar-' + seed);
     const fixtures = [];
     for (const l of W.db.leagues) {
-      const ids = W.db.clubs.filter((c) => c.league === l.id).map((c) => c.id);
+      const ids = [...W.clubs.values()].filter((c) => c.league === l.id).map((c) => c.id);
       roundRobin(ids, R).forEach((games, r) => games.forEach(([h, a]) => {
         fixtures.push({ id: fixtures.length, l: l.id, w: r, h, a, s: null, g: null });
       }));
     }
-    return { v: 1, seed: String(seed), week: 0, fixtures, ps: {}, bans: {}, yc: {} };
+    const year = Number(String(W.today).slice(0, 4));
+    return { v: 1, seed: String(seed), year, start: firstSaturday(year), week: 0, fixtures, ps: {}, bans: {}, yc: {} };
   }
 
   const weeks = (S) => 1 + Math.max(...S.fixtures.map((f) => f.w));
   const isOver = (S) => S.week >= weeks(S);
-  const dateOf = (w) => {
-    const d = new Date(START + 'T12:00:00Z');
+  const dateOf = (w, S) => {
+    const d = new Date(((S && S.start) || firstSaturday(2026)) + 'T12:00:00Z');
     d.setUTCDate(d.getUTCDate() + 7 * w);
     return d.toISOString().slice(0, 10);
   };
@@ -135,7 +141,7 @@
 
   /** Турнірна таблиця: очки, різниця, забиті; форма — останні 5. */
   function table(S, W, leagueId) {
-    const rows = new Map(W.db.clubs.filter((c) => c.league === leagueId).map((c) => [c.id, { id: c.id, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0, form: [] }]));
+    const rows = new Map([...W.clubs.values()].filter((c) => c.league === leagueId).map((c) => [c.id, { id: c.id, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0, form: [] }]));
     for (const f of S.fixtures) {
       if (f.l !== leagueId || !f.s) continue;
       const [hg, ag] = f.s, h = rows.get(f.h), a = rows.get(f.a);
@@ -153,7 +159,7 @@
   function leaders(S, W, leagueId, key = 1, n = 10) {
     return Object.entries(S.ps)
       .map(([id, st]) => ({ id, st, p: W.player(id) }))
-      .filter((x) => x.p && W.club(x.p.club).league === leagueId && x.st[key] > 0)
+      .filter((x) => x.p && x.p.club && W.club(x.p.club).league === leagueId && x.st[key] > 0)
       .sort((a, b) => b.st[key] - a.st[key] || a.st[0] - b.st[0])
       .slice(0, n);
   }
@@ -174,6 +180,6 @@
     return null;
   }
 
-  FM.season = { create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, prepare, play, record, playOthers, advance, playWeek, table, leaders, zone, roundRobin };
+  FM.season = { firstSaturday, create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, prepare, play, record, playOthers, advance, playWeek, table, leaders, zone, roundRobin };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);
