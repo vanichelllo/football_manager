@@ -91,6 +91,33 @@
     return { formation, xi: xi.map((p, i) => ({ player: p, slot: slots[i] })), bench };
   }
 
+  /**
+   * Склад із збереженої тактики: ids — id гравців по позиціях схеми (null — «на розсуд помічника»).
+   * Недоступних (дискваліфікованих, проданих) замінює найкращий вільний.
+   */
+  function lineupFromIds(players, formation, ids) {
+    const slots = FORMATIONS[formation];
+    const byId = new Map(players.map((p) => [p.id, p]));
+    const used = new Set();
+    const xi = slots.map((slot, i) => {
+      const p = ids && byId.get(ids[i]);
+      if (p && !used.has(p.id)) { used.add(p.id); return { player: p, slot }; }
+      return { player: null, slot };
+    });
+    for (const x of xi) {
+      if (x.player) continue;
+      let best = null, bv = -1;
+      for (const p of players) { if (used.has(p.id)) continue; const v = slotValue(p, x.slot); if (v > bv) { bv = v; best = p; } }
+      x.player = best; used.add(best.id); x.auto = true;
+    }
+    const rest = players.filter((p) => !used.has(p.id)).sort((a, b) => b.ca - a.ca);
+    const bench = [];
+    const gk = rest.find((p) => p.roles[0] === 'GK');
+    if (gk) bench.push(gk);
+    for (const p of rest) if (bench.length < 9 && p !== gk) bench.push(p);
+    return { formation, xi, bench };
+  }
+
   /** Схема, у якій склад найсильніший (для суперників і автопідбору). */
   function bestFormation(players) {
     let best = '4-3-3', bv = -1;
@@ -147,14 +174,22 @@
 
   // ---------------- Симуляція ----------------
   const MENTALITY = { defensive: -2, cautious: -1, balanced: 0, positive: 1, attacking: 2 };
+  const PRESSING = { low: -1, normal: 0, high: 1 };
+  const PASSING = { short: -1, mixed: 0, direct: 1 };
+  const TACTIC_UK = {
+    mentality: { defensive: 'оборонний', cautious: 'обережний', balanced: 'збалансований', positive: 'сміливий', attacking: 'атакувальний' },
+    pressing: { low: 'низький пресинг', normal: 'звичайний пресинг', high: 'високий пресинг' },
+    passing: { short: 'короткі передачі', mixed: 'змішані передачі', direct: 'довгі передачі' },
+  };
 
   /**
-   * Зіграти матч.
-   * opts: { home: {club, players, formation?, mentality?}, away: {…}, seed, name: (p) → ім'я,
-   *         neutral?: bool, subs?: true }
-   * Повертає { score, events, stats, ratings, lineups, motm }.
+   * Створити матч, яким можна керувати по хвилинах.
+   * opts: { home: {club, players, formation?, lineup?, mentality?, pressing?, passing?, manual?}, away: {…},
+   *         seed, name: (p) → ім'я, neutral?: bool, subs?: false }
+   * manual: true — заміни робить людина (помічник не втручається, доки його не попросять).
+   * Повертає { step(), done, minute, sides, events, sub(), setTactics(), result() }.
    */
-  function play(opts) {
+  function create(opts) {
     const R = FM.rng(opts.seed);
     const name = opts.name || ((p) => p.name);
     const sides = [opts.home, opts.away].map((t, k) => {
@@ -162,7 +197,9 @@
       const lu = t.lineup || pickLineup(t.players, formation);
       const onPitch = lu.xi.map((x) => ({ p: x.player, slot: x.slot, cond: 100, yellow: 0, out: false }));
       return {
-        k, club: t.club, formation, mentality: MENTALITY[t.mentality || 'balanced'] || 0, onPitch,
+        k, club: t.club, formation, onPitch, autoSubs: !t.manual,
+        tactic: { mentality: t.mentality || 'balanced', pressing: t.pressing || 'normal', passing: t.passing || 'mixed' },
+        mentality: MENTALITY[t.mentality || 'balanced'] || 0, pressing: PRESSING[t.pressing || 'normal'] || 0, passing: PASSING[t.passing || 'mixed'] || 0,
         bench: lu.bench.slice(), subsLeft: 5, subWindows: 3, units: null,
         stats: { goals: 0, shots: 0, onTarget: 0, poss: 0, yellow: 0, red: 0, xg: 0 },
         perf: new Map(lu.xi.map((x) => [x.player.id, { min: 0, goals: 0, assists: 0, shots: 0, saves: 0, conceded: 0, yellow: 0, red: false, played: true }])),
@@ -181,11 +218,13 @@
     function compute(t) { t.units = unitsFrom(t.onPitch); }
 
     function chanceRates(min) {
-      const mh = H.units.mid ** 1.5 * homeAdv, ma = A.units.mid ** 1.5;
+      // контроль м'яча: пресинг відбирає м'яч частіше, короткі передачі його бережуть
+      const ctrl = (t) => t.units.mid * (1 + 0.04 * t.pressing - 0.035 * t.passing);
+      const mh = ctrl(H) ** 1.5 * homeAdv, ma = ctrl(A) ** 1.5;
       const share = mh / (mh + ma); // частка володіння господарів
       const rate = (t, o, sh) => {
         let r = 23 * (0.24 + 0.52 * sh); // моментів за матч
-        r *= 1 + 0.07 * t.mentality + 0.05 * o.mentality;
+        r *= 1 + 0.07 * t.mentality + 0.05 * o.mentality + 0.06 * t.passing; // довгі передачі — більше, але гірших моментів
         // рахунок: хто програє наприкінці — тисне, хто веде — тримає
         const diff = t.stats.goals - o.stats.goals;
         if (min > 60 && diff < 0) r *= 1.25; else if (min > 70 && diff > 0) r *= 0.85;
@@ -210,6 +249,7 @@
       let q = BASE_Q * ratio ** 1.15;
       const finish = (shooter.p.attrs.fin * 0.7 + shooter.p.attrs.dec * 0.3) / 12;
       q *= Math.min(1.5, Math.max(0.6, finish));
+      q *= (1 - 0.06 * t.passing) * (1 + 0.05 * o.pressing); // високий пресинг суперника лишає простір за спиною
 
       if (R.chance(0.013)) { // пенальті (~0,3 за матч)
         const taker = t.onPitch.filter((x) => !x.out && x.slot.role !== 'GK').sort((a, b) => b.p.attrs.fin - a.p.attrs.fin)[0];
@@ -255,7 +295,7 @@
     }
 
     function aiSubs(t, o, min) {
-      if (opts.subs === false || t.subsLeft <= 0 || t.subWindows <= 0 || !t.bench.length) return;
+      if (opts.subs === false || !t.autoSubs || t.subsLeft <= 0 || t.subWindows <= 0 || !t.bench.length) return;
       if (!(min === 60 || min === 70 || min === 80)) return;
       const diff = t.stats.goals - o.stats.goals;
       const n = min === 60 ? (diff < 0 ? 2 : 1) : min === 70 ? 2 : 2;
@@ -276,66 +316,122 @@
       if (made) { t.subWindows--; compute(t); }
     }
 
+    // ---- ручні рішення тренера ----
+    let current = 0;
+    function sub(k, outId, inId) {
+      const t = sides[k];
+      const x = t.onPitch.find((y) => !y.out && y.p.id === outId);
+      const b = t.bench.find((p) => p.id === inId);
+      if (done || !x || !b || t.subsLeft <= 0) return false;
+      t.bench.splice(t.bench.indexOf(b), 1);
+      x.out = true; x.subbedOff = minuteNum || 1;
+      t.onPitch.push({ p: b, slot: x.slot, cond: 100, yellow: 0, out: false, subbedOn: minuteNum || 1 });
+      t.perf.set(b.id, { min: 0, goals: 0, assists: 0, shots: 0, saves: 0, conceded: 0, yellow: 0, red: false, played: true, from: minuteNum });
+      t.subsLeft--;
+      say(current, 'sub', t, 'sub', { team: t.club.name, on: name(b), off: name(x.p) });
+      compute(t);
+      return true;
+    }
+    function setTactics(k, tac) {
+      const t = sides[k];
+      const changed = [];
+      for (const key of ['mentality', 'pressing', 'passing']) {
+        if (!tac[key] || tac[key] === t.tactic[key]) continue;
+        t.tactic[key] = tac[key];
+        changed.push(TACTIC_UK[key][tac[key]]);
+      }
+      t.mentality = MENTALITY[t.tactic.mentality]; t.pressing = PRESSING[t.tactic.pressing]; t.passing = PASSING[t.tactic.passing];
+      if (changed.length && !done) say(current, 'info', t, [`${t.club.name}: тренер змінює підхід — ${changed.join(', ')}.`]);
+      return changed.length > 0;
+    }
+
     // ---- матч ----
     compute(H); compute(A);
     const startUnits = [{ ...H.units }, { ...A.units }];
     say(0, 'kickoff', null, 'kickoff');
     const added = [1 + R.int(3), 2 + R.int(4)];
-    const periods = [[1, 45 + added[0]], [46, 90 + added[1]]];
-    let possH = 0, ticks = 0;
-    for (const [pi, [from, to]] of periods.entries()) {
-      if (pi === 1) { say(46, 'half', null, 'second'); }
-      for (let m = from; m <= to; m++) {
-        const shown = pi === 0 && m > 45 ? 45 : pi === 1 && m > 90 ? 90 : m;
-        const extra = pi === 0 && m > 45 ? m - 45 : pi === 1 && m > 90 ? m - 90 : 0;
-        const minLabel = extra ? `${shown}+${extra}` : shown;
-        const cr = chanceRates(m);
-        possH += cr.share; ticks++;
-        // втома: витривалість і пресинг
-        for (const t of sides) for (const x of t.onPitch) if (!x.out) x.cond = Math.max(40, x.cond - (0.42 - x.p.attrs.sta * 0.014) * (x.slot.role === 'GK' ? 0.3 : 1));
-        if (m % 5 === 0) { compute(H); compute(A); }
-        if (R.chance(cr.h)) chance(H, A, minLabel);
-        if (R.chance(cr.a)) chance(A, H, minLabel);
-        for (const t of sides) if (R.chance(1.9 / 94)) card(t, minLabel);
-        if (R.chance(0.035)) {
-          const t = R.chance(cr.share) ? H : A;
-          say(minLabel, 'info', t, 'pressure', { team: t.club.name });
-        }
-        if (pi === 1 && !extra) { aiSubs(H, A, m); aiSubs(A, H, m); }
-      }
-      if (pi === 0) say('45+' + added[0], 'half', null, 'half', { score: score() });
-    }
-    H.stats.poss = Math.round((possH / ticks) * 100);
-    A.stats.poss = 100 - H.stats.poss;
-    say('90+' + added[1], 'full', null, 'full', { score: score() });
+    const timeline = [];
+    for (let m = 1; m <= 45 + added[0]; m++) timeline.push({ m, pi: 0, label: m > 45 ? `45+${m - 45}` : m, extra: m > 45 });
+    for (let m = 46; m <= 90 + added[1]; m++) timeline.push({ m, pi: 1, label: m > 90 ? `90+${m - 90}` : m, extra: m > 90 });
+    let idx = 0, possH = 0, ticks = 0, done = false, minuteNum = 0;
 
-    // ---- оцінки 1–10 ----
-    const ratings = [];
-    for (const t of sides) {
-      const o = sides[1 - t.k];
-      const result = Math.sign(t.stats.goals - o.stats.goals);
-      for (const x of t.onPitch) {
-        const pf = t.perf.get(x.p.id);
-        const minutes = (x.subbedOff || 93) - (x.subbedOn || 0);
-        let r = 6.3 + 0.25 * result + pf.goals * 1.0 + pf.assists * 0.6 + pf.shots * 0.05 - pf.yellow * 0.2 - (pf.red ? 1.5 : 0);
-        if (x.slot.role === 'GK') r += pf.saves * 0.25 - pf.conceded * 0.35 + (o.stats.goals === 0 ? 0.6 : 0);
-        else if (LINE[x.slot.role] === 'def') r += (o.stats.goals === 0 ? 0.5 : -0.15 * o.stats.goals);
-        r += (slotValue(x.p, x.slot) - 12) * 0.06 + R.range(-0.35, 0.35);
-        if (minutes < 20) r = 6 + (r - 6) * 0.5;
-        ratings.push({ team: t.k, id: x.p.id, player: x.p, role: x.slot.role, rating: Math.round(Math.max(3, Math.min(10, r)) * 10) / 10,
-          goals: pf.goals, assists: pf.assists, yellow: pf.yellow, red: pf.red, on: x.subbedOn || null, off: x.subbedOff || null });
+    /** Одна хвилина матчу. Повертає false, коли матч уже закінчився. */
+    function step() {
+      if (done) return false;
+      const e = timeline[idx++];
+      current = e.label; minuteNum = e.m;
+      if (e.m === 46) say(46, 'half', null, 'second');
+      const cr = chanceRates(e.m);
+      possH += cr.share; ticks++;
+      // втома: витривалість, пресинг
+      for (const t of sides) for (const x of t.onPitch) if (!x.out) x.cond = Math.max(40, x.cond - (0.42 - x.p.attrs.sta * 0.014) * (x.slot.role === 'GK' ? 0.3 : 1 + 0.25 * t.pressing));
+      if (e.m % 5 === 0) { compute(H); compute(A); }
+      if (R.chance(cr.h)) chance(H, A, e.label);
+      if (R.chance(cr.a)) chance(A, H, e.label);
+      for (const t of sides) if (R.chance(1.9 / 94 * (1 + 0.2 * t.pressing))) card(t, e.label);
+      if (R.chance(0.035)) {
+        const t = R.chance(cr.share) ? H : A;
+        say(e.label, 'info', t, 'pressure', { team: t.club.name });
       }
+      if (e.pi === 1 && !e.extra) { aiSubs(H, A, e.m); aiSubs(A, H, e.m); }
+      if (e.pi === 0 && timeline[idx].pi === 1) say('45+' + added[0], 'half', null, 'half', { score: score() });
+      if (idx >= timeline.length) {
+        H.stats.poss = Math.round((possH / ticks) * 100);
+        A.stats.poss = 100 - H.stats.poss;
+        say('90+' + added[1], 'full', null, 'full', { score: score() });
+        done = true;
+      }
+      return true;
     }
-    const motm = [...ratings].sort((a, b) => b.rating - a.rating)[0];
+
+    // ---- підсумок і оцінки 3–10 ----
+    let final = null;
+    function result() {
+      while (step()); // якщо матч не дограли — догравання
+      if (final) return final;
+      const ratings = [];
+      for (const t of sides) {
+        const o = sides[1 - t.k];
+        const res = Math.sign(t.stats.goals - o.stats.goals);
+        for (const x of t.onPitch) {
+          const pf = t.perf.get(x.p.id);
+          const minutes = (x.subbedOff || 93) - (x.subbedOn || 0);
+          let r = 6.3 + 0.25 * res + pf.goals * 1.0 + pf.assists * 0.6 + pf.shots * 0.05 - pf.yellow * 0.2 - (pf.red ? 1.5 : 0);
+          if (x.slot.role === 'GK') r += pf.saves * 0.25 - pf.conceded * 0.35 + (o.stats.goals === 0 ? 0.6 : 0);
+          else if (LINE[x.slot.role] === 'def') r += (o.stats.goals === 0 ? 0.5 : -0.15 * o.stats.goals);
+          r += (slotValue(x.p, x.slot) - 12) * 0.06 + R.range(-0.35, 0.35);
+          if (minutes < 20) r = 6 + (r - 6) * 0.5;
+          ratings.push({ team: t.k, id: x.p.id, player: x.p, role: x.slot.role, rating: Math.round(Math.max(3, Math.min(10, r)) * 10) / 10,
+            goals: pf.goals, assists: pf.assists, yellow: pf.yellow, red: pf.red, on: x.subbedOn || null, off: x.subbedOff || null });
+        }
+      }
+      const motm = [...ratings].sort((a, b) => b.rating - a.rating)[0];
+      final = {
+        score: [H.stats.goals, A.stats.goals], events,
+        stats: [H.stats, A.stats].map((st) => ({ ...st, xg: Math.round(st.xg * 100) / 100 })),
+        ratings, motm, formations: [H.formation, A.formation], units: startUnits,
+        lineups: sides.map((t) => t.lineup),
+      };
+      return final;
+    }
+
+    /** Статистика наживо (володіння — за зіграні хвилини). */
+    function liveStats() {
+      const ph = ticks ? Math.round((possH / ticks) * 100) : 50;
+      return sides.map((t, k) => ({ ...t.stats, poss: k === 0 ? ph : 100 - ph, xg: Math.round(t.stats.xg * 100) / 100 }));
+    }
 
     return {
-      score: [H.stats.goals, A.stats.goals], events,
-      stats: [H.stats, A.stats].map((s) => ({ ...s, xg: Math.round(s.xg * 100) / 100 })),
-      ratings, motm, formations: [H.formation, A.formation], units: startUnits,
-      lineups: sides.map((t) => t.lineup),
+      step, result, sub, setTactics, liveStats, sides, events,
+      get done() { return done; },
+      get minute() { return current; },
+      get minuteNum() { return minuteNum; },
     };
   }
 
-  Object.assign(FM, { FORMATIONS, roleRating, fit, slotValue, pickLineup, bestFormation, lineupUnits, match: { play, MENTALITY } });
+  /** Зіграти матч від початку до кінця. */
+  function play(opts) { return create(opts).result(); }
+
+  Object.assign(FM, { FORMATIONS, roleRating, fit, slotValue, pickLineup, lineupFromIds, bestFormation, lineupUnits, match: { play, create, MENTALITY, PRESSING, PASSING, TACTIC_UK } });
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

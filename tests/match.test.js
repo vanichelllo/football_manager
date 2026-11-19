@@ -78,3 +78,59 @@ test('у протоколі матчу все узгоджено: голи в п
     assert.strictEqual(m.stats[0].poss + m.stats[1].poss, 100);
   }
 });
+
+test('покроковий матч: заміни, ліміт 5, зміна тактики', () => {
+  const M = FM.match.create({ home: { ...team(club('Arsenal')), manual: true }, away: team(club('Chelsea')), seed: 'live' });
+  for (let i = 0; i < 60; i++) M.step();
+  const me = M.sides[0];
+  const out = me.onPitch.find((x) => !x.out && x.slot.role === 'ST');
+  const sub = me.bench.find((p) => p.roles[0] !== 'GK');
+  assert.ok(M.sub(0, out.p.id, sub.id));
+  assert.ok(!M.sub(0, out.p.id, me.bench[0].id), 'двічі одного не замінити');
+  let made = 1;
+  for (const b of me.bench.slice()) {
+    const x = me.onPitch.find((y) => !y.out && y.slot.role !== 'GK' && !y.subbedOn);
+    if (b.roles[0] !== 'GK' && x && M.sub(0, x.p.id, b.id)) made++;
+  }
+  assert.strictEqual(made, 5, 'не більше п’яти замін');
+  assert.strictEqual(me.subsLeft, 0);
+  assert.ok(M.setTactics(0, { mentality: 'attacking', pressing: 'high' }));
+  const r = M.result();
+  assert.ok(M.done);
+  const subbed = r.ratings.filter((x) => x.team === 0 && x.on);
+  assert.strictEqual(subbed.length, 5);
+  assert.ok(r.events.some((e) => e.type === 'sub' && e.team === 0));
+  // ручна команда без замін від помічника: лише 5 наших замін
+  assert.strictEqual(r.events.filter((e) => e.type === 'sub' && e.team === 0).length, 5);
+});
+
+test('тактика має ефект: атака — більше голів, високий пресинг — більше втома й картки', () => {
+  const run = (tac, n = 400) => {
+    let goals = 0, cards = 0, cond = 0;
+    for (let i = 0; i < n; i++) {
+      const M = FM.match.create({ home: { ...team(club('Napoli')), ...tac }, away: { ...team(club('Lazio')), ...tac }, seed: 't' + i });
+      const r = M.result();
+      goals += r.score[0] + r.score[1];
+      cards += r.stats[0].yellow + r.stats[1].yellow;
+      cond += M.sides[0].onPitch.filter((x) => !x.out && !x.subbedOn).reduce((s, x) => s + x.cond, 0) / 11;
+    }
+    return { goals: goals / n, cards: cards / n, cond: cond / n };
+  };
+  const def = run({ mentality: 'defensive' }), att = run({ mentality: 'attacking' });
+  assert.ok(att.goals > def.goals * 1.15, `атака ${att.goals.toFixed(2)} проти оборони ${def.goals.toFixed(2)}`);
+  const low = run({ pressing: 'low' }), high = run({ pressing: 'high' });
+  assert.ok(high.cards > low.cards, 'високий пресинг — більше карток');
+  assert.ok(high.cond < low.cond - 3, `свіжість наприкінці: ${high.cond.toFixed(1)} проти ${low.cond.toFixed(1)}`);
+});
+
+test('склад із тактики: недоступних замінює помічник', () => {
+  const sq = W.squad(club('Arsenal').id);
+  const lu = FM.pickLineup(sq, '4-3-3');
+  const ids = lu.xi.map((x) => x.player.id);
+  const without = sq.filter((p) => p.id !== ids[9]); // нападник дискваліфікований
+  const res = FM.lineupFromIds(without, '4-3-3', ids);
+  assert.strictEqual(new Set(res.xi.map((x) => x.player.id)).size, 11);
+  assert.ok(!res.xi.some((x) => x.player.id === ids[9]));
+  assert.ok(res.xi[9].auto);
+  assert.deepStrictEqual(res.xi.filter((x, i) => i !== 9).map((x) => x.player.id), ids.filter((x, i) => i !== 9));
+});
