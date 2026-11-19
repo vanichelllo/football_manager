@@ -432,3 +432,9 @@ small.fam { opacity: 0.6; font-size: 0.75em; }
 details.opp { margin: 0.6rem 0; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem 0.75rem; }
 details.opp summary { cursor: pointer; font-weight: 600; }
 details.opp .facts { margin-top: 0.5rem; }
+
+/* ---------- Група Г ---------- */
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.panel-head h3 { margin: 0; }
+.loan-box { margin-top: 0.9rem; padding: 0.7rem; border: 1px dashed var(--line); border-radius: var(--radius); display: flex; flex-direction: column; gap: 0.4rem; }
+.rival { color: var(--warn); font-weight: 600; }

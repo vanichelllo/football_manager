@@ -76,6 +76,11 @@
         b.fin.tv = r2(b.fin.tv + fixed); b.fin.tickets = r2(b.fin.tickets + tickets); b.fin.wages = r2(b.fin.wages + wages);
       }
     }
+    // бонуси за голи (пункт контракту)
+    for (const f of fx) for (const [, pid] of f.sc || []) {
+      const p = W.player(pid);
+      if (p && p.goalBonus && p.club) W.club(p.club).balance = r2(W.club(p.club).balance - p.goalBonus / 1000);
+    }
     // довіра
     const mine = fx.find((f) => f.h === state.clubId || f.a === state.clubId);
     if (mine && mine.s) {
