@@ -50,22 +50,39 @@
   /** Гравці, які пропускають матч (червона або 5 жовтих). */
   const unavailable = (S, clubId, W) => new Set(W.club(clubId).players.filter((id) => S.bans[id]));
 
-  function sideFor(S, W, clubId) {
+  /**
+   * Склад і тактика клубу на матч. user — { clubId, tactics } гравця-людини: його склад береться з тактики.
+   * Суперники обирають ментальність за співвідношенням сил.
+   */
+  function sideFor(S, W, clubId, user, oppId, home) {
     const players = W.squad(clubId);
     const out = unavailable(S, clubId, W);
     const available = players.filter((p) => !out.has(p.id));
+    if (user && user.clubId === clubId && user.tactics) {
+      const t = user.tactics;
+      const lineup = FM.lineupFromIds(available, t.formation, t.ids);
+      return { club: W.club(clubId), players: available, formation: t.formation, lineup, mentality: t.mentality, pressing: t.pressing, passing: t.passing };
+    }
     const formation = FM.bestFormation(available);
-    return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(available, formation) };
+    let mentality = 'balanced';
+    if (oppId) {
+      const diff = W.clubLevel(clubId) - W.clubLevel(oppId) + (home ? 3 : -3);
+      mentality = diff > 12 ? 'attacking' : diff > 5 ? 'positive' : diff < -12 ? 'defensive' : diff < -5 ? 'cautious' : 'balanced';
+    }
+    return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(available, formation), mentality };
   }
 
-  function play(S, W, f, name) {
-    const hs = sideFor(S, W, f.h), as = sideFor(S, W, f.a);
-    const m = FM.match.play({
-      home: { club: { ...hs.club, name: name ? name.club(hs.club) : hs.club.name }, players: hs.players, formation: hs.formation, lineup: hs.lineup },
-      away: { club: { ...as.club, name: name ? name.club(as.club) : as.club.name }, players: as.players, formation: as.formation, lineup: as.lineup },
-      seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined,
-    });
-    return { m, hs, as };
+  /** Параметри матчу для двигуна (FM.match.create або play). */
+  function prepare(S, W, f, name, user) {
+    const hs = sideFor(S, W, f.h, user, f.a, true), as = sideFor(S, W, f.a, user, f.h, false);
+    const side = (x) => ({ club: { ...x.club, name: name ? name.club(x.club) : x.club.name }, players: x.players, formation: x.formation,
+      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing });
+    return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined } };
+  }
+
+  function play(S, W, f, name, user) {
+    const { hs, as, opts } = prepare(S, W, f, name, user);
+    return { m: FM.match.play(opts), hs, as };
   }
 
   /** Записати результат матчу: рахунок, голи, статистику гравців, картки й дискваліфікації. */
@@ -86,27 +103,33 @@
     }
   }
 
-  /**
-   * Зіграти поточний тиждень. skip — id матчу, який уже записано (матч гравця з трансляцією).
-   * Повертає список зіграних матчів тижня.
-   */
-  function playWeek(S, W, opts = {}) {
-    const list = fixturesOfWeek(S, S.week);
-    // дискваліфікації відбуваються в матчі, який пропущено: знімаємо після туру з тих клубів, що грали
-    const playedClubs = new Set();
-    // хто був дискваліфікований ще до цього туру — саме він пропустив матч
-    const banned = Object.keys(S.bans).filter((id) => S.bans[id][1] < S.week);
-    for (const f of list) {
-      playedClubs.add(f.h); playedClubs.add(f.a);
-      if (f.s) continue;
-      const { m } = play(S, W, f, opts.name);
+  /** Зіграти всі ще не зіграні матчі поточного тижня, крім skip (матч людини, який вона грає наживо). */
+  function playOthers(S, W, opts = {}) {
+    for (const f of fixturesOfWeek(S, S.week)) {
+      if (f.s || f.id === opts.skip) continue;
+      const { m } = play(S, W, f, opts.name, opts.user);
       record(S, f, m);
     }
-    for (const id of banned) {
+  }
+
+  /** Закрити тиждень: дискваліфікації тих, хто пропустив матч, минають; наступний тиждень. */
+  function advance(S, W) {
+    const playedClubs = new Set();
+    for (const f of fixturesOfWeek(S, S.week)) { playedClubs.add(f.h); playedClubs.add(f.a); }
+    // дискваліфікований ще до цього туру — саме він пропустив матч
+    for (const id of Object.keys(S.bans)) {
+      if (S.bans[id][1] >= S.week) continue;
       const p = W.player(id);
-      if (p && playedClubs.has(p.club) && S.bans[id]) { S.bans[id][0]--; if (S.bans[id][0] <= 0) delete S.bans[id]; }
+      if (p && playedClubs.has(p.club)) { S.bans[id][0]--; if (S.bans[id][0] <= 0) delete S.bans[id]; }
     }
     S.week++;
+  }
+
+  /** Зіграти весь поточний тиждень і перейти до наступного. */
+  function playWeek(S, W, opts = {}) {
+    const list = fixturesOfWeek(S, S.week);
+    playOthers(S, W, { name: opts.name, user: opts.user });
+    advance(S, W);
     return list;
   }
 
@@ -151,6 +174,6 @@
     return null;
   }
 
-  FM.season = { create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, play, record, playWeek, table, leaders, zone, roundRobin };
+  FM.season = { create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, prepare, play, record, playOthers, advance, playWeek, table, leaders, zone, roundRobin };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

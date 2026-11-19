@@ -53,8 +53,11 @@ test('цілий сезон: таблиця, очки, бомбардири уз
     const strong = W.clubsOf(l.id).map((c) => [c.id, W.clubLevel(c.id)]).sort((a, b) => b[1] - a[1]).slice(0, 6).map((x) => x[0]);
     assert.ok(strong.includes(t[0].id), `${l.id}: чемпіон ${W.club(t[0].id).nameEn}`);
   }
-  // після сезону майже не лишається «вічних» дискваліфікацій (лише за останні тури)
-  assert.ok(Object.keys(S.bans).length < 40, `дискваліфікацій лишилось ${Object.keys(S.bans).length}`);
+  // після сезону лишаються лише дискваліфікації, отримані в останньому турі ліги (їх нема де відбути)
+  for (const [id, [, week]] of Object.entries(S.bans)) {
+    const l = W.league(W.club(W.player(id).club).league);
+    assert.strictEqual(week, 2 * (l.size - 1) - 1, `${W.player(id).nameEn}: дискваліфікація з ${week + 1}-го туру не відбута`);
+  }
 });
 
 test('дискваліфікований гравець не потрапляє в склад', () => {
