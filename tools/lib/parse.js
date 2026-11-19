@@ -129,7 +129,7 @@ function squad(text) {
     let chunk = t.slice(a, b);
     // усередині секції теж буває підзаголовок через {{Fs mid}} + жирний текст «Out on loan» — обрізаємо
     // рядок-підзаголовок («;Out on loan», «'''Reserves'''», «{{Fs break|Out on loan}}») — далі вже не перша команда
-    const cut = chunk.search(/^(?!\{\{\s*fs player)[^\n]*\b(out on loan|on loan|loaned out|loans|reserves?|academy|youth|under-?\s?\d\d|U-?\d\d|b team|second team|development)\b[^\n]*$/im);
+    const cut = chunk.search(/^(?!\{\{\s*(?:fs2? player|football squad player|about|for|see also|main|distinguish|redirect|further|other uses)\b)[^\n]*\b(out on loan|on loan|loaned out|loans|reserves?|academy|youth|under-?\s?\d\d|U-?\d\d|b team|second team|development)\b[^\n]*$/im);
     if (cut > 0) chunk = chunk.slice(0, cut);
     for (const tpl of findTemplates(chunk, 'fs player|football squad player|fs2 player')) {
       const p = templateParams(tpl);

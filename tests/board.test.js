@@ -24,12 +24,13 @@ function career(en) {
   return { W, state };
 }
 
-test('цілі правління: найсильніший — титул, найслабший — виживання', () => {
+test('цілі правління: найсильніший — титул (у другому дивізіоні — підвищення), найслабший — виживання', () => {
   const { W } = career('Arsenal');
   for (const l of db.leagues) {
     const ranked = W.clubsOf(l.id).map((c) => [c.id, W.clubLevel(c.id)]).sort((a, b) => b[1] - a[1]);
-    assert.strictEqual(FM.board.target(W, ranked[0][0]).kind, 'title', l.id);
-    assert.strictEqual(FM.board.target(W, ranked[ranked.length - 1][0]).kind, 'survive', l.id);
+    const tier2 = l.tier === 2;
+    assert.strictEqual(FM.board.target(W, ranked[0][0]).kind, tier2 ? 'promotion' : 'title', l.id);
+    assert.strictEqual(FM.board.target(W, ranked[ranked.length - 1][0]).kind, tier2 ? 'midtable' : 'survive', l.id);
   }
 });
 

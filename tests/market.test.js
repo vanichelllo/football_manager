@@ -79,7 +79,7 @@ test('трансферне вікно: клуби ШІ купують, за ви
   let offers = 0;
   for (let w = 0; w < 4; w++) { S.week = w; FM.market.weekly(W, state); offers += state.offers.filter((o) => listed.some((p) => p.id === o.pid)).length; }
   const deals = (state.transfers || []).filter((t) => t.fee > 0).length;
-  assert.ok(deals >= 5 && deals < 120, `трансферів ШІ: ${deals}`);
+  assert.ok(deals >= 5 && deals < db.clubs.length * 1.1, `трансферів ШІ: ${deals}`);
   assert.ok(offers > 0, 'є пропозиції за гравця в трансфер-листі');
   S.week = 10;
   const before = (state.transfers || []).filter((t) => t.fee > 0).length;
