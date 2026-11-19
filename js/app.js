@@ -15,9 +15,14 @@
   const W = FM.createWorld(window.FM_DB);
   let state = store.load();
   if (state && !W.club(state.clubId)) state = null; // база змінилась — клубу вже немає
+  // давніші збереження (до етапу 3) — створюємо сезон
+  if (state && !state.season) { state.season = FM.season.create(W, String(Date.now())); store.save(state); }
 
   const nameOf = (p) => (state && state.names === 'en' ? p.nameEn : p.name);
   const clubName = (c) => (state && state.names === 'en' ? c.nameEn : c.name);
+  const NAMES = { club: (c) => clubName(c), player: (p) => nameOf(p) };
+  const pstat = (id) => (state && state.season.ps[id]) || null; // [ігри, голи, паси, сума оцінок ×10, ЖК, ЧК]
+  const banned = (id) => !!(state && state.season.bans[id]);
 
   function badge(c, big) {
     const b = el('div.badge' + (big ? '.big' : ''), { title: clubName(c), 'aria-hidden': 'true' }, el('span', c.code));
@@ -44,7 +49,7 @@
     if (!state) return renderStart();
     const view = location.hash.slice(1) || 'overview';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, fixtures: screenSeason, table: screenTable, options: screenSettings };
     const body = (screens[name] || screenOverview)(arg);
     app.replaceChildren(shell(name, body));
     window.scrollTo(0, 0);
@@ -60,7 +65,8 @@
         el('div.club-head', [badge(my), el('b', clubName(my))]),
         el('nav.nav', { 'aria-label': 'Меню' }, [
           item('overview', 'Огляд'), item('squad', 'Склад'), item('leagues', 'Ліги й клуби'),
-          item('match', 'Матч'), item('tactics', 'Тактика', true), item('fixtures', 'Сезон', true), item('transfers', 'Трансфери', true),
+          item('fixtures', 'Сезон'), item('table', 'Таблиця'), item('match', 'Товариський'),
+          item('tactics', 'Тактика', true), item('transfers', 'Трансфери', true),
           item('options', 'Налаштування'),
         ]),
         el('div.foot', [`Тренер: ${state.manager}`, el('br'), `Сезон ${W.db.season}`]),
@@ -93,7 +99,8 @@
     }
     function begin() {
       if (!clubId) return;
-      state = { version: 1, manager: nameInput.value.trim() || 'Новий тренер', clubId, names: 'uk', started: W.today };
+      state = { version: 1, manager: nameInput.value.trim() || 'Новий тренер', clubId, names: 'uk', started: W.today,
+        season: FM.season.create(W, String(Date.now())) };
       store.save(state);
       go('overview');
     }
@@ -143,6 +150,7 @@
           el('dt', 'Вартість'), el('dd', fmt.money(value)),
         ])]),
       ]),
+      seasonPanel(),
       el('div.grid', [mini(best, 'Найкращі гравці'), mini(young, 'Найперспективніша молодь (до 21)')]),
     ];
   }
@@ -159,12 +167,14 @@
       ['nat', 'Країна', (p) => FM.countries.name(p.nat)],
       ['ca', 'Рівень', (p) => starsEl(p.ca, 'Рівень')],
       ['pa', 'Потенціал', (p) => starsEl(p.pa, 'Потенціал')],
+      ['season', 'Ігри / голи', (p) => { const st = pstat(p.id); return st ? `${st[0]} / ${st[1]}` : '—'; }, 'num'],
       ['caps', 'Збірна', (p) => (p.caps ? `${p.caps} (${p.intlGoals || 0})` : '—'), 'num'],
       ['value', 'Ціна', (p) => fmt.money(p.value), 'num'],
     ];
     const keyFn = {
       number: (p) => p.number ?? 999, name: nameOf, age: (p) => W.age(p) ?? 99, nat: (p) => FM.countries.name(p.nat),
       ca: (p) => -p.ca, pa: (p) => -p.pa, caps: (p) => -(p.caps || 0), value: (p) => -p.value, pos: null,
+      season: (p) => { const st = pstat(p.id); return st ? -(st[0] * 100 + st[1]) : 0; },
     };
     const sorted = [...rows];
     if (keyFn[squadSort.key]) sorted.sort((a, b) => {
@@ -182,7 +192,8 @@
       el('tbody', sorted.map((p) => el('tr.row-link', { onclick: () => go('player-' + p.id) }, cols.map(([k, , f, cls]) => {
         const td = el('td' + (cls ? '.' + cls : ''), [f(p)]);
         if (k === 'pos') td.className = 'pos line-' + FM.ROLE_LINE[p.roles[0]];
-        if (k === 'name') td.append(...(p.captain ? [' ', el('span.muted', { title: 'Капітан' }, '(К)')] : []), ...(p.onLoanFrom ? [' ', el('span.soon', { title: 'В оренді з ' + p.onLoanFrom }, 'оренда')] : []));
+        if (k === 'name') td.append(...(p.captain ? [' ', el('span.muted', { title: 'Капітан' }, '(К)')] : []), ...(p.onLoanFrom ? [' ', el('span.soon', { title: 'В оренді з ' + p.onLoanFrom }, 'оренда')] : []),
+          ...(banned(p.id) ? [' ', el('span.chip.bad', { title: 'Пропускає наступний матч' }, 'дискв.')] : []));
         return td;
       })))),
     ]));
@@ -227,6 +238,13 @@
           el('dt', 'Рівень'), el('dd', starsEl(p.ca, 'Рівень')),
           el('dt', 'Потенціал'), el('dd', starsEl(p.pa, 'Потенціал')),
           el('dt', 'Ціна'), el('dd', fmt.money(p.value)),
+          ...(() => {
+            const st = pstat(p.id);
+            if (!st) return [el('dt', 'Сезон'), el('dd', 'ще не грав')];
+            return [el('dt', 'Сезон'), el('dd', `${st[0]} матчів, ${st[1]} голів, ${st[2]} передач`),
+              el('dt', 'Середня оцінка'), el('dd', (st[3] / st[0] / 10).toFixed(2).replace('.', ',')),
+              el('dt', 'Картки'), el('dd', `${st[4]} жовтих, ${st[5]} червоних` + (banned(p.id) ? ' · пропускає наступний матч' : ''))];
+          })(),
         ]), p.wiki ? el('p.note', ['Факти: ', el('a', { href: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(p.wiki.replace(/ /g, '_')), target: '_blank', rel: 'noopener' }, 'Wikipedia')]) : null]),
       ]),
       el('div.panel', [el('div.attrs', groups.map(([title, keys]) => el('div', [
@@ -370,11 +388,11 @@
     });
     state.friendlies = (state.friendlies || []).concat([{ home: clubName(hs.club), away: clubName(as.club), score: result.score.join(':') }]).slice(-20);
     store.save(state);
-    app.replaceChildren(shell('match', liveView(hs, as, result)));
+    app.replaceChildren(shell('match', liveView(hs, as, result, [['Зіграти ще раз', () => startMatch(hs, as), true], ['Інший суперник', () => render()]])));
     window.scrollTo(0, 0);
   }
 
-  function liveView(hs, as, m) {
+  function liveView(hs, as, m, actions) {
     const scoreEl = el('div.sb-score', '0:0');
     const clock = el('div.sb-clock', '0′');
     const feed = el('ol.feed', { 'aria-live': 'polite' });
@@ -435,10 +453,8 @@
           ['Очікувані голи (xG)', sh.xg, sa.xg, f2], ['Жовті картки', sh.yellow, sa.yellow], ['Червоні картки', sh.red, sa.red],
         ]), el('p', ['Найкращий гравець матчу: ', el('b', nameOf(m.motm.player)), ` (${clubName(m.motm.team === 0 ? hs.club : as.club)}, ${f2(m.motm.rating)})`])]),
         el('div.grid', [ratingTable(0, hs.club), ratingTable(1, as.club)]),
-        el('div', { style: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' } }, [
-          el('button.btn.primary', { type: 'button', onclick: () => startMatch(hs, as) }, 'Зіграти ще раз'),
-          el('button.btn', { type: 'button', onclick: () => render() }, 'Інший суперник'),
-        ]),
+        el('div', { style: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' } }, actions.map(([label, fn, primary]) =>
+          el('button.btn' + (primary ? '.primary' : ''), { type: 'button', onclick: fn }, label))),
       );
     }
     drawSpeed();
@@ -452,6 +468,171 @@
       el('div.live-controls', [el('span.muted', 'Швидкість'), speedBtns]),
       el('div.panel.feed-wrap', feed),
       after,
+    ];
+  }
+
+  // ---------------- Сезон ----------------
+  const RESULT = (f, clubId) => {
+    if (!f.s) return null;
+    const [g1, g2] = f.h === clubId ? f.s : [f.s[1], f.s[0]];
+    return g1 > g2 ? 'W' : g1 < g2 ? 'L' : 'D';
+  };
+  const RESULT_UK = { W: 'В', D: 'Н', L: 'П' };
+  const formEl = (form) => el('span.form', form.map((r) => el('span.fr.fr-' + r, { title: { W: 'Перемога', D: 'Нічия', L: 'Поразка' }[r] }, RESULT_UK[r])));
+  const roundOf = (f) => f.w + 1;
+
+  function myPosition() {
+    const c = W.club(state.clubId);
+    const t = FM.season.table(state.season, W, c.league);
+    return { pos: t.findIndex((r) => r.id === c.id) + 1, row: t.find((r) => r.id === c.id), size: t.length };
+  }
+
+  function seasonPanel() {
+    const S = state.season, c = W.club(state.clubId);
+    const f = FM.season.nextFixture(S, c.id);
+    const { pos, row, size } = myPosition();
+    const facts = [
+      el('dt', 'Місце'), el('dd', row.p ? `${pos}-е з ${size} · ${row.pts} очок` : 'сезон ще не почався'),
+      el('dt', 'Форма'), el('dd', row.form.length ? formEl(row.form) : '—'),
+    ];
+    if (f) {
+      const opp = W.club(f.h === c.id ? f.a : f.h);
+      facts.push(el('dt', 'Наступний матч'), el('dd', [el('a', { href: '#fixtures' }, `${clubName(opp)} (${f.h === c.id ? 'вдома' : 'на виїзді'})`), `, ${roundOf(f)}-й тур, ${fmt.date(FM.season.dateOf(f.w))}`]));
+    } else facts.push(el('dt', 'Наступний матч'), el('dd', 'сезон завершено'));
+    return el('div.panel', [el('h3', `Сезон ${W.db.season}`), el('dl.facts', facts)]);
+  }
+
+  function playMyMatch(live) {
+    const S = state.season;
+    const f = FM.season.fixturesOfWeek(S, S.week).find((x) => x.h === state.clubId || x.a === state.clubId);
+    let shown = null;
+    if (f) {
+      const { m, hs, as } = FM.season.play(S, W, f, NAMES);
+      FM.season.record(S, f, m); // результат фіксуємо одразу, ще до трансляції
+      shown = { m, hs, as, f };
+    }
+    FM.season.playWeek(S, W, { name: NAMES });
+    store.save(state);
+    if (shown && live) {
+      app.replaceChildren(shell('fixtures', liveView(shown.hs, shown.as, shown.m, [
+        ['Далі', () => go('fixtures'), true], ['Таблиця', () => go('table')],
+      ])));
+      window.scrollTo(0, 0);
+    } else go('fixtures');
+  }
+
+  function fixtureRow(f, clubId, opts = {}) {
+    const home = W.club(f.h), away = W.club(f.a);
+    const r = clubId ? RESULT(f, clubId) : null;
+    // у календарі власного клубу підсвічувати нічого — там усі матчі «наші»
+    return el('tr' + (!clubId && (f.h === state.clubId || f.a === state.clubId) ? '.mine' : ''), [
+      opts.round ? el('td.num', roundOf(f)) : null,
+      opts.date ? el('td', fmt.date(FM.season.dateOf(f.w)).slice(0, 5)) : null,
+      el('td.num.team-h', [clubName(home), ' ', badge(home)]),
+      el('td.score', f.s ? f.s.join(' : ') : '–'),
+      el('td.team-a', [badge(away), ' ', clubName(away)]),
+      clubId ? el('td', r ? el('span.fr.fr-' + r, RESULT_UK[r]) : '') : null,
+    ]);
+  }
+
+  function screenSeason() {
+    const S = state.season, c = W.club(state.clubId);
+    const total = FM.season.weeks(S);
+    const over = FM.season.isOver(S);
+    const thisWeek = over ? null : FM.season.fixturesOfWeek(S, S.week).find((x) => x.h === c.id || x.a === c.id);
+    const mine = FM.season.clubFixtures(S, c.id);
+    const last = [...mine].reverse().find((f) => f.s);
+    const { pos, size } = myPosition();
+    const blocks = [el('header', [el('h1', `Сезон ${W.db.season}`), el('span.muted', over ? 'Сезон завершено' : `Тиждень ${S.week + 1} з ${total} · ${fmt.date(FM.season.dateOf(S.week))}`)])];
+
+    if (over) {
+      blocks.push(el('div.panel', [el('h3', 'Підсумки сезону'),
+        el('p', `${clubName(c)} — ${pos}-е місце з ${size}.`),
+        el('ul.plist', W.db.leagues.map((l) => {
+          const champ = W.club(FM.season.table(S, W, l.id)[0].id);
+          return el('li', [el('span', l.name), el('b', ['Чемпіон: ', clubName(champ)])]);
+        })),
+        el('p.note', 'Новий сезон із розвитком гравців і трансферами з’явиться на наступних етапах. Почати ще раз можна в «Налаштуваннях».')]));
+    } else if (thisWeek) {
+      const opp = W.club(thisWeek.h === c.id ? thisWeek.a : thisWeek.h);
+      const t = FM.season.table(S, W, c.league);
+      const oppPos = t.findIndex((r) => r.id === opp.id) + 1;
+      const out = W.club(c.id).players.filter((id) => banned(id)).map((id) => nameOf(W.player(id)));
+      blocks.push(el('div.panel.next', [
+        el('h3', `${roundOf(thisWeek)}-й тур · ${fmt.date(FM.season.dateOf(thisWeek.w))}`),
+        el('div.vs', [
+          el('div.vs-team', [badge(W.club(thisWeek.h), true), el('b', clubName(W.club(thisWeek.h))), el('small.muted', 'господарі')]),
+          el('div.vs-mid', 'проти'),
+          el('div.vs-team', [badge(W.club(thisWeek.a), true), el('b', clubName(W.club(thisWeek.a))), el('small.muted', 'гості')]),
+        ]),
+        el('p.muted', `Суперник: ${clubName(opp)}, ${oppPos ? oppPos + '-е місце' : ''}${t[oppPos - 1] && t[oppPos - 1].p ? `, ${t[oppPos - 1].pts} очок` : ''}.` + (out.length ? ` Пропускають через дискваліфікацію: ${out.join(', ')}.` : '')),
+        el('div.actions', [
+          el('button.btn.primary', { type: 'button', onclick: () => playMyMatch(true) }, 'Грати з трансляцією'),
+          el('button.btn', { type: 'button', onclick: () => playMyMatch(false) }, 'Одразу результат'),
+        ]),
+        el('p.note', 'Решта матчів туру в усіх лігах зіграються одночасно. Склад і схему поки обирає помічник — керування з’явиться в «Тактиці».'),
+      ]));
+    } else {
+      blocks.push(el('div.panel', [el('h3', 'Цього тижня ваша ліга не грає'),
+        el('p', 'Чемпіонат вашої ліги вже завершився, а інші ліги ще грають.'),
+        el('div.actions', [el('button.btn.primary', { type: 'button', onclick: () => playMyMatch(false) }, 'Наступний тиждень')])]));
+    }
+
+    if (last) {
+      const lastRound = FM.season.fixturesOfWeek(S, last.w).filter((f) => f.l === c.league);
+      blocks.push(el('div.panel', [el('h3', `Результати ${roundOf(last)}-го туру`),
+        el('div.table-wrap.flat', el('table.fixtures', el('tbody', lastRound.map((f) => fixtureRow(f, null)))))]));
+    }
+    blocks.push(el('div.panel', [el('h3', 'Календар клубу'), el('div.table-wrap.flat', el('table.fixtures', [
+      el('thead', el('tr', [el('th.num', 'Тур'), el('th', 'Дата'), el('th.num', 'Господарі'), el('th', 'Рахунок'), el('th', 'Гості'), el('th', '')])),
+      el('tbody', mine.map((f) => fixtureRow(f, c.id, { round: true, date: true }))),
+    ]))]));
+    return blocks;
+  }
+
+  let tableLeague = null, tableRound = null;
+  function screenTable() {
+    const S = state.season;
+    tableLeague = tableLeague || W.club(state.clubId).league;
+    const L = W.league(tableLeague);
+    const t = FM.season.table(S, W, tableLeague);
+    const rounds = 2 * (L.size - 1);
+    const played = Math.max(0, ...S.fixtures.filter((f) => f.l === L.id && f.s).map((f) => f.w + 1));
+    if (tableRound == null || tableRound > rounds) tableRound = Math.max(1, played);
+    const ZONE_UK = { ucl: 'Ліга чемпіонів', uel: 'Ліга Європи', uecl: 'Ліга конференцій', playoff: 'Стикові матчі', rel: 'Виліт' };
+    const leaderList = (key, title) => {
+      const list = FM.season.leaders(S, W, L.id, key, 10);
+      return el('div.panel', [el('h3', title), list.length ? el('ol.plist.leaders', list.map((x) => el('li', [
+        el('span', [el('a', { href: '#player-' + x.id }, nameOf(x.p)), el('small.muted', ' ' + clubName(W.club(x.p.club)))]), el('b', x.st[key])]))) : el('p.muted', 'Ще немає.')]);
+    };
+    const roundFx = S.fixtures.filter((f) => f.l === L.id && f.w === tableRound - 1);
+    return [
+      el('header', [el('h1', 'Таблиця'), el('span.muted', `${L.name} · зіграно турів: ${played} з ${rounds}`)]),
+      el('div.tabs', W.db.leagues.map((l) => el('button', { type: 'button', 'aria-pressed': String(l.id === tableLeague), onclick: () => { tableLeague = l.id; tableRound = null; render(); } }, l.name))),
+      el('div.table-wrap', el('table.standings', [
+        el('thead', el('tr', ['#', 'Клуб', 'І', 'В', 'Н', 'П', 'М', 'Р', 'О', 'Форма'].map((h, i) => el('th' + (i >= 2 && i <= 8 ? '.num' : ''), { title: { І: 'Ігри', В: 'Виграші', Н: 'Нічиї', П: 'Поразки', М: 'М’ячі', Р: 'Різниця', О: 'Очки' }[h] || null }, h)))),
+        el('tbody', t.map((r, i) => {
+          const z = FM.season.zone(L.id, i + 1, t.length);
+          const c = W.club(r.id);
+          return el('tr.row-link' + (z ? '.z-' + z : '') + (r.id === state.clubId ? '.mine' : ''), { title: z ? ZONE_UK[z] : null, onclick: () => go(r.id === state.clubId ? 'squad' : 'club-' + r.id) }, [
+            el('td.num.zone', i + 1),
+            el('td.name', el('span.club-cell', [badge(c), clubName(c)])),
+            el('td.num', r.p), el('td.num', r.w), el('td.num', r.d), el('td.num', r.l),
+            el('td.num', `${r.gf}:${r.ga}`), el('td.num', (r.gd > 0 ? '+' : '') + r.gd), el('td.num', el('b', r.pts)),
+            el('td', formEl(r.form)),
+          ]);
+        })),
+      ])),
+      el('div.legend', Object.entries(ZONE_UK).filter(([z]) => z !== 'playoff' || ['ger', 'fra', 'ukr'].includes(L.id)).map(([z, label]) => el('span', [el('i.z-' + z), label]))),
+      el('div.grid', [leaderList(1, 'Бомбардири'), leaderList(2, 'Асистенти')]),
+      el('div.panel', [
+        el('div.round-nav', [
+          el('button.btn', { type: 'button', disabled: tableRound <= 1 || null, onclick: () => { tableRound--; render(); }, 'aria-label': 'Попередній тур' }, '←'),
+          el('h3', `${tableRound}-й тур · ${fmt.date(FM.season.dateOf(tableRound - 1))}`),
+          el('button.btn', { type: 'button', disabled: tableRound >= rounds || null, onclick: () => { tableRound++; render(); }, 'aria-label': 'Наступний тур' }, '→'),
+        ]),
+        el('div.table-wrap.flat', el('table.fixtures', el('tbody', roundFx.map((f) => fixtureRow(f, null))))),
+      ]),
     ];
   }
 

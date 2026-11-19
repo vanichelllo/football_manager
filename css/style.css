@@ -245,3 +245,40 @@ td.name { font-weight: 600; }
   .sb-team .badge.big { width: 2.2rem; height: 2.2rem; font-size: 0.6rem; }
   .pre-row .kick { margin-left: 0; width: 100%; }
 }
+
+/* ---------- Сезон і таблиця ---------- */
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+.chip { display: inline-block; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 999px; }
+.chip.bad { background: var(--warn); color: var(--panel); }
+.form { display: inline-flex; gap: 3px; }
+.fr { display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 3px; font: 700 0.72rem/1 var(--font-body); color: #fff; }
+.fr-W { background: #1f9254; } .fr-D { background: #8a948e; } .fr-L { background: #cf4040; }
+.table-wrap.flat { border: 0; background: none; }
+table.fixtures td { padding: 0.4rem 0.45rem; }
+table.fixtures .team-h { text-align: right; }
+table.fixtures .team-h, table.fixtures .team-a { white-space: normal; }
+table.fixtures .badge { width: 1.4rem; height: 1.4rem; font-size: 0; vertical-align: middle; display: inline-grid; }
+table.fixtures .score { text-align: center; font: 700 1rem/1 var(--font-display); white-space: nowrap; width: 4.5rem; }
+tr.mine td { background: var(--accent-soft); }
+table.standings td.zone { border-left: 4px solid transparent; }
+tr.z-ucl td.zone { border-left-color: #2563c9; }
+tr.z-uel td.zone { border-left-color: #e08a1a; }
+tr.z-uecl td.zone { border-left-color: #2fa36b; }
+tr.z-playoff td.zone { border-left-color: #b08bd9; }
+tr.z-rel td.zone { border-left-color: #cf4040; }
+.club-cell { display: inline-flex; gap: 0.5rem; align-items: center; }
+.club-cell .badge { width: 1.5rem; height: 1.5rem; font-size: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font-size: 0.82rem; color: var(--muted); }
+.legend span { display: inline-flex; gap: 0.35rem; align-items: center; }
+.legend i { width: 0.8rem; height: 0.8rem; border-radius: 2px; display: inline-block; }
+.legend i.z-ucl { background: #2563c9; } .legend i.z-uel { background: #e08a1a; } .legend i.z-uecl { background: #2fa36b; }
+.legend i.z-playoff { background: #b08bd9; } .legend i.z-rel { background: #cf4040; }
+.leaders { counter-reset: n; }
+.leaders li { counter-increment: n; }
+.leaders li > span::before { content: counter(n) ". "; color: var(--muted); }
+.round-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
+.round-nav h3 { margin: 0; text-align: center; }
+.panel.next .vs { margin: 0.75rem 0; }
+
+/* малі емблеми — лише кольори, без коду */
+.fixtures .badge span, .club-cell .badge span, .ev .badge span { display: none; }
