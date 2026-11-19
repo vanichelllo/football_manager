@@ -375,3 +375,10 @@ select.tiny { padding: 0.25rem 0.35rem; border: 1px solid var(--line); border-ra
 .confbar i { display: block; height: 100%; }
 .confbar i.high { background: var(--accent); } .confbar i.mid { background: #e0a21a; } .confbar i.low { background: #cf4040; }
 p.big { font: 600 1.3rem/1.2 var(--font-display); margin: 0.2rem 0; }
+
+/* ---------- Мораль ---------- */
+.mood { font-size: 0.85rem; font-weight: 600; }
+.mood.m4 { color: var(--accent); } .mood.m3 { color: #3f9d6a; } .mood.m2 { color: var(--muted); } .mood.m1 { color: var(--warn); } .mood.m0 { color: #cf4040; }
+.talk, .press { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.75rem; border: 1px dashed var(--accent); border-radius: var(--radius); margin: 0.5rem 0 0.8rem; }
+.talk-opts, .press-opts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.press p { margin: 0; }

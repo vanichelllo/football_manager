@@ -135,3 +135,14 @@ test('склад із тактики: недоступних замінює по
   assert.ok(res.xi[9].auto);
   assert.deepStrictEqual(res.xi.filter((x, i) => i !== 9).map((x) => x.player.id), ids.filter((x, i) => i !== 9));
 });
+
+test('порядок подій: другий тайм починається після перерви, хвилини не йдуть назад', () => {
+  for (let i = 0; i < 30; i++) {
+    const m = FM.match.play({ home: team(club('Arsenal')), away: team(club('Chelsea')), seed: 'ord' + i });
+    const half = m.events.findIndex((e) => e.type === 'half' && String(e.min).startsWith('45'));
+    const second = m.events.findIndex((e) => e.type === 'half' && e.min === 46);
+    assert.ok(half >= 0 && second === half + 1, `перерва ${half}, другий тайм ${second}`);
+    const val = (x) => (typeof x === 'number' ? x : Number(String(x).split('+')[0]) + Number(String(x).split('+')[1] || 0) / 10);
+    for (let k = 1; k < m.events.length; k++) assert.ok(val(m.events[k].min) >= val(m.events[k - 1].min) || (m.events[k - 1].min + '').startsWith('45+'), `${m.events[k - 1].min} → ${m.events[k].min}`);
+  }
+});

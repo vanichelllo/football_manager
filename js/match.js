@@ -131,7 +131,8 @@
   /** Сили ліній (шкала 1–20): атака, контроль, оборона, воротар. entries: [{ p, slot, cond?, out? }]. */
   function unitsFrom(entries) {
     const live = entries.filter((x) => !x.out);
-    const eff = (x) => slotValue(x.p, x.slot) * (0.82 + 0.18 * (x.cond ?? 100) / 100);
+    // свіжість і настрій (мораль — якщо підключено morale.js)
+    const eff = (x) => slotValue(x.p, x.slot) * (0.82 + 0.18 * (x.cond ?? 100) / 100) * (FM.morale ? FM.morale.factor(x.p) : 1);
     const u = {};
     for (const unit of ['att', 'mid', 'def']) {
       let s = 0, w = 0;
@@ -216,7 +217,10 @@
       events.push({ min, type, team: team == null ? null : team.k, text, score: [H.stats.goals, A.stats.goals] });
     };
 
-    function compute(t) { t.units = unitsFrom(t.onPitch); }
+    function compute(t) {
+      t.units = unitsFrom(t.onPitch);
+      if (t.boost && t.boost !== 1) for (const k of ['att', 'mid', 'def']) t.units[k] *= t.boost; // ефект промови в перерві
+    }
 
     function chanceRates(min) {
       // контроль м'яча: пресинг відбирає м'яч частіше, короткі передачі його бережуть
@@ -367,6 +371,18 @@
       return changed.length > 0;
     }
 
+    /** Промова в перерві: множник сили на другий тайм і мораль гравців на полі. */
+    function halftimeTalk(k, kind) {
+      const t = sides[k], o = sides[1 - k];
+      if (!FM.morale || t.talked) return null;
+      const e = FM.morale.talkEffect(kind, t.stats.goals - o.stats.goals, R);
+      t.talked = true; t.boost = e.boost;
+      for (const x of t.onPitch) if (!x.out) x.p.morale = Math.max(0, Math.min(100, FM.morale.get(x.p) + e.morale));
+      compute(t);
+      say(current, 'info', t, [`Перерва, роздягальня ${t.club.name}: ${e.text}`]);
+      return e;
+    }
+
     // ---- матч ----
     compute(H); compute(A);
     const startUnits = [{ ...H.units }, { ...A.units }];
@@ -382,7 +398,7 @@
       if (done) return false;
       const e = timeline[idx++];
       current = e.label; minuteNum = e.m;
-      if (e.m === 46) say(46, 'half', null, 'second');
+      if (e.pi === 1 && timeline[idx - 2] && timeline[idx - 2].pi === 0) say(46, 'half', null, 'second'); // перша хвилина другого тайму (не компенсація першого)
       const cr = chanceRates(e.m);
       possH += cr.share; ticks++;
       // втома: витривалість, пресинг
@@ -445,7 +461,8 @@
     }
 
     return {
-      step, result, sub, setTactics, liveStats, sides, events,
+      step, result, sub, setTactics, halftimeTalk, liveStats, sides, events,
+      get halftime() { return idx > 0 && idx < timeline.length && timeline[idx - 1].pi === 0 && timeline[idx].pi === 1; },
       get done() { return done; },
       get minute() { return current; },
       get minuteNum() { return minuteNum; },

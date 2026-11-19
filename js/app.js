@@ -207,12 +207,14 @@
       ['caps', 'Збірна', (p) => (p.caps ? `${p.caps} (${p.intlGoals || 0})` : '—'), 'num'],
       ['value', 'Ціна', (p) => fmt.money(p.value), 'num'],
       ['contract', 'Контракт', (p) => p.contract ?? '—', 'num'],
+      ['morale', 'Настрій', (p) => el('span.mood.m' + Math.min(4, Math.floor(FM.morale.get(p) / 20.01)), { title: p.mr ? 'Причина: ' + p.mr : null }, FM.morale.label(p))],
     ];
     const keyFn = {
       number: (p) => p.number ?? 999, name: nameOf, age: (p) => W.age(p) ?? 99, nat: (p) => FM.countries.name(p.nat),
       ca: (p) => -p.ca, pa: (p) => -p.pa, caps: (p) => -(p.caps || 0), value: (p) => -p.value, pos: null,
       season: (p) => { const st = pstat(p.id); return st ? -(st[0] * 100 + st[1]) : 0; },
       contract: (p) => p.contract || 0,
+      morale: (p) => -FM.morale.get(p),
     };
     const sorted = [...rows];
     if (keyFn[squadSort.key]) sorted.sort((a, b) => {
@@ -235,7 +237,8 @@
           ...(p.edited ? [' ', el('span.chip', { title: 'Дані змінено в редакторі' }, '✎')] : []),
           ...(p.injury ? [' ', el('span.chip.bad', { title: `Травма, ще ${p.injury} тиж.` }, '+' + p.injury)] : []),
           ...(p.youth ? [' ', el('span.chip', { title: 'Вихованець академії' }, 'юнак')] : []),
-          ...(p.listed ? [' ', el('span.chip', { title: 'Виставлений на трансфер' }, 'продаж')] : []));
+          ...(p.listed ? [' ', el('span.chip', { title: 'Виставлений на трансфер' }, 'продаж')] : []),
+          ...(p.wantsOut ? [' ', el('span.chip.bad', { title: 'Просить продати його' }, 'хоче піти')] : []));
         return td;
       })))),
     ]));
@@ -284,6 +287,8 @@
           el('dt', 'Ціна'), el('dd', fmt.money(p.value)),
           ...(p.club && p.contract ? [el('dt', 'Контракт'), el('dd', `до літа ${p.contract}, ${p.wage} тис. € на тиждень`)] : []),
           ...(p.listed ? [el('dt', 'Трансфер'), el('dd', 'виставлений на продаж')] : []),
+          ...(p.club === state.clubId ? [el('dt', 'Настрій'), el('dd', `${FM.morale.label(p)}${p.mr ? ` (${p.mr})` : ''}${p.wantsOut ? ' · просить продажу' : ''}`),
+            el('dt', 'Статус'), el('dd', FM.morale.STATUS[FM.morale.status(W, p)])] : []),
           ...(p.injury ? [el('dt', 'Травма'), el('dd', `ще ${p.injury} тиж.`)] : []),
           ...(p.retired ? [el('dt', 'Кар\u2019єра'), el('dd', `завершив у ${p.retired}/${String(p.retired + 1).slice(2)}`)] : []),
           ...(!p.club && !p.retired ? [el('dt', 'Клуб'), el('dd', 'вільний агент')] : []),
@@ -812,7 +817,7 @@
     const speedBtns = el('div.tabs');
     const statsBox = el('div');
     const control = el('div.panel.control');
-    let shown = 0, paused = false, finished = false, hold = 0, acc = 0;
+    let shown = 0, paused = false, finished = false, hold = 0, acc = 0, talkAsked = false, talkMsg = null;
     const MS_PER_MIN = 260, TICK = 100;
     const pct = (v) => v + '%';
     const f2 = (v) => String(v).replace('.', ',');
@@ -856,8 +861,16 @@
       };
       fillIn();
       const tac = t.tactic;
+      const talk = M.halftime && !t.talked ? el('div.talk', [
+        el('b', 'Промова в перерві'),
+        el('div.talk-opts', Object.entries(FM.morale.TALKS).map(([k, d]) => el('button.btn', { type: 'button', title: d.hint, onclick: () => {
+          const e = M.halftimeTalk(myK, k); talkMsg = e ? e.text : null; flush(); paused = false; drawSpeed(); drawControl();
+        } }, d.label))),
+        el('small.muted', 'Наведіть на варіант, щоб побачити, коли він доречний.'),
+      ]) : talkMsg ? el('p.msg-ok', talkMsg) : null;
       control.replaceChildren(
         el('h3', paused ? 'Пауза — рішення тренера' : 'Рішення тренера'),
+        talk,
         el('div.instr', ['mentality', 'pressing', 'passing'].map((g) => el('div.field', [
           el('b', { mentality: 'Ментальність', pressing: 'Пресинг', passing: 'Передачі' }[g]),
           segmented(g, tac[g], (v) => { M.setTactics(myK, { [g]: v }); flush(); drawControl(); }),
@@ -886,9 +899,14 @@
         else {
           acc += (TICK / MS_PER_MIN) * liveSpeed;
           let changed = false;
-          while (acc >= 1 && !M.done) { acc -= 1; M.step(); changed = true; }
+          while (acc >= 1 && !M.done) {
+            acc -= 1; M.step(); changed = true;
+            if (myK != null && M.halftime && !M.sides[myK].talked) { acc = 0; break; } // зупинитися рівно на перерві
+          }
           if (changed) {
             flush();
+            // перерва: пауза й промова для нашої команди
+            if (myK != null && M.halftime && !M.sides[myK].talked && !talkAsked) { talkAsked = true; paused = true; drawSpeed(); drawControl(); }
             const m = M.minute;
             const ht = M.events.length && M.events[M.events.length - 1].type === 'half' && String(M.events[M.events.length - 1].min).startsWith('45');
             clock.textContent = ht ? 'Перерва' : m + '′';
@@ -972,6 +990,7 @@
         el('dt', 'Баланс'), el('dd', FM.market.fmtM(me.balance)),
         el('dt', 'Зарплати'), el('dd', `${FM.market.wageBill(W, me.id)} тис. € на тиждень`),
         el('dt', 'Трансферне вікно'), el('dd', FM.market.windowOpen(state.season) ? el('a', { href: '#transfers' }, 'відкрите') : 'закрите'),
+        el('dt', 'Настрій команди'), el('dd', FM.morale.label({ morale: FM.morale.teamMorale(W, me.id) })),
       ])]),
       el('div.panel', [el('h3', 'Новини'), N.length ? el('ul.news', N.map((n) => el('li', [el('small.muted', `тиждень ${n.w + 1}`), ' ', n.text]))) : el('p.muted', 'Поки тихо.')]),
     ]);
@@ -1020,7 +1039,21 @@
     }, [['Далі', () => go(state.sacked ? 'sacked' : 'fixtures'), true], ['Таблиця', () => go('table')]]);
   }
 
+  let pressMsg = null;
+  function pressPanel() {
+    const key = `${state.season.year}-${state.season.week}`;
+    if (state.pressDone === key) return pressMsg ? el('p.msg-ok', pressMsg) : null;
+    const q = FM.morale.pressQuestion(state.season);
+    return el('div.press', [el('b', 'Прес-конференція'), el('p', q.q), el('div.press-opts', q.a.map(([text], i) => el('button.btn', { type: 'button', onclick: () => {
+      const e = FM.morale.answerPress(W, state, i);
+      pressMsg = e.morale > 0.9 ? 'Гравцям сподобалися ваші слова.' : e.morale < 0 ? 'Дехто в роздягальні сприйняв ваші слова болісно.' : 'Відповідь сприйняли спокійно.';
+      if (e.conf > 0) pressMsg += ' Правління оцінило вашу вимогливість.'; else if (e.conf < 0) pressMsg += ' Правлінню відповідь не сподобалася.';
+      saveGame(); render();
+    } }, text))), el('small.muted', 'Можна не відповідати — тоді все лишиться як є.')]);
+  }
+
   function boardWeek() {
+    for (const e of FM.morale.weekly(W, state)) FM.market.news(state, e.text);
     const r = FM.board.weekly(W, state);
     if (r.fired) state.sacked = { reason: r.reason, offers: FM.board.jobOffers(W, state, 3, 'sack') };
   }
@@ -1178,6 +1211,7 @@
           el('div.vs-team', [badge(W.club(thisWeek.a), true), el('b', clubName(W.club(thisWeek.a))), el('small.muted', 'гості')]),
         ]),
         el('p.muted', `Суперник: ${clubName(opp)}, ${oppPos ? oppPos + '-е місце' : ''}${t[oppPos - 1] && t[oppPos - 1].p ? `, ${t[oppPos - 1].pts} очок` : ''}.` + (out.length ? ` Не зіграють: ${out.join(', ')}.` : '')),
+        pressPanel(),
         el('div.actions', [
           el('button.btn.primary', { type: 'button', onclick: () => playMyMatch(true) }, 'Грати з трансляцією'),
           el('button.btn', { type: 'button', onclick: () => playMyMatch(false) }, 'Одразу результат'),

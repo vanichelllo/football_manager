@@ -100,6 +100,7 @@
   /** Записати результат матчу: рахунок, голи, статистику гравців, картки й дискваліфікації. */
   function record(S, f, m) {
     f.s = m.score.slice();
+    if (FM.morale) FM.morale.recordRatings(m);
     f.sc = []; // [команда, автор]
     for (const r of m.ratings) {
       const st = (S.ps[r.id] = S.ps[r.id] || [0, 0, 0, 0, 0, 0]); // ігри, голи, паси, сума оцінок ×10, жовті, червоні
