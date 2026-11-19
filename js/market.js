@@ -29,6 +29,7 @@
       }
       if (p.wage == null) p.wage = Math.round(fairWage(p.value, lg) * (0.75 + 0.5 * hashN(p.id + 'w')));
     }
+    ensureKeepers(W, state, FM.rng(`keepers-${state.season.seed}`));
     for (const c of W.clubs.values()) {
       if (c.balance != null) continue;
       const rich = Math.exp((W.clubLevel(c.id) - 100) / 25) * LEAGUE_MONEY[c.league];
@@ -204,6 +205,7 @@
         }
       }
     }
+    ensureKeepers(W, state, R);
     // вільні агенти: клуби з малим складом підписують будь-коли
     const free = [...W.players.values()].filter((p) => p.free && !p.club && !p.retired);
     for (const c of clubs) {
@@ -213,6 +215,21 @@
       if (!pick) continue;
       complete(W, state, pick, c.id, 0, fairWage(pick.value, c.league), 1 + R.int(2));
       free.splice(free.indexOf(pick), 1);
+    }
+  }
+
+  /** Клуби ШІ тримають щонайменше двох воротарів: вільний агент або юнак з академії. */
+  function ensureKeepers(W, state, R) {
+    for (const c of W.clubs.values()) {
+      if (c.id === state.clubId) continue;
+      let gk = W.squad(c.id).filter((p) => p.roles[0] === 'GK').length;
+      while (gk < 2) {
+        const free = [...W.players.values()].filter((p) => p.free && !p.club && !p.retired && p.roles[0] === 'GK').sort((a, b) => b.ca - a.ca)[0];
+        if (free) complete(W, state, free, c.id, 0, fairWage(free.value, c.league), 1 + R.int(2));
+        else if (FM.dev) { const y = FM.dev.makeYouth(W, c.id, R, state.season.year, 'GK'); y.contract = state.season.year + 3; y.wage = fairWage(y.value, c.league); }
+        else break;
+        gk++;
+      }
     }
   }
 
@@ -249,7 +266,7 @@
     return { ok: true, demand };
   }
 
-  FM.market = { init, fairWage, wageBill, windowOpen, nextWindow, askingPrice, clubResponse, wageDemand, playerResponse,
+  FM.market = { ensureKeepers, init, fairWage, wageBill, windowOpen, nextWindow, askingPrice, clubResponse, wageDemand, playerResponse,
     complete, release, releaseCost, weekly, endSeason, renewDemand, renew, rankInClub, news, fmtM, WINDOWS };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -119,7 +119,7 @@
   };
   const NEED = { GK: 3, CB: 5, FB: 4, DM: 2, CM: 4, AM: 2, W: 3, ST: 4 }; // скільки гравців ролі тримає клуб
 
-  function makeYouth(W, clubId, R, year) {
+  function makeYouth(W, clubId, R, year, forceRole) {
     const c = W.club(clubId);
     const country = LEAGUE_NAT[c.league];
     const nat = R.chance(0.82) ? country : R.pick(['UKR', 'ENG', 'ESP', 'ITA', 'GER', 'FRA', 'BRA', 'NGA', 'SEN', 'POR', 'NED', 'BEL', 'CRO', 'SRB', 'POL', 'MAR', 'CIV', 'ARG']);
@@ -127,7 +127,7 @@
     const [f, fe] = R.pick(names.first), [l, le] = R.pick(names.last);
     const have = {};
     for (const id of c.players) { const r = W.player(id).roles[0]; have[r] = (have[r] || 0) + 1; }
-    const role = R.weighted(Object.keys(NEED), (r) => Math.max(0.3, NEED[r] - (have[r] || 0) + 1));
+    const role = forceRole || R.weighted(Object.keys(NEED), (r) => Math.max(0.3, NEED[r] - (have[r] || 0) + 1));
     const side = role === 'FB' || role === 'W' ? R.pick(['L', 'R']) : null;
     const age = 16 + R.int(2);
     const lvl = W.clubLevel(clubId);

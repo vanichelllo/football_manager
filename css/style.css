@@ -382,3 +382,25 @@ p.big { font: 600 1.3rem/1.2 var(--font-display); margin: 0.2rem 0; }
 .talk, .press { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.75rem; border: 1px dashed var(--accent); border-radius: var(--radius); margin: 0.5rem 0 0.8rem; }
 .talk-opts, .press-opts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .press p { margin: 0; }
+
+/* ---------- Кубки ---------- */
+table.cup td { white-space: normal; }
+table.cup td.win { font-weight: 700; }
+table.cup .badge { width: 1.3rem; height: 1.3rem; font-size: 0; vertical-align: middle; display: inline-grid; }
+.cup-note { padding: 0.5rem 0.7rem; background: var(--accent-soft); border-radius: var(--radius); margin: 0.6rem 0; }
+
+/* ---------- Міні-поле й довідка ---------- */
+.mini-pitch {
+  position: relative; height: 5.5rem; margin-bottom: 0.8rem; border-radius: var(--radius); overflow: hidden;
+  background: repeating-linear-gradient(90deg, #2e7d4f 0 10%, #2a7449 10% 20%);
+}
+.mini-pitch .mp-half { position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid rgba(255, 255, 255, 0.5); }
+.mini-pitch .mp-box { position: absolute; top: 28%; bottom: 28%; width: 12%; border: 2px solid rgba(255, 255, 255, 0.5); }
+.mini-pitch .mp-box.l { left: -2px; border-left: 0; } .mini-pitch .mp-box.r { right: -2px; border-right: 0; }
+.mini-pitch .ball {
+  position: absolute; left: 50%; top: 50%; width: 0.7rem; height: 0.7rem; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); transform: translate(-50%, -50%);
+}
+@media (prefers-reduced-motion: no-preference) { .mini-pitch .ball { transition: left 0.45s ease-out, top 0.45s ease-out; } }
+.help-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.help { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.4rem; max-width: 62ch; }
