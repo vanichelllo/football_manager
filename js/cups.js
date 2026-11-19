@@ -87,54 +87,86 @@
     return R.chance(Math.max(0.3, Math.min(0.7, p))) ? a : b;
   }
 
+  /** Рахунок пари з боку tie.a після матчу leg (h — господарі цього матчу). */
+  function applyLeg(W, state, cup, ri, ti, leg, m) {
+    const round = cup.rounds[ri], tie = round.ties[ti];
+    const [h, a] = leg === 1 ? [tie.b, tie.a] : [tie.a, tie.b];
+    for (const r of m.ratings) if (r.injury) r.player.injury = Math.max(r.player.injury || 0, r.injury);
+    tie.legs.push(leg === 1 ? [m.score[1], m.score[0]] : m.score.slice());
+    const entry = { cup: cup.id, cupName: cup.name, round: round.name, h, a, score: m.score, mine: h === state.clubId || a === state.clubId };
+    if (leg === round.weeks.length - 1) {
+      const ga = tie.legs.reduce((x, y) => x + y[0], 0), gb = tie.legs.reduce((x, y) => x + y[1], 0);
+      const R = FM.rng(`pens-${state.season.seed}-${cup.id}-${ri}-${ti}`);
+      tie.winner = ga > gb ? tie.a : gb > ga ? tie.b : shootout(W, tie.a, tie.b, R);
+      if (ga === gb) { tie.pens = true; entry.pens = true; }
+      entry.winner = tie.winner;
+      const pr = PRIZE[cup.id] || [0, 0];
+      const wc = W.club(tie.winner);
+      wc.balance = r2(wc.balance + pr[1]);
+      if (tie.winner === state.clubId && state.board) state.board.fin.prize = r2((state.board.fin.prize || 0) + pr[1]);
+    }
+    return entry;
+  }
+
+  /** Раунд завершено — визначити переможця кубка або провести жеребкування наступного раунду. */
+  function advanceRound(cup, ri, state) {
+    const round = cup.rounds[ri];
+    if (!round.ties.every((t) => t.winner)) return;
+    const winners = round.ties.map((t) => t.winner);
+    if (round.size === 2) { cup.winner = winners[0]; return; }
+    if (cup.rounds[ri + 1].ties) return;
+    drawRound(cup, ri + 1, round.byes ? round.byes.concat(winners) : winners, FM.rng(`draw-${state.season.seed}-${cup.id}-${ri}`));
+  }
+
+  /** Пара людини цього тижня, яку ще не зіграно: { cup, ri, ti, leg, f, neutral } або null. */
+  function pendingTie(state, clubId) {
+    const S = state.season;
+    for (const cup of Object.values(state.cups || {})) {
+      if (cup.winner) continue;
+      const ri = cup.rounds.findIndex((r) => r.weeks.includes(S.week));
+      if (ri < 0 || !cup.rounds[ri].ties) continue;
+      const round = cup.rounds[ri], leg = round.weeks.indexOf(S.week);
+      const ti = round.ties.findIndex((t) => (t.a === clubId || t.b === clubId) && !t.winner && t.legs.length === leg);
+      if (ti < 0) continue;
+      const tie = round.ties[ti];
+      const [h, a] = leg === 1 ? [tie.b, tie.a] : [tie.a, tie.b];
+      return { cup, ri, ti, leg, round, tie, neutral: round.size === 2, f: { id: `${cup.id}-${ri}-${ti}-${leg}`, h, a } };
+    }
+    return null;
+  }
+
+  /** Записати результат пари людини, зіграної наживо. */
+  function finishPending(W, state, pend, m) {
+    const entry = applyLeg(W, state, pend.cup, pend.ri, pend.ti, pend.leg, m);
+    advanceRound(pend.cup, pend.ri, state);
+    return entry;
+  }
+
   /**
-   * Зіграти матчі кубків цього тижня. opts: { name, user, myClub }.
-   * Повертає список зіграних матчів: [{ cup, round, a, b, score, pens?, winner?, mine }].
+   * Зіграти матчі кубків цього тижня. opts: { name, user, gen, skipClub } — пару клубу skipClub не грати (її зіграють наживо).
+   * Повертає список зіграних матчів: [{ cup, round, h, a, score, pens?, winner?, mine }].
    */
   function playWeek(W, state, opts = {}) {
     const S = state.season, cups = state.cups;
     if (!cups) return [];
-    const R = FM.rng(`cupweek-${S.seed}-${S.week}`);
     const played = [];
     for (const cup of Object.values(cups)) {
       if (cup.winner) continue;
       const ri = cup.rounds.findIndex((r) => r.weeks.includes(S.week));
-      if (ri < 0) continue;
+      if (ri < 0 || !cup.rounds[ri].ties) continue;
       const round = cup.rounds[ri];
-      if (!round.ties) continue; // жеребкування ще не відбулося (не мало б статися)
       const leg = round.weeks.indexOf(S.week);
-      const final = round.size === 2;
       for (const [ti, tie] of round.ties.entries()) {
-        if (tie.winner) continue;
+        if (tie.winner || tie.legs.length !== leg) continue;
+        if (opts.skipClub && (tie.a === opts.skipClub || tie.b === opts.skipClub)) continue;
         const [h, a] = leg === 1 ? [tie.b, tie.a] : [tie.a, tie.b];
         const f = { id: `${cup.id}-${ri}-${ti}-${leg}`, h, a };
         const { opts: mo } = FM.season.prepare(S, W, f, opts.name, opts.user);
-        if (final) mo.neutral = true;
-        const m = FM.match.play(mo);
-        for (const r of m.ratings) if (r.injury) r.player.injury = Math.max(r.player.injury || 0, r.injury);
-        tie.legs.push(leg === 1 ? [m.score[1], m.score[0]] : m.score.slice()); // рахунок завжди з боку tie.a
-        const entry = { cup: cup.id, cupName: cup.name, round: round.name, h, a, score: m.score, mine: h === state.clubId || a === state.clubId };
-        const lastLeg = leg === round.weeks.length - 1;
-        if (lastLeg) {
-          const ga = tie.legs.reduce((s, x) => s + x[0], 0), gb = tie.legs.reduce((s, x) => s + x[1], 0);
-          tie.winner = ga > gb ? tie.a : gb > ga ? tie.b : shootout(W, tie.a, tie.b, R);
-          if (ga === gb) { tie.pens = true; entry.pens = true; }
-          entry.winner = tie.winner;
-          const pr = PRIZE[cup.id] || [0, 0];
-          const wc = W.club(tie.winner);
-          wc.balance = r2(wc.balance + pr[1]);
-          if (tie.winner === state.clubId && state.board) state.board.fin.prize = r2((state.board.fin.prize || 0) + pr[1]);
-        }
-        played.push(entry);
+        if (round.size === 2) mo.neutral = true;
+        mo.gen = opts.gen;
+        played.push(applyLeg(W, state, cup, ri, ti, leg, FM.match.play(mo)));
       }
-      // раунд завершено — жеребкування наступного
-      if (round.ties.every((t) => t.winner)) {
-        const winners = round.ties.map((t) => t.winner);
-        if (final) { cup.winner = winners[0]; continue; }
-        const next = ri + 1;
-        const teams = round.byes ? round.byes.concat(winners) : winners;
-        drawRound(cup, next, teams, R);
-      }
+      advanceRound(cup, ri, state);
     }
     return played;
   }
@@ -171,6 +203,6 @@
     return out;
   }
 
-  FM.cups = { create, createAll, euroQualifiers, playWeek, payParticipation, clubStatus, NAMES, EURO_SPOTS };
+  FM.cups = { pendingTie, finishPending, create, createAll, euroQualifiers, playWeek, payParticipation, clubStatus, NAMES, EURO_SPOTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

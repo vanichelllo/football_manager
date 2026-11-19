@@ -72,8 +72,8 @@
     }
     if (user && user.clubId === clubId && user.tactics) {
       const t = user.tactics;
-      const lineup = FM.lineupFromIds(available, t.formation, t.ids);
-      return { club: W.club(clubId), players: available, formation: t.formation, lineup, mentality: t.mentality, pressing: t.pressing, passing: t.passing };
+      const lineup = FM.lineupFromIds(available, t.formation, t.ids, t);
+      return { club: W.club(clubId), players: available, formation: t.formation, lineup, mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers || {} };
     }
     const formation = FM.bestFormation(available);
     let mentality = 'balanced';
@@ -88,8 +88,10 @@
   function prepare(S, W, f, name, user) {
     const hs = sideFor(S, W, f.h, user, f.a, true), as = sideFor(S, W, f.a, user, f.h, false);
     const side = (x) => ({ club: { ...x.club, name: name ? name.club(x.club) : x.club.name }, players: x.players, formation: x.formation,
-      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing });
-    return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined } };
+      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing, takers: x.takers });
+    // погода — за датою й країною господарів (детерміновано для матчу)
+    const weather = FM.weatherFor ? FM.weatherFor(dateOf(f.w != null ? f.w : S.week, S), W.club(f.h).league, FM.rng(`wx-${S.seed}-${f.id}`)) : null;
+    return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined, gen: name ? name.gen : undefined, weather } };
   }
 
   function play(S, W, f, name, user) {
