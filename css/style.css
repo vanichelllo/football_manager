@@ -369,3 +369,9 @@ select.tiny { padding: 0.25rem 0.35rem; border: 1px solid var(--line); border-ra
 .confirm-inline { display: inline-flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
 .news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.92rem; }
 .pre-row .field input[type="number"] { width: 9rem; }
+
+/* ---------- Правління ---------- */
+.confbar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; margin: 0.4rem 0; }
+.confbar i { display: block; height: 100%; }
+.confbar i.high { background: var(--accent); } .confbar i.mid { background: #e0a21a; } .confbar i.low { background: #cf4040; }
+p.big { font: 600 1.3rem/1.2 var(--font-display); margin: 0.2rem 0; }

@@ -19,7 +19,7 @@
   // давніші збереження (до етапу 3) — створюємо сезон
   if (state && !state.season) { state.season = FM.season.create(W, String(Date.now())); saveGame(); }
 
-  if (state) FM.market.init(W, state);
+  if (state) { FM.market.init(W, state); if (!state.board) FM.board.initSeason(W, state); }
 
   /** Зберегти кар'єру разом зі змінами світу. */
   function saveGame() {
@@ -79,9 +79,10 @@
     clearTimeout(liveTimer); // пішли з трансляції — матч догравається миттєво й записується
     if (activeLive) activeLive.finish();
     if (!state) return renderStart();
-    const view = location.hash.slice(1) || 'overview';
+    let view = location.hash.slice(1) || 'overview';
+    if (state.sacked && !['sacked', 'options'].includes(view.split('-')[0])) view = 'sacked';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, training: screenTraining, report: screenReport, history: screenHistory, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
     const body = (screens[name] || screenOverview)(arg);
     app.replaceChildren(shell(name, body));
     window.scrollTo(0, 0);
@@ -98,7 +99,7 @@
         el('nav.nav', { 'aria-label': 'Меню' }, [
           item('overview', 'Огляд'), item('squad', 'Склад'), item('leagues', 'Ліги й клуби'),
           item('fixtures', 'Сезон'), item('table', 'Таблиця'), item('match', 'Товариський'),
-          item('tactics', 'Тактика'), item('training', 'Тренування'), item('transfers', 'Трансфери'), item('history', 'Історія'),
+          item('tactics', 'Тактика'), item('training', 'Тренування'), item('transfers', 'Трансфери'), item('board', 'Правління'), item('history', 'Історія'),
           item('options', 'Налаштування'),
         ]),
         el('div.foot', [`Тренер: ${state.manager}`, el('br'), `Сезон ${seasonLabel()}`]),
@@ -134,6 +135,7 @@
       state = { version: 1, manager: nameInput.value.trim() || 'Новий тренер', clubId, names: 'uk', started: W.today,
         season: FM.season.create(W, String(Date.now())) };
       FM.market.init(W, state);
+      FM.board.initSeason(W, state);
       saveGame();
       go('overview');
     }
@@ -356,7 +358,10 @@
           const r = FM.market.playerResponse(W, p, me.id, wage, years);
           if (!r.ok) { deal.msg = r.reason; deal.ok = false; return render(); }
           if (deal.fee > me.balance) { deal.msg = `Не вистачає грошей: баланс ${M(me.balance)}.`; deal.ok = false; return render(); }
+          const bill = FM.market.wageBill(W, me.id);
+          if (bill + wage > me.wageBudget) { deal.msg = `Правління не погоджує: фонд зарплат ${me.wageBudget} тис. €/тиж., уже витрачено ${bill}. Продайте когось або запропонуйте менше.`; deal.ok = false; return render(); }
           const from = p.club ? clubName(W.club(p.club)) : null;
+          state.board.fin.transfers = Math.round((state.board.fin.transfers - deal.fee) * 100) / 100;
           FM.market.complete(W, state, p, me.id, deal.fee, wage, years);
           state.known = state.known || {}; state.known[p.id] = true;
           FM.market.news(state, `Ви підписали ${nameOf(p)}${from ? ` (${from}, ${M(deal.fee)})` : ' (вільний агент)'}.`);
@@ -378,7 +383,10 @@
       numField('renew-wage', 'Нова зарплата, тис. € на тиждень', demand, 1, 1, 2000),
       el('div.field', [el('label', { for: 'renew-years' }, 'Ще років'), el('select', { id: 'renew-years' }, [1, 2, 3, 4, 5].map((y) => el('option', { value: y, selected: y === 3 || null }, y)))]),
       el('button.btn', { type: 'button', onclick: () => {
-        const r = FM.market.renew(W, state, p, Math.round(Number(document.getElementById('renew-wage').value) || 0), Number(document.getElementById('renew-years').value));
+        const nw = Math.round(Number(document.getElementById('renew-wage').value) || 0);
+        const me = W.club(state.clubId), bill = FM.market.wageBill(W, me.id);
+        if (bill - (p.wage || 0) + nw > me.wageBudget) { renewMsg = { pid: p.id, ok: false, text: `Правління не погоджує: перевищено фонд зарплат (${me.wageBudget} тис. €/тиж.).` }; return render(); }
+        const r = FM.market.renew(W, state, p, nw, Number(document.getElementById('renew-years').value));
         renewMsg = { pid: p.id, ok: r.ok, text: r.ok ? `Контракт продовжено до літа ${p.contract}.` : r.reason };
         if (r.ok) saveGame(); render();
       } }, 'Продовжити контракт'),
@@ -395,6 +403,61 @@
     return el('div.panel', blocks);
   }
 
+  // ---------------- Правління ----------------
+  function confBar(v) {
+    return el('div.confbar', { role: 'meter', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(v), 'aria-label': 'Довіра правління' },
+      el('i', { style: { width: v + '%' }, class: v < 30 ? 'low' : v < 55 ? 'mid' : 'high' }));
+  }
+  function offerList(ids, onTake) {
+    return el('ul.plist', ids.map((id) => {
+      const c = W.club(id);
+      return el('li', [el('span.club-cell', [badge(c), el('span', [clubName(c), el('small.muted', ` ${W.league(c.league).name}`)])]),
+        el('span', [starsEl(W.clubLevel(id), 'Рівень клубу'), ' ', el('button.btn', { type: 'button', onclick: () => onTake(id) }, 'Очолити')])]);
+    }));
+  }
+  function screenBoard() {
+    const b = state.board, me = W.club(state.clubId), S = state.season;
+    const { pos } = FM.board.position(W, S, state.clubId);
+    const f = b.fin;
+    const conf = b.conf;
+    const mood = conf >= 75 ? 'Правління задоволене вашою роботою.' : conf >= 50 ? 'Правління спокійне.' : conf >= 30 ? 'Правління занепокоєне.' : 'Правління на межі: ще кілька поразок — і вас звільнять.';
+    const offers = state.jobOffers || [];
+    return [
+      el('header', [el('h1', 'Правління'), el('span.muted', `${state.manager} · репутація ${b.rep} з 100`)]),
+      el('div.grid', [
+        el('div.panel', [el('h3', 'Очікування на сезон'),
+          el('p.big', FM.board.TARGETS[b.target.kind].label),
+          el('p.muted', `Потрібно не нижче ${b.target.pos}-го місця. Зараз: ${S.fixtures.some((x) => x.s) ? pos + '-е' : 'сезон не почався'}. За складом клуб ${b.target.rank}-й у лізі.`),
+          el('h3', { style: { marginTop: '1rem' } }, `Довіра: ${Math.round(conf)} з 100`), confBar(conf), el('p', mood),
+          b.last ? el('p.note', `Минулий сезон: ${b.last.pos}-е місце. ${b.last.verdict}`) : null]),
+        el('div.panel', [el('h3', `Фінанси сезону ${seasonLabel()}`), el('dl.facts', [
+          el('dt', 'Баланс'), el('dd', FM.market.fmtM(me.balance)),
+          el('dt', 'Телеправа й спонсори'), el('dd', '+' + FM.market.fmtM(f.tv)),
+          el('dt', 'Квитки'), el('dd', '+' + FM.market.fmtM(f.tickets)),
+          el('dt', 'Призові'), el('dd', f.prize ? '+' + FM.market.fmtM(f.prize) : 'наприкінці сезону'),
+          el('dt', 'Зарплати'), el('dd', '−' + FM.market.fmtM(f.wages)),
+          el('dt', 'Трансфери'), el('dd', f.transfers ? (f.transfers > 0 ? '+' : '−') + FM.market.fmtM(Math.abs(f.transfers)) : '—'),
+          el('dt', 'Фонд зарплат'), el('dd', `${FM.market.wageBill(W, me.id)} з ${me.wageBudget} тис. € на тиждень`),
+        ]), el('p.note', 'Дохід клубу розрахований так, щоб за стартових зарплат сезон був трохи в плюсі. Дорогі контракти з’їдають прибуток; від’ємний баланс знижує довіру.')]),
+      ]),
+      offers.length ? el('div.panel', [el('h3', 'Пропозиції роботи'), el('p.muted', 'Вами цікавляться клуби. Перехід — одразу, з поточного тижня.'),
+        offerList(offers, (id) => { FM.board.takeJob(W, state, id); state.jobOffers = []; pre = null; tableLeague = null; saveGame(); go('overview'); })]) : null,
+    ];
+  }
+
+  function screenSacked() {
+    const sk = state.sacked;
+    if (!sk) return screenOverview();
+    return [
+      el('header', [el('h1', 'Вас звільнено')]),
+      el('div.panel', [el('p', sk.reason), el('p', `${clubName(W.club(state.clubId))} шукає нового тренера. Ваша репутація: ${state.board.rep} з 100.`)]),
+      el('div.panel', [el('h3', 'Пропозиції роботи'), sk.offers.length ? offerList(sk.offers, (id) => {
+        FM.board.takeJob(W, state, id); state.sacked = null; state.jobOffers = []; pre = null; tableLeague = null; saveGame(); go('overview');
+      }) : el('p.muted', 'Поки ніхто не телефонує.')]),
+      el('p.note', 'Можна також почати нову кар’єру в «Налаштуваннях».'),
+    ];
+  }
+
   // ---------------- Екран «Трансфери» ----------------
   let tf = { role: '', maxAge: 35, maxPrice: 0, league: 'all', sort: 'ca' };
   function screenTransfers() {
@@ -406,6 +469,7 @@
       const p = W.player(o.pid), buyer = W.club(o.from);
       if (!FM.market.windowOpen(S)) return;
       FM.market.complete(W, state, p, buyer.id, o.fee, FM.market.wageDemand(W, p, buyer.id) || p.wage, 3);
+      state.board.fin.transfers = Math.round((state.board.fin.transfers + o.fee) * 100) / 100;
       FM.market.news(state, `Ви продали ${nameOf(p)} у ${clubName(buyer)} за ${M(o.fee)}.`);
       saveGame(); render();
     };
@@ -920,6 +984,7 @@
     const facts = [
       el('dt', 'Місце'), el('dd', row.p ? `${pos}-е з ${size} · ${row.pts} очок` : 'сезон ще не почався'),
       el('dt', 'Форма'), el('dd', row.form.length ? formEl(row.form) : '—'),
+      el('dt', 'Ціль'), el('dd', el('a', { href: '#board' }, `${FM.board.TARGETS[state.board.target.kind].label} (довіра ${Math.round(state.board.conf)})`)),
     ];
     if (f) {
       const opp = W.club(f.h === c.id ? f.a : f.h);
@@ -934,8 +999,9 @@
     if (!f || !live) {
       FM.season.playWeek(S, W, { name: NAMES, user: USER(), dev: devOpts() });
       FM.market.weekly(W, state);
+      boardWeek();
       saveGame();
-      return go('fixtures');
+      return go(state.sacked ? 'sacked' : 'fixtures');
     }
     // решта матчів туру — одразу; наш — наживо з керуванням
     FM.season.playOthers(S, W, { skip: f.id, name: NAMES, user: USER() });
@@ -949,8 +1015,14 @@
       FM.season.advance(S, W);
       FM.dev.weekly(W, S, devOpts());
       FM.market.weekly(W, state);
+      boardWeek();
       saveGame();
-    }, [['Далі', () => go('fixtures'), true], ['Таблиця', () => go('table')]]);
+    }, [['Далі', () => go(state.sacked ? 'sacked' : 'fixtures'), true], ['Таблиця', () => go('table')]]);
+  }
+
+  function boardWeek() {
+    const r = FM.board.weekly(W, state);
+    if (r.fired) state.sacked = { reason: r.reason, offers: FM.board.jobOffers(W, state, 3, 'sack') };
   }
 
   function training() {
@@ -971,6 +1043,7 @@
       year: S.year, champions, club: state.clubId, pos: t.findIndex((r) => r.id === my.id) + 1,
       pts: t.find((r) => r.id === my.id).pts, scorer: scorer ? [scorer.id, scorer.st[1]] : null,
     }]);
+    const verdict = FM.board.endSeason(W, state);
     const contracts = FM.market.endSeason(W, state);
     const rep = FM.dev.endSeason(W, state);
     state.lastReport = {
@@ -982,8 +1055,18 @@
     };
     FM.dev.newSeason(W, state);
     FM.market.init(W, state);
+    state.lastReport.verdict = verdict.verdict;
+    state.lastReport.prize = verdict.prize;
+    if (verdict.fired) state.sacked = { reason: verdict.verdict, offers: FM.board.jobOffers(W, state, 3, 'end') };
+    else {
+      FM.board.initSeason(W, state);
+      // після вдалого сезону — пропозиції від сильніших клубів
+      const lvl = W.clubLevel(state.clubId);
+      state.jobOffers = state.board.last && state.board.last.pos <= state.board.last.target
+        ? FM.board.jobOffers(W, state, 3, 'up').filter((id) => W.clubLevel(id) > lvl + 3) : [];
+    }
     saveGame();
-    go('report');
+    go(state.sacked ? 'sacked' : 'report');
   }
 
   function screenReport() {
@@ -993,6 +1076,8 @@
       el('span', [el('a', { href: '#player-' + p.id }, nameOf(p)), el('small.muted', ' ' + extra(p))]), starsEl(p.pa, 'Потенціал')])));
     return [
       el('header', [el('h1', `Новий сезон ${seasonLabel()}`), el('span.muted', `Підсумки сезону ${R.year}/${String(R.year + 1).slice(2)}`)]),
+      R.verdict ? el('div.panel', [el('h3', 'Оцінка правління'), el('p', R.verdict), R.prize ? el('p.muted', `Призові за місце: ${FM.market.fmtM(R.prize)}.`) : null,
+        (state.jobOffers || []).length ? el('p', ['Вами цікавляться інші клуби — див. ', el('a', { href: '#board' }, 'Правління'), '.']) : null]) : null,
       el('div.panel', [el('h3', 'Юнаки, що прийшли з академії'), R.youth.length ? list(R.youth, (p) => `${FM.positions(p)}, ${W.age(p)} р.`) : el('p.muted', 'Цього разу ніхто.'),
         el('p.note', 'Зірки показують потенціал. Щоб юнаки росли, давайте їм ігровий час і тренування.')]),
       R.expired && R.expired.length ? el('div.panel', [el('h3', 'Пішли після завершення контракту'), list(R.expired, (p) => `${W.age(p)} р.`)]) : null,
