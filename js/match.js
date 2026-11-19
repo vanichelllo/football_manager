@@ -102,7 +102,7 @@
   const FORMATION_BIAS = { '4-3-3': 1, '4-2-3-1': 1, '4-4-2': 0.995, '4-1-4-1': 0.99, '4-4-1-1': 0.99, '4-3-1-2': 0.985, '3-5-2': 0.975, '3-4-3': 0.97, '5-3-2': 0.97 };
   // Калібрування (tests/match.test.js): середнє співвідношення атаки до оборони і базова реалізація моменту.
   const RATIO_REF = 1;
-  const BASE_Q = 0.078;
+  const BASE_Q = 0.073;
 
   function roleRating(p, role, variant) {
     const v = variant && VARIANTS[role] && VARIANTS[role][variant];
@@ -119,7 +119,11 @@
     let f;
     if (r[0] === slot.role) f = 1;
     else if (r.includes(slot.role)) f = 0.94;
-    else f = Math.max(...r.map((x) => (NEAR[x] && NEAR[x][slot.role]) || 0.55));
+    else {
+      f = Math.max(...r.map((x) => (NEAR[x] && NEAR[x][slot.role]) || 0.55));
+      const exp = p.posExp && p.posExp[slot.role]; // освоєння нової позиції (0–100)
+      if (exp) f += (0.94 - f) * Math.min(1, exp / 100);
+    }
     if (slot.side && p.side && p.side !== slot.side && (slot.role === 'FB' || slot.role === 'W')) f *= 0.95;
     return f;
   }
@@ -205,7 +209,7 @@
     const live = entries.filter((x) => !x.out);
     // свіжість, настрій (мораль — якщо підключено morale.js), персональна опіка суперника
     const eff = (x) => slotValue(x.p, x.slot) * (0.82 + 0.18 * (x.cond ?? 100) / 100) * (FM.morale ? FM.morale.factor(x.p) : 1)
-      * (marked && marked.has(x.p.id) ? 0.88 : 1);
+      * (marked && marked.has(x.p.id) ? 0.88 : 1) * (x.mf || 1);
     const u = {};
     for (const unit of ['att', 'mid', 'def']) {
       let s = 0, w = 0;
@@ -275,10 +279,18 @@
     const weather = WEATHER[opts.weather] ? opts.weather : 'cloud';
     const WX = WEATHER[weather];
     const shotLog = []; // для підсумку: { t, min, x, y, xg, goal, kind }
+    /** Коефіцієнт гравця на цей матч: форма, стабільність (день на день не приходиться), великі матчі. */
+    const matchFactor = (p) => {
+      const h = p.h || {};
+      const form = p.form && p.form.length ? Math.max(-0.03, Math.min(0.03, (p.form.reduce((a, b) => a + b, 0) / p.form.length - 6.6) * 0.02)) : 0;
+      const daily = (R.next() - 0.5) * 0.1 * (20 - (h.con || 12)) / 19;
+      const big = opts.big ? ((h.big || 10) - 10) * 0.004 : 0;
+      return 1 + form + daily + big;
+    };
     const sides = [opts.home, opts.away].map((t, k) => {
       const formation = t.formation || bestFormation(t.players);
       const lu = t.lineup || pickLineup(t.players, formation);
-      const onPitch = lu.xi.map((x) => ({ p: x.player, slot: x.slot, cond: x.player.fitness ?? 100, yellow: 0, out: false }));
+      const onPitch = lu.xi.map((x) => ({ p: x.player, slot: x.slot, cond: x.player.fitness ?? 100, yellow: 0, out: false, mf: matchFactor(x.player) }));
       return {
         k, club: t.club, formation, onPitch, autoSubs: !t.manual,
         tactic: { mentality: t.mentality || 'balanced', pressing: t.pressing || 'normal', passing: t.passing || 'mixed' },
@@ -303,6 +315,8 @@
     function compute(t) {
       t.units = unitsFrom(t.onPitch, t.marked);
       if (t.boost && t.boost !== 1) for (const k of ['att', 'mid', 'def']) t.units[k] *= t.boost; // ефект промови в перерві
+      const cap = t.onPitch.find((x) => !x.out && x.p.id === t.takers.captain) || t.onPitch.filter((x) => !x.out).sort((a, b) => (b.p.attrs.lea || 0) - (a.p.attrs.lea || 0))[0];
+      if (cap) for (const k of ['att', 'mid', 'def']) t.units[k] *= 1 + ((cap.p.attrs.lea || 10) - 10) * 0.002; // лідерство капітана
       const fam = 0.95 + 0.05 * t.familiarity; // незнайома тактика — до −5%
       for (const k of ['att', 'mid', 'def']) t.units[k] *= fam;
     }
@@ -328,13 +342,15 @@
     const pickShooter = (t) => R.weighted(t.onPitch.filter((x) => !x.out && x.slot.role !== 'GK'),
       (x) => ({ ST: 3.2, W: 2, AM: 2, CM: 0.9, DM: 0.4, FB: 0.45, CB: 0.4 }[x.slot.role] || 0.5) * vMul(x, 'shoot') * insMul(x) * (x.p.attrs.fin + x.p.attrs.otb) ** 1.4);
     const pickAssister = (t, shooter) => R.weighted(t.onPitch.filter((x) => !x.out && x !== shooter && x.slot.role !== 'GK'),
-      (x) => ({ AM: 2.4, W: 2.2, CM: 1.8, FB: 1.2, ST: 1.1, DM: 0.8, CB: 0.3 }[x.slot.role] || 0.5) * vMul(x, 'assist') * (x.p.attrs.pas + x.p.attrs.cro + x.p.attrs.dri / 2) ** 1.3);
+      (x) => ({ AM: 2.4, W: 2.2, CM: 1.8, FB: 1.2, ST: 1.1, DM: 0.8, CB: 0.3 }[x.slot.role] || 0.5) * vMul(x, 'assist') * (x.p.attrs.pas + x.p.attrs.cro + x.p.attrs.dri / 2) ** 1.3
+        * (x.p.traits && x.p.traits.includes('playmaker') ? 1.3 : 1) * Math.sqrt((x.p.attrs.tec || 10) / 10));
+    const hasT = (p, t) => p.traits && p.traits.includes(t);
     const onPitchById = (t, id) => id && t.onPitch.find((x) => !x.out && x.p.id === id);
     /** Виконавець стандарту: призначений у тактиці (якщо на полі) або найкращий за атрибутами. */
     function taker(t, kind) {
       const set = onPitchById(t, t.takers[kind]);
       if (set) return set;
-      const key = { pen: (x) => x.p.attrs.fin * 2 + x.p.attrs.dec, fk: (x) => x.p.attrs.fin + x.p.attrs.pas + (x.p.attrs.cro || 0), corner: (x) => (x.p.attrs.cro || 0) * 2 + x.p.attrs.pas }[kind];
+      const key = { pen: (x) => x.p.attrs.fin * 2 + x.p.attrs.dec, fk: (x) => (x.p.attrs.set || 8) * 2 + x.p.attrs.fin, corner: (x) => (x.p.attrs.set || 8) * 2 + (x.p.attrs.cro || 0) }[kind];
       return t.onPitch.filter((x) => !x.out && x.slot.role !== 'GK').sort((a, b) => key(b) - key(a))[0];
     }
     /** Записати удар для підсумку матчу (координати умовні: 100 — ворота суперника). */
@@ -376,7 +392,13 @@
         }
         return;
       }
-      const kind = R.weighted(['header', 'through', 'solo'], (k) => ({ header: 1 + shooter.p.attrs.hea / 10, through: 2, solo: 1 + shooter.p.attrs.dri / 10 }[k]));
+      const sp = shooter.p;
+      const kind = R.weighted(['header', 'through', 'solo'], (k) => ({
+        header: (1 + sp.attrs.hea / 10) * (hasT(sp, 'header') ? 1.6 : 1) * ((sp.attrs.bra || 10) / 12) ** 0.3,
+        through: 2 * (hasT(sp, 'runner') ? 1.5 : 1),
+        solo: (1 + sp.attrs.dri / 10) * (hasT(sp, 'shootsLong') || hasT(sp, 'dribbler') ? 1.5 : 1),
+      }[k]));
+      if (kind === 'solo') q *= 0.7 + 0.3 * ((sp.attrs.lon || sp.attrs.fin) / 12); // удари здалеку — дальні удари
       const assister = kind === 'solo' ? null : pickAssister(t, shooter);
       finishChance(t, o, min, kind, shooter, assister, q, gkX, gkName);
     }
@@ -412,7 +434,7 @@
       if (!header) return;
       const gkX = o.onPitch.find((x) => !x.out && x.slot.role === 'GK');
       t.stats.shots++; t.perf.get(header.p.id).shots++;
-      const q = 0.075 * Math.min(1.5, Math.max(0.6, (header.p.attrs.hea + (tk.p.attrs.cro || 8)) / 26)) * WX.q;
+      const q = 0.075 * Math.min(1.5, Math.max(0.6, (header.p.attrs.hea + ((tk.p.attrs.set || 8) + (tk.p.attrs.cro || 8)) / 2) / 26)) * WX.q;
       finishChance(t, o, min, 'corner', header, tk, q, gkX, gkX ? name(gkX.p) : 'воротар');
     }
 
@@ -422,13 +444,13 @@
       if (!tk) return;
       const gkX = o.onPitch.find((x) => !x.out && x.slot.role === 'GK');
       t.stats.shots++; t.perf.get(tk.p.id).shots++; t.stats.fouls++;
-      const q = 0.055 * Math.min(1.6, Math.max(0.5, (tk.p.attrs.fin + tk.p.attrs.pas) / 26)) * WX.q;
+      const q = 0.055 * Math.min(1.6, Math.max(0.5, ((tk.p.attrs.set || 8) * 1.5 + tk.p.attrs.fin * 0.5) / 26)) * WX.q;
       finishChance(t, o, min, 'freekick', tk, null, q, gkX, gkX ? name(gkX.p) : 'воротар');
     }
 
     function card(t, min) {
       // гравець із жовтою грає обережніше
-      const x = R.weighted(t.onPitch.filter((y) => !y.out), (y) => ({ CB: 2, DM: 2.2, FB: 1.6, CM: 1.3, W: 0.8, AM: 0.8, ST: 0.9, GK: 0.2 }[y.slot.role]) * ((y.p.attrs.tac ?? 3) + 4) / 10 * (y.yellow ? 0.12 : 1) * vMul(y, 'cards'));
+      const x = R.weighted(t.onPitch.filter((y) => !y.out), (y) => ({ CB: 2, DM: 2.2, FB: 1.6, CM: 1.3, W: 0.8, AM: 0.8, ST: 0.9, GK: 0.2 }[y.slot.role]) * ((y.p.attrs.tac ?? 3) + 4) / 10 * (y.yellow ? 0.12 : 1) * vMul(y, 'cards') * (y.p.traits && y.p.traits.includes('tackler') ? 1.25 : 1));
       const perf = t.perf.get(x.p.id);
       t.stats.fouls++;
       const vars = { p: name(x.p), pG: G(x.p), team: t.club.name };
@@ -440,7 +462,7 @@
 
     /** Травма: гравця міняють (навіть якщо заміни ручні), а як замін немає — команда грає в меншості. */
     function injury(t, min) {
-      const x = R.weighted(t.onPitch.filter((y) => !y.out), (y) => (y.slot.role === 'GK' ? 0.3 : 1) * (125 - y.cond));
+      const x = R.weighted(t.onPitch.filter((y) => !y.out), (y) => (y.slot.role === 'GK' ? 0.3 : 1) * (125 - y.cond) * (0.6 + ((y.p.h && y.p.h.inj) || 8) / 20));
       if (!x) return;
       const pf = t.perf.get(x.p.id);
       pf.injury = FM.dev ? FM.dev.injuryWeeks(R) : 1 + R.int(3);
@@ -451,7 +473,7 @@
         for (const b of pool) { const v = slotValue(b, x.slot); if (v > bv) { bv = v; best = b; } }
         t.bench.splice(t.bench.indexOf(best), 1);
         x.out = true; x.subbedOff = minuteNum;
-        t.onPitch.push({ p: best, slot: x.slot, cond: 100, yellow: 0, out: false, subbedOn: minuteNum });
+        t.onPitch.push({ p: best, slot: x.slot, cond: best.fitness ?? 100, yellow: 0, out: false, subbedOn: minuteNum, mf: matchFactor(best) });
         t.perf.set(best.id, { min: 0, goals: 0, assists: 0, shots: 0, saves: 0, conceded: 0, yellow: 0, red: false, played: true, from: minuteNum });
         t.subsLeft--;
         say(min, 'sub', t, [fill(R.pick(usable(T.sub, { team: t.club.name, on: name(best), off: name(x.p), offG: G(x.p) })), { team: t.club.name, on: name(best), off: name(x.p), offG: G(x.p) })]);
@@ -473,7 +495,7 @@
         if (!best) break;
         t.bench.splice(t.bench.indexOf(best), 1);
         tired.out = true; tired.subbedOff = min;
-        t.onPitch.push({ p: best, slot: tired.slot, cond: 100, yellow: 0, out: false, subbedOn: min });
+        t.onPitch.push({ p: best, slot: tired.slot, cond: best.fitness ?? 100, yellow: 0, out: false, subbedOn: min, mf: matchFactor(best) });
         t.perf.set(best.id, { min: 0, goals: 0, assists: 0, shots: 0, saves: 0, conceded: 0, yellow: 0, red: false, played: true, from: min });
         t.subsLeft--; made++;
         say(min, 'sub', t, [fill(R.pick(usable(T.sub, { team: t.club.name, on: name(best), off: name(tired.p), offG: G(tired.p) })), { team: t.club.name, on: name(best), off: name(tired.p), offG: G(tired.p) })]);
@@ -490,7 +512,7 @@
       if (done || !x || !b || t.subsLeft <= 0) return false;
       t.bench.splice(t.bench.indexOf(b), 1);
       x.out = true; x.subbedOff = minuteNum || 1;
-      t.onPitch.push({ p: b, slot: x.slot, cond: 100, yellow: 0, out: false, subbedOn: minuteNum || 1 });
+      t.onPitch.push({ p: b, slot: x.slot, cond: b.fitness ?? 100, yellow: 0, out: false, subbedOn: minuteNum || 1, mf: matchFactor(b) });
       t.perf.set(b.id, { min: 0, goals: 0, assists: 0, shots: 0, saves: 0, conceded: 0, yellow: 0, red: false, played: true, from: minuteNum });
       t.subsLeft--;
       say(current, 'sub', t, [fill(R.pick(usable(T.sub, { team: t.club.name, on: name(b), off: name(x.p), offG: G(x.p) })), { team: t.club.name, on: name(b), off: name(x.p), offG: G(x.p) })]);

@@ -16,11 +16,51 @@
     dec: 'Рішення', pos: 'Позиціонування', otb: 'Відкривання', wor: 'Працездатність',
     pac: 'Швидкість', sta: 'Витривалість', str: 'Сила',
     ref: 'Реакція', han: 'Гра руками', one: 'Один на один', aer: 'Гра на виході', kic: 'Гра ногами',
+    lon: 'Дальні удари', tec: 'Техніка', set: 'Стандарти', lea: 'Лідерство', bra: 'Хоробрість',
   };
   const ATTR_GROUPS = {
-    outfield: [['Технічні', ['fin', 'pas', 'dri', 'cro', 'tac', 'hea']], ['Ментальні', ['dec', 'pos', 'otb', 'wor']], ['Фізичні', ['pac', 'sta', 'str']]],
-    gk: [['Воротарські', ['ref', 'han', 'one', 'aer', 'kic']], ['Ментальні', ['dec', 'pos']], ['Фізичні', ['pac', 'sta', 'str']]],
+    outfield: [['Технічні', ['fin', 'lon', 'pas', 'tec', 'dri', 'cro', 'set', 'tac', 'hea']], ['Ментальні', ['dec', 'pos', 'otb', 'wor', 'lea', 'bra']], ['Фізичні', ['pac', 'sta', 'str']]],
+    gk: [['Воротарські', ['ref', 'han', 'one', 'aer', 'kic']], ['Ментальні', ['dec', 'pos', 'lea', 'bra']], ['Фізичні', ['pac', 'sta', 'str']]],
   };
+
+  // ---------------- Доповнення гравця (нові атрибути, приховані риси, прийоми) ----------------
+  const hashN = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
+  const cl = (v) => Math.max(1, Math.min(20, Math.round(v)));
+  const TRAITS = {
+    shootsLong: 'Б\u2019є здалеку', dribbler: 'Любить дриблінг', playmaker: 'Шукає проникаючу передачу',
+    header: 'Сильний у повітрі', runner: 'Втікає за спину', tackler: 'Йде в підкат',
+  };
+  const HIDDEN = { con: 'Стабільність', big: 'Великі матчі', inj: 'Схильність до травм', pro: 'Професіоналізм', ada: 'Адаптивність' };
+  /**
+   * Атрибути й риси, яких немає в базі, виводяться детерміновано з наявних (і фактів: вік, капітанство, збірна).
+   * Викликається для кожного гравця один раз; повторний виклик нічого не змінює.
+   */
+  function augment(p) {
+    const a = p.attrs, n = (k, amp) => (hashN(p.id + k) - 0.5) * 2 * amp;
+    const age = p.born ? 2026 - Number(p.born.slice(0, 4)) : 24;
+    if (a.lea == null) {
+      const gk = p.roles[0] === 'GK';
+      a.lon = gk ? cl(4 + n('lon', 2)) : cl(((a.fin || 8) + (a.pas || 8)) / 2 + n('lon', 3));
+      a.tec = gk ? cl((a.kic || 8) - 2 + n('tec', 2)) : cl(((a.dri || 8) + (a.pas || 8)) / 2 + n('tec', 2.5));
+      a.set = gk ? cl(4 + n('set', 2)) : cl(((a.cro || 8) + (a.pas || 8)) / 2 - 1 + n('set', 4));
+      a.lea = cl(6 + Math.max(0, age - 21) * 0.45 + (p.captain ? 5 : 0) + Math.min(4, (p.caps || 0) / 25) + n('lea', 3));
+      a.bra = cl(((a.str || 10) + (a.tac || a.one || 10)) / 2 + n('bra', 3));
+      if (gk) { delete a.lon; delete a.set; }
+    }
+    if (!p.h) p.h = { con: cl(11 + Math.min(4, (p.caps || 0) / 20) + n('con', 6)), big: cl(10 + Math.min(5, (p.caps || 0) / 15) + n('big', 6)),
+      inj: cl(8 + n('inj', 7)), pro: cl(11 + n('pro', 7)), ada: cl(11 + n('ada', 6)) };
+    if (!p.traits) {
+      const cand = [];
+      if (a.lon >= 15) cand.push('shootsLong');
+      if (a.dri >= 15) cand.push('dribbler');
+      if (a.pas >= 15 && (a.dec || 0) >= 13) cand.push('playmaker');
+      if ((a.hea || 0) >= 15 || (p.height || 0) >= 190) cand.push('header');
+      if ((a.pac || 0) >= 15 && (a.otb || 0) >= 13) cand.push('runner');
+      if ((a.tac || 0) >= 15) cand.push('tackler');
+      p.traits = cand.filter((t, i) => hashN(p.id + t) < 0.55 || i === 0).slice(0, 2);
+    }
+    return p;
+  }
 
   const clone = (x) => (typeof structuredClone === 'function' ? structuredClone(x) : JSON.parse(JSON.stringify(x)));
 
@@ -29,6 +69,7 @@
    * saved — результат w.export() (відмінності від реальної бази), щоб продовжити кар'єру.
    */
   function createWorld(db, saved) {
+    if (!db.augmented) { for (const p of db.players) augment(p); db.augmented = true; } // однаково для бази й світу — у збереження не потрапляє
     const baseP = new Map(db.players.map((p) => [p.id, p]));
     const baseC = new Map(db.clubs.map((c) => [c.id, c]));
     const players = new Map(clone(db.players).map((p) => [p.id, p]));
@@ -93,6 +134,7 @@
       addPlayer(p) {
         p.id = 'n' + seq++;
         p.generated = true;
+        augment(p);
         players.set(p.id, p);
         if (p.club) clubs.get(p.club).players.push(p.id);
         return p;
@@ -192,6 +234,6 @@
   /** CA/PA → зірки 0,5–5 (як у жанрі): 190+ — п'ять зірок. */
   const stars = (v) => Math.max(0.5, Math.min(5, Math.round(((v - 55) / 27) * 2) / 2));
 
-  Object.assign(FM, { createWorld, roleLabel, positions, stars, caFromAttrs, marketValue, ROLE_NAME, ROLE_LINE, ATTRS, ATTR_GROUPS, ROLE_ORDER });
+  Object.assign(FM, { augment, TRAITS, HIDDEN, createWorld, roleLabel, positions, stars, caFromAttrs, marketValue, ROLE_NAME, ROLE_LINE, ATTRS, ATTR_GROUPS, ROLE_ORDER });
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

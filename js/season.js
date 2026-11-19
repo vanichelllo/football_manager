@@ -116,6 +116,16 @@
       const ban = () => { const b = S.bans[r.id]; S.bans[r.id] = [(b ? b[0] : 0) + 1, f.w]; };
       if (r.injury) r.player.injury = Math.max(r.player.injury || 0, r.injury);
       if (r.cond != null) r.player.fitness = r.cond;
+      // форма: оцінки за 5 останніх матчів
+      r.player.form = (r.player.form || []).concat([r.rating]).slice(-5);
+      // освоєння нової позиції: зіграв на ній щонайменше тайм
+      const mins = (r.off || 93) - (r.on || 0);
+      if (mins >= 45 && r.role !== 'GK' && !r.player.roles.includes(r.role)) {
+        const p = r.player, ada = (p.h && p.h.ada) || 10;
+        p.posExp = p.posExp || {};
+        p.posExp[r.role] = Math.min(100, (p.posExp[r.role] || 0) + 3 + ada * 0.25);
+        if (p.posExp[r.role] >= 100) { p.roles.push(r.role); delete p.posExp[r.role]; p.learned = (p.learned || []).concat([r.role]); }
+      }
       if (r.red) ban();
       else if (r.yellow) {
         S.yc[r.id] = (S.yc[r.id] || 0) + r.yellow;

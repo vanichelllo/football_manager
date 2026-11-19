@@ -49,6 +49,26 @@
         ['Дюран', 'Durand'], ['Леруа', 'Leroy'], ['Моро', 'Moreau'], ['Симон', 'Simon'], ['Лоран', 'Laurent'], ['Лефевр', 'Lefebvre'], ['Мішель', 'Michel'],
         ['Камара', 'Camara'], ['Діалло', 'Diallo'], ['Траоре', 'Traoré'], ['Коне', 'Koné']],
     },
+    BRA: {
+      first: [['Габріел', 'Gabriel'], ['Лукас', 'Lucas'], ['Матеус', 'Matheus'], ['Педро', 'Pedro'], ['Жоау', 'João'], ['Гілерме', 'Guilherme'], ['Рафаел', 'Rafael'], ['Тьяго', 'Thiago'], ['Віктор', 'Vítor'], ['Енцо', 'Enzo']],
+      last: [['Сілва', 'Silva'], ['Сантус', 'Santos'], ['Олівейра', 'Oliveira'], ['Соуза', 'Souza'], ['Перейра', 'Pereira'], ['Ліма', 'Lima'], ['Карвалью', 'Carvalho'], ['Феррейра', 'Ferreira'], ['Алвес', 'Alves'], ['Коста', 'Costa'], ['Рібейру', 'Ribeiro'], ['Мартінс', 'Martins']],
+    },
+    NED: {
+      first: [['Дан', 'Daan'], ['Сем', 'Sem'], ['Мілан', 'Milan'], ['Тейс', 'Thijs'], ['Юліан', 'Julian'], ['Сіб', 'Siebe'], ['Ларс', 'Lars'], ['Брам', 'Bram'], ['Йорді', 'Jordi'], ['Руд', 'Ruud']],
+      last: [['де Йонг', 'de Jong'], ['Янсен', 'Jansen'], ['де Врис', 'de Vries'], ['ван дер Берг', 'van den Berg'], ['Баккер', 'Bakker'], ['Віссер', 'Visser'], ['Смітс', 'Smits'], ['Мюлдер', 'Mulder'], ['Бос', 'Bos'], ['Петерс', 'Peeters']],
+    },
+    POL: {
+      first: [['Якуб', 'Jakub'], ['Кацпер', 'Kacper'], ['Шимон', 'Szymon'], ['Філіп', 'Filip'], ['Міхал', 'Michał'], ['Бартош', 'Bartosz'], ['Матеуш', 'Mateusz'], ['Кароль', 'Karol']],
+      last: [['Новак', 'Nowak'], ['Ковальський', 'Kowalski'], ['Вишневський', 'Wiśniewski'], ['Левандовський', 'Lewandowski'], ['Каміньський', 'Kamiński'], ['Зелінський', 'Zieliński'], ['Шиманський', 'Szymański'], ['Возняк', 'Woźniak']],
+    },
+    CRO: {
+      first: [['Лука', 'Luka'], ['Іван', 'Ivan'], ['Марко', 'Marko'], ['Петар', 'Petar'], ['Йосип', 'Josip'], ['Никола', 'Nikola'], ['Стефан', 'Stefan'], ['Душан', 'Dušan']],
+      last: [['Ковачич', 'Kovačić'], ['Хорват', 'Horvat'], ['Бабич', 'Babić'], ['Марич', 'Marić'], ['Йович', 'Jović'], ['Петрович', 'Petrović'], ['Николич', 'Nikolić'], ['Павлович', 'Pavlović']],
+    },
+    AFR: {
+      first: [['Ібрагім', 'Ibrahim'], ['Мамаду', 'Mamadou'], ['Віктор', 'Victor'], ['Самуель', 'Samuel'], ['Юсуф', 'Youssouf'], ['Шейх', 'Cheikh'], ['Еммануель', 'Emmanuel'], ['Сейду', 'Seydou']],
+      last: [['Діалло', 'Diallo'], ['Траоре', 'Traoré'], ['Сісе', 'Cissé'], ['Окафор', 'Okafor'], ['Ндіає', 'Ndiaye'], ['Камара', 'Camara'], ['Адеємі', 'Adeyemi'], ['Коне', 'Koné'], ['Сарр', 'Sarr'], ['Бамба', 'Bamba']],
+    },
   };
   FM.names = N;
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;

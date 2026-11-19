@@ -222,6 +222,7 @@
       ['caps', 'Збірна', (p) => (p.caps ? `${p.caps} (${p.intlGoals || 0})` : '—'), 'num'],
       ['value', 'Ціна', (p) => fmt.money(p.value), 'num'],
       ['contract', 'Контракт', (p) => p.contract ?? '—', 'num'],
+      ['form', 'Форма', (p) => (p.form && p.form.length ? (p.form.reduce((a, b) => a + b, 0) / p.form.length).toFixed(1).replace('.', ',') : '—'), 'num'],
       ['morale', 'Настрій', (p) => el('span.mood.m' + Math.min(4, Math.floor(FM.morale.get(p) / 20.01)), { title: p.mr ? 'Причина: ' + p.mr : null }, FM.morale.label(p))],
     ];
     const keyFn = {
@@ -230,6 +231,7 @@
       season: (p) => { const st = pstat(p.id); return st ? -(st[0] * 100 + st[1]) : 0; },
       contract: (p) => p.contract || 0,
       morale: (p) => -FM.morale.get(p),
+      form: (p) => -(p.form && p.form.length ? p.form.reduce((a, b) => a + b, 0) / p.form.length : 0),
     };
     const sorted = [...rows];
     if (keyFn[squadSort.key]) sorted.sort((a, b) => {
@@ -326,8 +328,42 @@
           return el('li', [FM.ATTRS[k], el('b.' + attrClass(mid), `${lo}–${hi}`)]);
         })),
       ]))), known(p) ? null : el('p.note', 'Гравця не розвідано: атрибути приблизні. Відправте скаута, щоб дізнатися точно.')]),
+      playerExtras(p),
       p.retired ? null : p.club === state.clubId ? myPlayerPanel(p) : transferPanel(p),
     ];
+  }
+
+  /** Опис прихованих рис (точно — лише для своїх і розвіданих). */
+  function hiddenText(p) {
+    const h = p.h || {}, out = [];
+    if (h.con >= 15) out.push('дуже стабільний'); else if (h.con <= 7) out.push('нестабільний: то блискуче, то провально');
+    if (h.big >= 15) out.push('розквітає у великих матчах'); else if (h.big <= 6) out.push('губиться у великих матчах');
+    if (h.inj >= 14) out.push('схильний до травм'); else if (h.inj <= 5) out.push('рідко травмується');
+    if (h.pro >= 15) out.push('справжній професіонал'); else if (h.pro <= 6) out.push('не надто старанний на тренуваннях');
+    if (h.ada >= 15) out.push('швидко освоює нові позиції');
+    return out;
+  }
+
+  function playerExtras(p) {
+    const blocks = [];
+    const facts = [];
+    if (p.traits && p.traits.length) facts.push(el('dt', 'Прийоми'), el('dd', p.traits.map((t) => FM.TRAITS[t]).join(', ')));
+    if (known(p)) { const h = hiddenText(p); facts.push(el('dt', 'Характер'), el('dd', h.length ? h.join(', ') : 'нічим особливим не вирізняється')); }
+    if (p.form && p.form.length) {
+      const avg = p.form.reduce((a, b) => a + b, 0) / p.form.length;
+      facts.push(el('dt', 'Форма'), el('dd', [el('b.rating' + (avg >= 7.3 ? '.hi' : avg < 6.2 ? '.lo' : ''), avg.toFixed(1).replace('.', ',')), ` (останні оцінки: ${p.form.map((x) => String(x).replace('.', ',')).join(' · ')})`]));
+    }
+    const learning = Object.entries(p.posExp || {}).filter(([, v]) => v > 0);
+    if (learning.length) facts.push(el('dt', 'Освоює позиції'), el('dd', learning.map(([r, v]) => `${FM.roleLabel(r)} — ${Math.round(v)}%`).join(', ')));
+    if (p.learned && p.learned.length) facts.push(el('dt', 'Освоїв'), el('dd', p.learned.map((r) => FM.roleLabel(r)).join(', ')));
+    if (p.awards && p.awards.length) facts.push(el('dt', 'Нагороди'), el('dd', p.awards.join('; ')));
+    if (facts.length) blocks.push(el('div.panel', [el('h3', 'Гравець'), el('dl.facts', facts)]));
+    if (p.career && p.career.length) blocks.push(el('div.panel', [el('h3', 'Кар\u2019єра'), el('div.table-wrap.flat', el('table', [
+      el('thead', el('tr', [el('th', 'Сезон'), el('th', 'Клуб'), el('th.num', 'Ігри'), el('th.num', 'Голи'), el('th.num', 'Передачі'), el('th.num', 'Оцінка')])),
+      el('tbody', [...p.career].reverse().map(([y, c, g, gl, as, r]) => el('tr', [el('td', `${y}/${String(y + 1).slice(2)}`), el('td', c && W.club(c) ? clubName(W.club(c)) : '—'),
+        el('td.num', g), el('td.num', gl), el('td.num', as), el('td.num', r ? (r / 10).toFixed(2).replace('.', ',') : '—')]))),
+    ]))]));
+    return blocks.length ? el('div.grid', blocks) : null;
   }
 
   // ---------------- Трансфери: панелі в картці гравця ----------------
@@ -1359,6 +1395,14 @@
       pts: t.find((r) => r.id === my.id).pts, scorer: scorer ? [scorer.id, scorer.st[1]] : null,
     }]);
     const hist = state.history[state.history.length - 1];
+    const awards = {};
+    for (const l of W.db.leagues) {
+      const a = FM.dev.awards(W, S, l.id);
+      awards[l.id] = a;
+      const give = (id, label) => { const pl = id && W.player(id); if (pl) pl.awards = (pl.awards || []).concat([`${label}, ${l.name} ${S.year}/${String(S.year + 1).slice(2)}`]); };
+      give(a.mvp, 'Найкращий гравець'); give(a.young, 'Найкращий молодий гравець'); give(a.boot && a.boot[0], 'Найкращий бомбардир');
+      for (const id of a.xi) give(id, 'Символічна збірна');
+    }
     const trophies = Object.values(state.cups || {}).filter((c) => c.winner === state.clubId).map((c) => c.id);
     const cupWinners = Object.fromEntries(Object.values(state.cups || {}).map((c) => [c.id, c.winner]));
     const tables = Object.fromEntries(W.db.leagues.map((l) => [l.id, FM.season.table(S, W, l.id).map((r) => r.id)]));
@@ -1372,8 +1416,10 @@
       youth: rep.youth.filter((p) => p.club === state.clubId).map((p) => p.id),
       stars: [...rep.retired].sort((a, b) => b.ca - a.ca).slice(0, 8).map((p) => p.id),
       expired: contracts.expired.filter((p) => p.lastClub === state.clubId).map((p) => p.id),
+      awards: awards[my.league], league: my.league, golden: (rep.golden || []).includes(state.clubId),
     };
     hist.cups = cupWinners;
+    hist.awards = awards;
     hist.trophies = trophies.concat(champions[my.league] === my.id ? ['league'] : []);
     FM.dev.newSeason(W, state);
     FM.market.init(W, state);
@@ -1402,7 +1448,13 @@
       el('header', [el('h1', `Новий сезон ${seasonLabel()}`), el('span.muted', `Підсумки сезону ${R.year}/${String(R.year + 1).slice(2)}`)]),
       R.verdict ? el('div.panel', [el('h3', 'Оцінка правління'), el('p', R.verdict), R.prize ? el('p.muted', `Призові за місце й кубки: ${FM.market.fmtM(R.prize)}`) : null,
         (state.jobOffers || []).length ? el('p', ['Вами цікавляться інші клуби — див. ', el('a', { href: '#board' }, 'Правління'), '.']) : null]) : null,
-      el('div.panel', [el('h3', 'Юнаки, що прийшли з академії'), R.youth.length ? list(R.youth, (p) => `${FM.positions(p)}, ${W.age(p)} р.`) : el('p.muted', 'Цього разу ніхто.'),
+      R.awards ? el('div.panel', [el('h3', `Нагороди сезону: ${W.league(R.league).name}`), el('dl.facts', [
+        el('dt', 'Найкращий гравець'), el('dd', R.awards.mvp && W.player(R.awards.mvp) ? el('a', { href: '#player-' + R.awards.mvp }, nameOf(W.player(R.awards.mvp))) : '—'),
+        el('dt', 'Найкращий молодий'), el('dd', R.awards.young && W.player(R.awards.young) ? el('a', { href: '#player-' + R.awards.young }, nameOf(W.player(R.awards.young))) : '—'),
+        el('dt', 'Бомбардир'), el('dd', R.awards.boot && W.player(R.awards.boot[0]) ? `${nameOf(W.player(R.awards.boot[0]))} (${R.awards.boot[1]})` : '—'),
+        el('dt', 'Символічна збірна'), el('dd', R.awards.xi.map((id) => W.player(id)).filter(Boolean).map((p) => `${nameOf(p)} (${clubName(W.club(p.club || p.lastClub) || W.club(state.clubId))})`).join(', ') || '—'),
+      ])]) : null,
+      el('div.panel', [el('h3', 'Юнаки, що прийшли з академії'), R.golden ? el('p.msg-ok', 'Цього року академія видала «золоте покоління» — більше юнаків і з вищим потенціалом!') : null, R.youth.length ? list(R.youth, (p) => `${FM.positions(p)}, ${W.age(p)} р.`) : el('p.muted', 'Цього разу ніхто.'),
         el('p.note', 'Зірки показують потенціал. Щоб юнаки росли, давайте їм ігровий час і тренування.')]),
       R.expired && R.expired.length ? el('div.panel', [el('h3', 'Пішли після завершення контракту'), list(R.expired, (p) => `${W.age(p)} р.`)]) : null,
       R.myRetired.length ? el('div.panel', [el('h3', 'Завершили кар’єру у вашому клубі'), list(R.myRetired, (p) => `${W.age(p)} р.`)]) : null,
