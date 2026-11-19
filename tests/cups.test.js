@@ -69,7 +69,7 @@ test('єврокубки за таблицями минулого сезону',
   const tables = {};
   for (const l of db.leagues) tables[l.id] = W.clubsOf(l.id).map((c) => c.id).reverse();
   const q = FM.cups.euroQualifiers(W, tables);
-  for (const l of db.leagues) {
+  for (const l of tier1) {
     const [a] = FM.cups.EURO_SPOTS[l.id];
     for (const id of tables[l.id].slice(0, a)) assert.ok(q.ucl.includes(id));
   }

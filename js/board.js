@@ -4,13 +4,14 @@
   'use strict';
   const FM = (root.FM = root.FM || {});
   const r2 = (x) => Math.round(x * 100) / 100;
+  const r4 = (x) => Math.round(x * 10000) / 10000; // малі клуби: тижневі суми — тисячі євро
 
   /** Базовий тижневий дохід клубу (млн €): зарплати на старті × 1,12 — клуб трохи в плюсі, якщо не роздувати витрати. */
   function initClubs(W) {
     for (const c of W.clubs.values()) {
       if (c.income0 != null) continue;
       const bill = FM.market.wageBill(W, c.id);
-      c.income0 = r2(Math.max(0.02, (bill * 1.12) / 1000));
+      c.income0 = r4(Math.max(0.005, (bill * 1.12) / 1000));
       c.wageBudget = Math.round(bill * 1.06);
     }
   }
@@ -79,9 +80,9 @@
       const fixed = c.income0 * 0.7;
       const tickets = home.has(c.id) ? c.income0 * 0.6 * (0.8 + 0.35 * rel) * (FM.club ? FM.club.ticketFactor(W, c.id, rel) : 1) : 0; // удома — подвійна частка матчдею
       const wages = FM.market.wageBill(W, c.id) / 1000 + (c.id === state.clubId && FM.club ? FM.club.staffBill(state) / 1000 : 0);
-      c.balance = r2(c.balance + fixed + tickets - wages);
+      c.balance = r4(c.balance + fixed + tickets - wages);
       if (c.id === state.clubId) {
-        b.fin.tv = r2(b.fin.tv + fixed); b.fin.tickets = r2(b.fin.tickets + tickets); b.fin.wages = r2(b.fin.wages + wages);
+        b.fin.tv = r4(b.fin.tv + fixed); b.fin.tickets = r4(b.fin.tickets + tickets); b.fin.wages = r4(b.fin.wages + wages);
       }
     }
     // бонуси за голи (пункт контракту)
@@ -114,8 +115,8 @@
       const t = FM.season.table(S, W, l.id);
       t.forEach((row, i) => {
         const c = W.club(row.id);
-        const prize = r2(c.income0 * 52 * 0.15 * (1 - i / (t.length - 1)));
-        c.balance = r2(c.balance + prize);
+        const prize = r4(c.income0 * 52 * 0.15 * (1 - i / (t.length - 1)));
+        c.balance = r4(c.balance + prize);
         if (c.id === state.clubId) b.fin.prize = prize;
       });
     }

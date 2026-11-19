@@ -69,6 +69,9 @@
     const players = W.squad(clubId);
     const out = unavailable(S, clubId, W);
     const available = players.filter((p) => !out.has(p.id));
+    // замало здорових — грають ті, кому лишилося лікуватися найменше (дискваліфіковані — ні)
+    if (available.length < 11) available.push(...players.filter((p) => out.has(p.id) && !(S.bans[p.id] && S.bans[p.id][0] > 0)).sort((a, b) => (a.injury || 0) - (b.injury || 0)).slice(0, 11 - available.length));
+    if (available.length < 11) available.push(...players.filter((p) => !available.includes(p)).slice(0, 11 - available.length)); // крайній випадок
     // криза: здорових замало — у заявку йдуть ті, хто травмований найлегше
     if (available.length < 14) {
       const extra = players.filter((p) => out.has(p.id) && !S.bans[p.id]).sort((a, b) => (a.injury || 0) - (b.injury || 0));

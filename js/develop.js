@@ -116,7 +116,7 @@
   // ---------------- Юнаки ----------------
   const LEAGUE_NAT = { eng: 'ENG', esp: 'ESP', ita: 'ITA', ger: 'GER', fra: 'FRA', ukr: 'UKR' };
   const NAME_SET = { ENG: 'ENG', SCO: 'ENG', WAL: 'ENG', IRL: 'ENG', ESP: 'ESP', ITA: 'ITA', GER: 'GER', AUT: 'GER', FRA: 'FRA', UKR: 'UKR',
-    BRA: 'BRA', POR: 'BRA', NED: 'NED', BEL: 'NED', POL: 'POL', CRO: 'CRO', SRB: 'CRO', NGA: 'AFR', SEN: 'AFR', CIV: 'AFR', MAR: 'AFR', ARG: 'ESP' };
+    BRA: 'BRA', POR: 'BRA', NED: 'NED', BEL: 'NED', POL: 'POL', TUR: 'TUR', CRO: 'CRO', SRB: 'CRO', NGA: 'AFR', SEN: 'AFR', CIV: 'AFR', MAR: 'AFR', ARG: 'ESP' };
   const PROFILE = {
     GK: { ref: 3, han: 2.5, one: 2, aer: 2, kic: 0, dec: 1, pos: 2, pac: -3, sta: -2, str: 0 },
     CB: { fin: -5, pas: -1, dri: -3, cro: -4, tac: 3, hea: 3, dec: 1, pos: 3, otb: -4, wor: 0.5, pac: 0, sta: 0, str: 2.5 },
@@ -131,9 +131,9 @@
 
   function makeYouth(W, clubId, R, year, forceRole, golden, bonus = 0) {
     const c = W.club(clubId);
-    const country = LEAGUE_NAT[c.league];
+    const country = (W.league(c.league) || {}).country || LEAGUE_NAT[c.league] || 'ENG';
     const nat = R.chance(0.82) ? country : R.pick(['UKR', 'ENG', 'ESP', 'ITA', 'GER', 'FRA', 'BRA', 'NGA', 'SEN', 'POR', 'NED', 'BEL', 'CRO', 'SRB', 'POL', 'MAR', 'CIV', 'ARG']);
-    const names = FM.names[NAME_SET[nat] || nat] || FM.names[NAME_SET[country] || country];
+    const names = FM.names[NAME_SET[nat] || nat] || FM.names[NAME_SET[country] || country] || FM.names.ENG;
     const [f, fe] = R.pick(names.first), [l, le] = R.pick(names.last);
     const have = {};
     for (const id of c.players) { const r = W.player(id).roles[0]; have[r] = (have[r] || 0) + 1; }

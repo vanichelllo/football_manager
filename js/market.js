@@ -5,9 +5,11 @@
   'use strict';
   const FM = (root.FM = root.FM || {});
 
-  const LEAGUE_MONEY = { eng: 3, esp: 2, ita: 1.6, ger: 1.8, fra: 1.4, ukr: 0.9 };
-  const WAGE_MULT = { eng: 1.3, esp: 1.1, ita: 1, ger: 1.05, fra: 0.95, ukr: 0.55 };
-  const MIN_WAGE = { eng: 8, esp: 4, ita: 3, ger: 4, fra: 3, ukr: 1 };
+  const LEAGUE_MONEY = { eng: 3, esp: 2, ita: 1.6, ger: 1.8, fra: 1.4, ukr: 0.9, eng2: 1.1, esp2: 0.6, ita2: 0.55, ger2: 0.7, fra2: 0.5, ukr2: 0.2,
+    por: 1, ned: 1, tur: 1.1, pol: 0.5 };
+  const WAGE_MULT = { eng: 1.3, esp: 1.1, ita: 1, ger: 1.05, fra: 0.95, ukr: 0.55, eng2: 1.1, esp2: 0.8, ita2: 0.8, ger2: 0.85, fra2: 0.75, ukr2: 0.4,
+    por: 0.8, ned: 0.85, tur: 1.1, pol: 0.65 };
+  const MIN_WAGE = { eng: 8, esp: 4, ita: 3, ger: 4, fra: 3, ukr: 1, eng2: 3, esp2: 1.5, ita2: 1.5, ger2: 2, fra2: 1.5, ukr2: 1, por: 1.5, ned: 2, tur: 2, pol: 1 };
 
   /** Тижнева зарплата за ринковою ціною: ~15% ціни на рік. */
   function fairWage(value, league) {
@@ -32,7 +34,7 @@
     ensureKeepers(W, state, FM.rng(`keepers-${state.season.seed}`));
     for (const c of W.clubs.values()) {
       if (c.balance != null) continue;
-      const rich = Math.exp((W.clubLevel(c.id) - 100) / 25) * LEAGUE_MONEY[c.league];
+      const rich = Math.exp((W.clubLevel(c.id) - 100) / 25) * (LEAGUE_MONEY[c.league] || 0.6);
       c.balance = Math.round(rich * 2.5 * 10) / 10;
     }
   }

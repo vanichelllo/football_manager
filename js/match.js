@@ -156,6 +156,10 @@
         const v = slotValue(p, slots[i]);
         if (v > bv) { bv = v; best = p; }
       }
+      if (!best) { // доступних менше одинадцяти — виходить хтось, хто ще не відновився (найменше лишилося лікуватися)
+        best = players.filter((p) => !used.has(p.id)).sort((a, b) => (a.injury || 0) - (b.injury || 0) || slotValue(b, slots[i]) - slotValue(a, slots[i]))[0];
+        if (!best) throw new Error('Замало гравців для складу');
+      }
       xi[i] = best;
       used.add(best.id);
     }

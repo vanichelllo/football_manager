@@ -59,8 +59,9 @@
     youth: { label: 'Академія', weeks: 12, cost: (W, c, f) => r2((1 + f.youth * 0.5) * moneyK(c)), hint: 'Кращі юнаки щороку.' },
     stadium: { label: 'Розширення стадіону (+5000 місць)', weeks: 30, cost: (W, c) => r2(12 * moneyK(c)), hint: 'Більше квитків — більший дохід.' },
   };
-  const LEAGUE_MONEY = { eng: 3, esp: 2, ita: 1.6, ger: 1.8, fra: 1.4, ukr: 0.4 };
-  const moneyK = (c) => (LEAGUE_MONEY[c.league] || 0.8) * (c.league && c.league.endsWith('2') ? 0.5 : 1);
+  const LEAGUE_MONEY = { eng: 3, esp: 2, ita: 1.6, ger: 1.8, fra: 1.4, ukr: 0.4, eng2: 1.2, esp2: 0.7, ita2: 0.6, ger2: 0.8, fra2: 0.5, ukr2: 0.15,
+    por: 0.9, ned: 0.9, tur: 1, pol: 0.5 };
+  const moneyK = (c) => LEAGUE_MONEY[c.league] || 0.6;
   /** Попросити правління про покращення. Повертає { ok, reason }. */
   function requestUpgrade(W, state, kind) {
     const c = W.club(state.clubId), f = facilities(W, c.id), U = UPGRADES[kind];
