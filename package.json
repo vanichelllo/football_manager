@@ -1,0 +1,10 @@
+{
+  "name": "golovnyi-trener",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Браузерний футбольний менеджер з реальними лігами (УПЛ і топ-5 Європи)",
+  "scripts": {
+    "build-db": "node tools/build-db.js",
+    "test": "node --test tests/*.test.js"
+  }
+}
