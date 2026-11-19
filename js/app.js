@@ -40,10 +40,11 @@
   window.addEventListener('hashchange', render);
 
   function render() {
+    clearTimeout(liveTimer); // пішли з трансляції — зупиняємо її
     if (!state) return renderStart();
     const view = location.hash.slice(1) || 'overview';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, options: screenSettings };
     const body = (screens[name] || screenOverview)(arg);
     app.replaceChildren(shell(name, body));
     window.scrollTo(0, 0);
@@ -59,7 +60,7 @@
         el('div.club-head', [badge(my), el('b', clubName(my))]),
         el('nav.nav', { 'aria-label': 'Меню' }, [
           item('overview', 'Огляд'), item('squad', 'Склад'), item('leagues', 'Ліги й клуби'),
-          item('tactics', 'Тактика', true), item('fixtures', 'Матчі', true), item('transfers', 'Трансфери', true),
+          item('match', 'Матч'), item('tactics', 'Тактика', true), item('fixtures', 'Сезон', true), item('transfers', 'Трансфери', true),
           item('options', 'Налаштування'),
         ]),
         el('div.foot', [`Тренер: ${state.manager}`, el('br'), `Сезон ${W.db.season}`]),
@@ -271,6 +272,186 @@
         starsEl(W.clubLevel(c.id), 'Рівень клубу'),
       ]),
       squadTable(c.id),
+    ];
+  }
+
+  // ---------------- Матч ----------------
+  const ROLE_SHORT = (slot) => FM.roleLabel(slot.role, slot.side);
+  let pre = null; // налаштування товариського матчу
+  let liveTimer = null;
+  let liveSpeed = 1;
+  const SPEEDS = [[1, 'Звичайно'], [4, 'Швидко'], [0, 'Одразу результат']];
+
+  function minuteValue(min) {
+    if (typeof min === 'number') return min;
+    const [a, b] = String(min).split('+').map(Number);
+    return a + (b || 0) / 10;
+  }
+
+  function teamSide(clubId) {
+    const players = W.squad(clubId);
+    const formation = FM.bestFormation(players);
+    const lineup = FM.pickLineup(players, formation);
+    return { club: W.club(clubId), players, formation, lineup, units: FM.lineupUnits(lineup) };
+  }
+
+  function lineupList(side) {
+    return el('ol.xi', side.lineup.xi.map((x) => el('li', [
+      el('span.pos.line-' + FM.ROLE_LINE[x.slot.role], ROLE_SHORT(x.slot)),
+      el('a', { href: '#player-' + x.player.id }, nameOf(x.player)),
+      el('span.muted', String(Math.round(FM.slotValue(x.player, x.slot) * 10) / 10).replace('.', ',')),
+    ])));
+  }
+
+  function compareBars(rows) {
+    return el('div.compare', rows.map(([label, a, b, fmtv]) => {
+      const total = (a + b) || 1;
+      const bar = el('div.cbar', [el('span.ch', { style: { width: (100 * a / total) + '%' } }), el('span.ca', { style: { width: (100 * b / total) + '%' } })]);
+      return el('div.crow', [el('b', fmtv ? fmtv(a) : a), el('div', [el('small', label), bar]), el('b', fmtv ? fmtv(b) : b)]);
+    }));
+  }
+
+  function screenMatch() {
+    const my = W.club(state.clubId);
+    if (!pre) {
+      const others = W.clubsOf(my.league).filter((c) => c.id !== my.id);
+      pre = { league: my.league, opp: others.sort((a, b) => W.clubLevel(b.id) - W.clubLevel(a.id))[0].id, home: true };
+    }
+    const mine = teamSide(my.id), opp = teamSide(pre.opp);
+    const [hs, as] = pre.home ? [mine, opp] : [opp, mine];
+    const leagueClubs = W.clubsOf(pre.league).filter((c) => c.id !== my.id);
+    const select = el('select', { id: 'opponent', onchange: (e) => { pre.opp = e.target.value; render(); } },
+      leagueClubs.map((c) => el('option', { value: c.id, selected: c.id === pre.opp || null }, clubName(c))));
+    if (!leagueClubs.some((c) => c.id === pre.opp)) { pre.opp = leagueClubs[0].id; return screenMatch(); }
+    const f1 = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
+    const history = (state.friendlies || []).slice(-6).reverse();
+
+    return [
+      el('header', [el('h1', 'Товариський матч'), el('span.muted', 'Сезон і турнірна таблиця — на наступному етапі')]),
+      el('div.panel', [
+        el('h3', 'Суперник'),
+        el('div.tabs', W.db.leagues.map((l) => el('button', { type: 'button', 'aria-pressed': String(l.id === pre.league), onclick: () => { pre.league = l.id; pre.opp = W.clubsOf(l.id).find((c) => c.id !== my.id).id; render(); } }, l.name))),
+        el('div.pre-row', [
+          el('div.field', [el('label', { for: 'opponent' }, 'Клуб'), select]),
+          el('div.field', [el('span', 'Де граємо'), el('div.tabs', [
+            el('button', { type: 'button', 'aria-pressed': String(pre.home), onclick: () => { pre.home = true; render(); } }, 'Вдома'),
+            el('button', { type: 'button', 'aria-pressed': String(!pre.home), onclick: () => { pre.home = false; render(); } }, 'На виїзді'),
+          ])]),
+          el('button.btn.primary.kick', { type: 'button', onclick: () => startMatch(hs, as) }, 'Почати матч'),
+        ]),
+      ]),
+      el('div.panel', [
+        el('div.vs', [
+          el('div.vs-team', [badge(hs.club, true), el('b', clubName(hs.club)), el('small.muted', `${hs.formation} · господарі`)]),
+          el('div.vs-mid', 'проти'),
+          el('div.vs-team', [badge(as.club, true), el('b', clubName(as.club)), el('small.muted', `${as.formation} · гості`)]),
+        ]),
+        compareBars([
+          ['Атака', hs.units.att, as.units.att, f1], ['Контроль м’яча', hs.units.mid, as.units.mid, f1],
+          ['Оборона', hs.units.def, as.units.def, f1], ['Воротар', hs.units.gk, as.units.gk, f1],
+        ]),
+        el('p.note', 'Сила ліній — середня оцінка гравців на їхніх позиціях за шкалою 1–20.'),
+      ]),
+      el('div.grid', [
+        el('div.panel', [el('h3', `${clubName(hs.club)}: склад`), lineupList(hs)]),
+        el('div.panel', [el('h3', `${clubName(as.club)}: склад`), lineupList(as)]),
+      ]),
+      history.length ? el('div.panel', [el('h3', 'Останні матчі'), el('ul.plist', history.map((h) => el('li', [
+        el('span', `${h.home} — ${h.away}`), el('b', h.score)])))]) : null,
+    ];
+  }
+
+  function startMatch(hs, as) {
+    const seed = `${hs.club.id}-${as.club.id}-${Date.now()}`;
+    const result = FM.match.play({
+      home: { club: { ...hs.club, name: clubName(hs.club) }, players: hs.players, formation: hs.formation, lineup: hs.lineup },
+      away: { club: { ...as.club, name: clubName(as.club) }, players: as.players, formation: as.formation, lineup: as.lineup },
+      seed, name: nameOf,
+    });
+    state.friendlies = (state.friendlies || []).concat([{ home: clubName(hs.club), away: clubName(as.club), score: result.score.join(':') }]).slice(-20);
+    store.save(state);
+    app.replaceChildren(shell('match', liveView(hs, as, result)));
+    window.scrollTo(0, 0);
+  }
+
+  function liveView(hs, as, m) {
+    const scoreEl = el('div.sb-score', '0:0');
+    const clock = el('div.sb-clock', '0′');
+    const feed = el('ol.feed', { 'aria-live': 'polite' });
+    const after = el('div.after');
+    const speedBtns = el('div.tabs');
+    let i = 0, done = false;
+
+    const drawSpeed = () => speedBtns.replaceChildren(...SPEEDS.map(([v, label]) => el('button', {
+      type: 'button', 'aria-pressed': String(liveSpeed === v), disabled: done || null,
+      onclick: () => { liveSpeed = v; drawSpeed(); if (v === 0) { clearTimeout(liveTimer); step(); } },
+    }, label)));
+
+    const show = (e) => {
+      const team = e.team == null ? null : e.team === 0 ? hs.club : as.club;
+      const li = el('li.ev.ev-' + e.type, [el('span.min', e.min + '′'), team ? badge(team) : el('span.dot'), el('span', e.text)]);
+      feed.prepend(li);
+      scoreEl.textContent = e.score.join(':');
+      clock.textContent = e.type === 'full' ? 'Кінець' : e.type === 'half' && String(e.min).startsWith('45') ? 'Перерва' : e.min + '′';
+    };
+    // Годинник іде рівно: хвилина ≈ 0,26 с на звичайній швидкості; після голу — пауза.
+    let t = 0, hold = 0;
+    const MS_PER_MIN = 260, TICK = 100;
+    function step() {
+      if (liveSpeed === 0) { while (i < m.events.length) show(m.events[i++]); return finish(); }
+      if (hold > 0) hold -= TICK * liveSpeed;
+      else t += (TICK / MS_PER_MIN) * liveSpeed;
+      while (i < m.events.length && minuteValue(m.events[i].min) <= t) {
+        const e = m.events[i++];
+        show(e);
+        if (e.type === 'goal') hold = 1800;
+        else if (e.type === 'half' && String(e.min).startsWith('45')) hold = 1200;
+      }
+      if (i >= m.events.length) return finish();
+      const last = m.events[i - 1];
+      if (!(last && (last.type === 'half' && String(last.min).startsWith('45') && t < 46))) {
+        const shown = Math.floor(t);
+        clock.textContent = shown > 90 ? `90+${shown - 90}′` : shown > 45 && t < 46 ? `45+′` : `${shown}′`;
+      }
+      liveTimer = setTimeout(step, TICK);
+    }
+    function finish() {
+      done = true; drawSpeed();
+      const [sh, sa] = m.stats;
+      const pct = (v) => v + '%';
+      const f2 = (v) => String(v).replace('.', ',');
+      const ratingTable = (k, club) => el('div.panel', [el('h3', clubName(club)), el('div.table-wrap', el('table', [
+        el('thead', el('tr', [el('th', 'Гравець'), el('th', 'Поз.'), el('th.num', 'Оцінка'), el('th', '')])),
+        el('tbody', m.ratings.filter((r) => r.team === k).map((r) => el('tr', [
+          el('td.name', el('a', { href: '#player-' + r.id }, nameOf(r.player))),
+          el('td.pos.line-' + FM.ROLE_LINE[r.role], FM.roleLabel(r.role)),
+          el('td.num', el('b.rating' + (r.rating >= 7.5 ? '.hi' : r.rating < 6 ? '.lo' : ''), f2(r.rating))),
+          el('td.muted', [r.goals ? `гол ×${r.goals} ` : '', r.assists ? `пас ×${r.assists} ` : '', r.yellow ? 'ЖК ' : '', r.red ? 'ЧК ' : '', r.on ? `вийшов на ${r.on}′` : '', r.off ? `замінений на ${r.off}′` : ''].join('')),
+        ]))),
+      ]))]);
+      after.replaceChildren(
+        el('div.panel', [el('h3', 'Статистика'), compareBars([
+          ['Володіння', sh.poss, sa.poss, pct], ['Удари', sh.shots, sa.shots], ['У площину воріт', sh.onTarget, sa.onTarget],
+          ['Очікувані голи (xG)', sh.xg, sa.xg, f2], ['Жовті картки', sh.yellow, sa.yellow], ['Червоні картки', sh.red, sa.red],
+        ]), el('p', ['Найкращий гравець матчу: ', el('b', nameOf(m.motm.player)), ` (${clubName(m.motm.team === 0 ? hs.club : as.club)}, ${f2(m.motm.rating)})`])]),
+        el('div.grid', [ratingTable(0, hs.club), ratingTable(1, as.club)]),
+        el('div', { style: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' } }, [
+          el('button.btn.primary', { type: 'button', onclick: () => startMatch(hs, as) }, 'Зіграти ще раз'),
+          el('button.btn', { type: 'button', onclick: () => render() }, 'Інший суперник'),
+        ]),
+      );
+    }
+    drawSpeed();
+    liveTimer = setTimeout(step, 200);
+    return [
+      el('div.scoreboard', [
+        el('div.sb-team', [badge(hs.club, true), el('b', clubName(hs.club))]),
+        el('div.sb-mid', [scoreEl, clock]),
+        el('div.sb-team.away', [badge(as.club, true), el('b', clubName(as.club))]),
+      ]),
+      el('div.live-controls', [el('span.muted', 'Швидкість'), speedBtns]),
+      el('div.panel.feed-wrap', feed),
+      after,
     ];
   }
 
