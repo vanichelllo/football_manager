@@ -361,3 +361,11 @@ tr.z-rel td.zone { border-left-color: #cf4040; }
 .chip { background: var(--accent-soft); color: var(--fg); }
 b.up { color: var(--accent); } b.down { color: var(--warn); }
 select.tiny { padding: 0.25rem 0.35rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); max-width: 11rem; }
+
+/* ---------- Трансфери ---------- */
+.filters { display: grid; gap: 0.6rem 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); margin-bottom: 0.6rem; }
+.offer-btns { display: inline-flex; gap: 0.35rem; }
+.offer-btns .btn { padding: 0.25rem 0.6rem; }
+.confirm-inline { display: inline-flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+.news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.92rem; }
+.pre-row .field input[type="number"] { width: 9rem; }
