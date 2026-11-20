@@ -75,6 +75,7 @@
    * Суперники обирають ментальність за співвідношенням сил.
    */
   function sideFor(S, W, clubId, user, oppId, home) {
+    if (Array.isArray(user)) user = user.find((u) => u && u.clubId === clubId) || null; // гра на двох: тренер саме цього клубу
     let players = W.squad(clubId);
     if (user && user.clubId === clubId && user.reserve && user.reserve.size) { // молодіжна команда — не в заявці основи
       const first = players.filter((p) => !user.reserve.has(p.id));
@@ -162,7 +163,8 @@
 
   /** Зіграти всі ще не зіграні матчі поточного тижня, крім skip (матч людини, який вона грає наживо). opts.midOnly — лише тури посеред тижня. */
   function playOthers(S, W, opts = {}) {
-    const list = fixturesOfWeek(S, S.week).filter((f) => !f.s && f.id !== opts.skip);
+    const skip = new Set([].concat(opts.skip ?? [])); // один матч або кілька (гра на двох)
+    const list = fixturesOfWeek(S, S.week).filter((f) => !f.s && !skip.has(f.id));
     const mids = list.filter((f) => f.mid);
     for (const f of mids) record(S, f, play(S, W, f, opts.name, opts.user).m);
     if (mids.length) midRecover(W, mids); // між вівторком і суботою гравці трохи відновлюються
@@ -200,7 +202,8 @@
     for (const p of W.players.values()) {
       if (p.injury > 0) { p.injury--; if (p.injury <= 0) delete p.injury; }
       if (p.fitness != null) {
-        const plan = opts.recovery && p.club === opts.myClub ? opts.recovery : 22;
+        const o = p.club === opts.myClub ? opts : (opts.also || []).find((x) => x.myClub === p.club);
+        const plan = o && o.recovery ? o.recovery : 22;
         p.fitness = Math.min(100, p.fitness + plan + (p.attrs.sta || 10) * 0.6);
         if (p.fitness >= 100) delete p.fitness;
       }
@@ -212,7 +215,7 @@
   function playWeek(S, W, opts = {}) {
     const list = fixturesOfWeek(S, S.week);
     playOthers(S, W, { name: opts.name, user: opts.user });
-    advance(S, W, { recovery: opts.dev && opts.dev.recovery, myClub: opts.dev && opts.dev.myClub });
+    advance(S, W, { recovery: opts.dev && opts.dev.recovery, myClub: opts.dev && opts.dev.myClub, also: opts.dev && opts.dev.also });
     if (FM.dev && opts.develop !== false) FM.dev.weekly(W, S, opts.dev || {});
     return list;
   }

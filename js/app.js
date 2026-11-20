@@ -102,9 +102,10 @@
     if (!state) return renderStart();
     if (!state.cups) { ensureCups(); saveGame(); } // старе збереження без кубків
     let view = location.hash.slice(1) || 'inbox'; // як у FM: головний екран — пошта
+    if (FM.duo.on(state) && state.duo.handoff) view = 'duo'; // гра на двох: передати телефон
     if (state.sacked && !['sacked', 'options', 'interview'].includes(view.split('-')[0])) view = 'sacked';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, search: screenSearch, charts: screenCharts, calendar: screenCalendar, compare: screenCompare, holiday: screenHoliday, awards: screenAwards, planner: screenPlanner, plan: screenPlan, medical: screenMedical, interview: screenInterview, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, search: screenSearch, charts: screenCharts, calendar: screenCalendar, compare: screenCompare, holiday: screenHoliday, awards: screenAwards, planner: screenPlanner, plan: screenPlan, medical: screenMedical, interview: screenInterview, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings, duo: screenDuo };
     planTouch(name);
     if (name !== 'inbox') inboxBase = null;
     const body = (screens[name] || screenOverview)(arg);
@@ -159,6 +160,9 @@
     const tabs = el('div.tabs', { role: 'group', 'aria-label': 'Ліга' });
     const nameInput = el('input', { id: 'manager-name', type: 'text', value: 'Новий тренер', maxlength: 40, autocomplete: 'off' });
     const tutInput = el('input', { id: 'tutorial', type: 'checkbox', checked: true });
+    const duoInput = el('input', { id: 'duo', type: 'checkbox', onchange: () => { duoBox.hidden = !duoInput.checked; } });
+    const name2 = el('input', { id: 'manager-name-2', type: 'text', value: 'Другий тренер', maxlength: 40, autocomplete: 'off' });
+    const duoBox = el('div.field', { hidden: true }, [el('label', { for: 'manager-name-2' }, 'Ім’я другого тренера'), name2, el('p.muted', 'Клуб другому тренерові оберете на наступному кроці. Ходите по черзі на одному телефоні.')]);
     const startBtn = el('button.btn.primary', { type: 'button', disabled: true, onclick: begin }, 'Почати кар’єру');
     const picked = el('span.muted', 'Оберіть клуб');
 
@@ -185,10 +189,12 @@
       FM.board.initSeason(W, state);
       FM.club.init(W, state);
       FM.career.init(W, state);
-      if (challenge) FM.challenges.start(state, challenge);
+      if (challenge) FM.challenges.start(state, challenge, W);
       FM.nations.ensurePools(W, state); // гравці для збірних, яких немає в базі
       state.day = 0;
       ensureCups();
+      FM.missions.current(W, state);
+      if (duoInput.checked) return renderSecond(name2.value.trim() || 'Другий тренер');
       saveGame();
       go('inbox');
     }
@@ -209,11 +215,44 @@
       startSlots,
       el('div.field', [el('label', { for: 'manager-name' }, 'Ваше ім’я'), nameInput]),
       el('label.check', [tutInput, ' Показувати підказки для новачка']),
+      el('label.check', [duoInput, ' Гра на двох на одному телефоні (два тренери, два клуби)']),
+      duoBox,
       el('div.field', [el('b', 'Режим'), chBox, chNote]),
       tabs,
       grid,
       el('div.panel.confirm', [picked, startBtn]),
       el('p.note', `Дані: ${W.db.source}. Знімок від ${fmt.date(W.db.snapshot)}. Атрибути вирахувані з реальних фактів і можуть не збігатися з вашим уявленням про гравця.`),
+    ]));
+  }
+
+  /** Гра на двох: другий тренер обирає клуб (інший, ніж у першого). */
+  function renderSecond(name) {
+    const first = state.clubId;
+    let leagueId = W.club(first).league, clubId = null;
+    const tabs = el('div.tabs', { role: 'group', 'aria-label': 'Ліга' }), grid = el('div.club-grid');
+    const startBtn = el('button.btn.primary', { type: 'button', disabled: true, onclick: () => {
+      state.duo = { turn: 0, other: {} };
+      FM.duo.swap(state); // тепер у state — лише спільне: створюємо кар'єру другого тренера
+      Object.assign(state, { manager: name, clubId, tutorial: null });
+      FM.board.initSeason(W, state);
+      FM.club.init(W, state);
+      FM.career.init(W, state);
+      FM.missions.current(W, state);
+      FM.market.news(state, `Ви очолили ${clubName(W.club(clubId))}. Гра на двох: суперник по дивану — ${state.duo.other.manager} (${clubName(W.club(state.duo.other.clubId))}).`, 'club');
+      FM.duo.swap(state); // починає перший тренер
+      FM.career.init(W, state);
+      saveGame();
+      go('duo');
+    } }, 'Почати гру на двох');
+    const picked = el('span.muted', 'Оберіть клуб');
+    const drawTabs = () => tabs.replaceChildren(...W.db.leagues.map((l) => el('button', { type: 'button', 'aria-pressed': String(l.id === leagueId), onclick: () => { leagueId = l.id; drawTabs(); drawClubs(); } }, l.name)));
+    const drawClubs = () => grid.replaceChildren(...W.clubsOf(leagueId).filter((c) => c.id !== first).map((c) => ({ c, lvl: W.clubLevel(c.id) })).sort((a, b) => b.lvl - a.lvl).map(({ c, lvl }) => el('button.club-card', {
+      type: 'button', 'aria-pressed': String(c.id === clubId), onclick: () => { clubId = c.id; picked.textContent = c.name; startBtn.disabled = false; drawClubs(); },
+    }, [badge(c), el('span.t', [el('b', c.name), el('small', c.stadium || c.nameEn), starsEl(lvl, 'Рівень клубу')])])));
+    drawTabs(); drawClubs();
+    app.replaceChildren(el('div.start', [
+      el('div.hero', [el('h1', `${name}: оберіть клуб`), el('p', `Перший тренер — ${state.manager}, ${clubName(W.club(first))}. Найцікавіше — клуби однієї ліги: дербі на дивані!`)]),
+      tabs, grid, el('div.panel.confirm', [picked, startBtn]),
     ]));
   }
 
@@ -277,6 +316,7 @@
         ])]),
       ]),
       seasonPanel(),
+      missionsCard(),
       tipsPanel(4),
       newsPanel(),
       el('div.grid', [mini(best, 'Найкращі гравці'), mini(young, 'Найперспективніша молодь (до 21)')]),
@@ -1563,8 +1603,10 @@
     t.roles = t.roles || {}; t.variants = t.variants || {}; t.instr = t.instr || {}; t.takers = t.takers || {};
     return t;
   }
-  const USER = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity(), reserve: new Set([...FM.youth.set(state), ...FM.medical.rested(state)]), // U-21 і ті, хто відпочиває
+  const USER1 = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity(), reserve: new Set([...FM.youth.set(state), ...FM.medical.rested(state)]), // U-21 і ті, хто відпочиває
     boost: FM.dressing.matchBoost(state) * FM.routine.prepBoost(weekSchedule(), (curEvent() || { day: 6 }).day) * mindBoost() }); // збори + підготовка напередодні + словесна дуель
+  /** Тренер-людина для рушія матчів; у грі на двох — обидва (склад і тактика другого — його власні). */
+  const USER = () => (FM.duo.on(state) ? [USER1(), FM.duo.as(state, USER1)] : USER1());
   const mindBoost = () => { const m = state.mind, S = state.season, ev = curEvent(); return m && m.key === `${S.year}-${S.week}` && ev && ev.opp === m.club ? m.boost : 1; };
 
   function mySide() {
@@ -2660,7 +2702,8 @@
       contNote ? el('small.tb-note', contNote) : null,
       el('div.tb-actions', [
         unread ? el('a.btn.tb-mail', { href: '#inbox', title: 'Непрочитані повідомлення' }, `✉ ${unread}`) : null,
-        el('a.btn.tb-hol', { href: '#holiday', title: 'Доручити тижні асистентові' }, 'Відпустка'),
+        FM.duo.on(state) ? el('button.btn.tb-duo', { type: 'button', disabled: running || null, title: 'Передати хід другому тренерові', onclick: () => { duoHandoff(); go('duo'); } }, `⇄ ${state.duo.other.manager}`)
+          : el('a.btn.tb-hol', { href: '#holiday', title: 'Доручити тижні асистентові' }, 'Відпустка'),
         el('button.btn.primary.tb-cont', { type: 'button', disabled: running || null, title: 'Пробіл', onclick: () => continueGame() }, contLabel()),
       ]),
     ]);
@@ -2692,6 +2735,7 @@
       const day = curDay();
       if (day === 6) {
         if (curEvent()) return stop('fixtures', 'День матчу.');
+        if (duoPending()) { duoHandoff(); return stop('duo'); } // гра на двох: матч другого тренера — його хід
         quickWeek(); // ваша ліга цього тижня не грає — тиждень минає сам
         if (state.sacked) return stop('sacked');
       } else state.day = day + 1;
@@ -2714,6 +2758,78 @@
     if (e.key === ' ' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); continueGame(); }
     else if (e.key === 'Escape' && history.length > 1) history.back();
   });
+
+  // ---------------- Гра на двох на одному телефоні ----------------
+  /** Чи має другий тренер ще не зіграний матч ліги цього тижня (крім skip; midOnly — лише посеред тижня). */
+  function duoPending(skip, midOnly) {
+    if (!FM.duo.on(state)) return false;
+    const o = FM.duo.otherClub(state), S = state.season;
+    return FM.season.fixturesOfWeek(S, S.week).some((f) => f !== skip && !f.s && (f.h === o || f.a === o) && (!midOnly || f.mid));
+  }
+  /** Передати хід: тренери міняються, коли відкриється екран «Хід тренера». */
+  function duoHandoff() { if (FM.duo.on(state)) { state.duo.handoff = true; running = false; saveGame(); } }
+  function screenDuo() {
+    if (!FM.duo.on(state)) return [el('header', [el('h1', 'Гра на двох')]), el('p.muted', 'Цю кар’єру веде один тренер. Гру на двох вмикають на старті нової кар’єри.')];
+    if (state.duo.handoff) {
+      state.duo.handoff = false;
+      FM.duo.swap(state);
+      FM.career.init(W, state);
+      quick = null; contNote = null; inboxBase = null;
+      saveGame();
+    }
+    const me = W.club(state.clubId), o = state.duo.other, ev = curEvent(), unread = FM.market.unread(state);
+    const played = FM.season.fixturesOfWeek(state.season, state.season.week).some((f) => f.s && (f.h === state.clubId || f.a === state.clubId));
+    return [el('div.duo-gate', [
+      el('p.muted', 'Передайте телефон'),
+      el('div.duo-who', [badge(me, true), el('div', [el('h1', state.manager), el('b', clubName(me))])]),
+      el('p', [dateLabel(), ' · ', ev ? nextEventText() : played ? 'свій матч цього тижня ви вже зіграли' : 'цього тижня матчу немає']),
+      unread ? el('p', `Нових повідомлень: ${unread}.`) : null,
+      state.sacked ? el('p.bad', 'Вас звільнили — оберіть нову роботу.') : null,
+      el('div.actions', [el('button.btn.primary', { type: 'button', onclick: () => go(state.sacked ? 'sacked' : unread ? 'inbox' : 'fixtures') }, 'Почати хід')]),
+      el('p.note', `Наступним ходитиме ${o.manager} (${clubName(W.club(o.clubId))}). Хто перший зіграв свій матч, передає хід; тиждень закриває той, хто грає останнім. Кнопка «⇄» угорі — передати хід будь-коли.`),
+    ])];
+  }
+  /** Кінець сезону за другого тренера — поки таблиці сезону ще на місці. */
+  function duoSeasonStart() {
+    if (!FM.duo.on(state)) return;
+    const S = state.season;
+    FM.duo.as(state, () => {
+      FM.duo.second = true;
+      try {
+        FM.career.init(W, state);
+        const my = W.club(state.clubId), t = FM.season.table(S, W, my.league), pos = t.findIndex((r) => r.id === my.id) + 1;
+        const trophies = Object.values(state.cups || {}).filter((c) => c.winner === state.clubId).map((c) => c.id);
+        const champ = t[0] && t[0].id === state.clubId;
+        state.history = (state.history || []).concat([{ year: S.year, champions: {}, club: state.clubId, pos, pts: (t[pos - 1] || {}).pts || 0, scorer: null, trophies: trophies.concat(champ ? ['league'] : []) }]);
+        const verdict = FM.board.endSeason(W, state);
+        const ffp = FM.finance.endSeason(W, state);
+        FM.market.news(state, ffp.text, 'club');
+        if (trophies.length) { state.board.rep = Math.min(100, state.board.rep + 5 * trophies.length); state.board.conf = Math.min(100, state.board.conf + 10); }
+        if (champ) addTrophy(null, my.league);
+        FM.career.addTrophies(state, state.history[state.history.length - 1].trophies);
+        state.duoEnd = { verdict, ffp: ffp.text, league: my.league };
+      } finally { FM.duo.second = false; }
+    });
+    FM.career.init(W, state);
+  }
+  /** Після переходу в новий сезон: звіт, звільнення або нові цілі для другого тренера. */
+  function duoSeasonFinish() {
+    if (!FM.duo.on(state)) return;
+    const main = state.lastReport, mainHist = state.history[state.history.length - 1];
+    FM.duo.as(state, () => {
+      const e = state.duoEnd; delete state.duoEnd;
+      if (!e) return;
+      const h = state.history[state.history.length - 1];
+      if (mainHist) { h.champions = mainHist.champions; h.cups = mainHist.cups; h.awards = mainHist.awards; }
+      state.lastReport = { ...main, league: e.league, awards: mainHist && mainHist.awards ? mainHist.awards[e.league] : main.awards, myRetired: [], youth: [], expired: [], golden: false,
+        verdict: e.verdict.verdict, prize: e.verdict.prize, ffp: e.ffp, vision: null, ach: [], challenge: null };
+      for (const m of main.moves || []) if (m.club === state.clubId) FM.market.news(state, m.up ? `Вітаємо! ${clubName(W.club(m.club))} виходить до ліги «${W.league(m.to).name}».` : `${clubName(W.club(m.club))} вилітає до ліги «${W.league(m.to).name}».`);
+      if (e.verdict.fired) state.sacked = { reason: e.verdict.verdict, offers: FM.board.jobOffers(W, state, 3, 'end') };
+      else { FM.board.initSeason(W, state); state.jobOffers = []; }
+      FM.missions.current(W, state);
+    });
+    FM.career.init(W, state);
+  }
 
   // ---------------- Швидкий режим (розширення 19) ----------------
   /** Один тиждень без трансляції й без переходу між екранами. */
@@ -2766,6 +2882,7 @@
 
   function quickRun(opts = {}) {
     const S = state.season;
+    if (FM.duo.on(state)) { contNote = 'У грі на двох відпустка й швидкий режим вимкнені: кожен тренер грає свої матчі сам.'; return go('fixtures'); }
     const h = opts.holiday || null;
     const untilWeek = !h ? null : h.until === 'season' ? 999 : h.until === 'window' ? (FM.market.windows(S).map(([a]) => a).find((a) => a > S.week) ?? 999) : h.until === 'match' ? S.week + 1 : S.week + Number(h.until);
     quick = { weeks: 0, w: 0, d: 0, l: 0, stop: null, running: true, start: S.week, holiday: !!h, sold: [] };
@@ -2836,6 +2953,14 @@
   /** Тур посеред тижня (вівторок): решта таких турів — одразу, ваш — наживо або результатом; тиждень триває. */
   function playMidweek(f, live) {
     const S = state.season;
+    if (duoPending(f, true)) { // гра на двох: другий тренер теж грає посеред тижня — свій матч, потім його хід
+      const after = (r) => { FM.season.record(S, f, r); FM.season.midRecover(W, [f]); state.day = Math.max(curDay(), 2); duoHandoff(); saveGame(); };
+      if (!live) { after(FM.season.play(S, W, f, NAMES, USER()).m); return go('duo'); }
+      const { hs, as, opts } = FM.season.prepare(S, W, f, NAMES, USER());
+      const myK = f.h === state.clubId ? 0 : 1;
+      opts[myK === 0 ? 'home' : 'away'].manual = true;
+      return showLive('fixtures', hs, as, FM.match.create(opts), myK, after, [['Далі: хід другого тренера', () => go('duo'), true]], { fixture: f });
+    }
     FM.season.playOthers(S, W, { skip: f.id, name: NAMES, user: USER(), midOnly: true });
     const after = (r) => { FM.season.record(S, f, r); FM.season.midRecover(W, [f]); state.day = Math.max(curDay(), 2); saveGame(); };
     if (!live) { after(FM.season.play(S, W, f, NAMES, USER()).m); return go('fixtures'); }
@@ -2859,6 +2984,15 @@
       cupNews(FM.cups.finishPending(W, state, pend, FM.match.play(opts)));
       cupsWeek();
     }
+    if (duoPending(f)) { // гра на двох: другий тренер ще не зіграв — лише свій матч, тиждень закриє він
+      if (!f) { duoHandoff(); return go('duo'); }
+      const after = (r) => { FM.season.record(S, f, r); duoHandoff(); saveGame(); };
+      if (!live) { after(FM.season.play(S, W, f, NAMES, USER()).m); return go('duo'); }
+      const { hs, as, opts } = FM.season.prepare(S, W, f, NAMES, USER());
+      const myK = f.h === state.clubId ? 0 : 1;
+      opts[myK === 0 ? 'home' : 'away'].manual = true;
+      return showLive('fixtures', hs, as, FM.match.create(opts), myK, after, [['Далі: хід другого тренера', () => go('duo'), true]], { fixture: f });
+    }
     if (!f || !live) {
       FM.season.playWeek(S, W, { name: NAMES, user: USER(), dev: devOpts() });
       FM.market.weekly(W, state);
@@ -2877,7 +3011,7 @@
     showLive('fixtures', hs, as, M, myK, (r) => {
       FM.season.record(S, f, r);
       const dv = devOpts();
-      FM.season.advance(S, W, { recovery: dv.recovery, myClub: state.clubId });
+      FM.season.advance(S, W, { recovery: dv.recovery, myClub: state.clubId, also: dv.also });
       FM.dev.weekly(W, S, dv);
       FM.market.weekly(W, state);
       boardWeek();
@@ -2926,6 +3060,7 @@
     for (const cup of Object.values(state.cups)) if (cup.winner && !cup.announced) {
       cup.announced = true;
       if (cup.winner === state.clubId) addTrophy(cup);
+      else if (cup.winner === FM.duo.otherClub(state)) FM.duo.as(state, () => { addTrophy(cup); FM.market.news(state, `ТРОФЕЙ! Ви виграли ${cup.name}!`); });
       FM.market.news(state, cup.winner === state.clubId ? `ТРОФЕЙ! Ви виграли ${cup.name}!` : `${clubName(W.club(cup.winner))} — переможець турніру «${cup.name}».`);
     }
   }
@@ -2981,21 +3116,21 @@
     } }, text))), el('small.muted', 'Можна не відповідати — тоді все лишиться як є.')]);
   }
 
-  function boardWeek() {
+  function boardWeek(second) {
     const S = state.season;
     // вболівальники, будівництво, лікар, тренери ШІ
     const res = {};
-    for (const f of FM.season.fixturesOfWeek(S, S.week - 1)) if (f.s) { res[f.h] = Math.sign(f.s[0] - f.s[1]); res[f.a] = Math.sign(f.s[1] - f.s[0]); }
+    if (!second) for (const f of FM.season.fixturesOfWeek(S, S.week - 1)) if (f.s) { res[f.h] = Math.sign(f.s[0] - f.s[1]); res[f.a] = Math.sign(f.s[1] - f.s[0]); }
     FM.club.fansWeek(W, state, res);
     const built = FM.club.buildWeek(W, state);
     if (built) FM.market.news(state, `Завершено: ${FM.club.UPGRADES[built].label.toLowerCase()}.`);
     const R = FM.rng(`physio-${S.seed}-${S.week}`);
     for (const p of W.squad(state.clubId)) if (p.injury > 0 && R.chance(FM.club.lvl(state, 'physio') / 40)) { p.injury--; if (p.injury <= 0) delete p.injury; }
-    for (const e of FM.club.managersWeek(W, state)) {
+    if (!second) for (const e of FM.club.managersWeek(W, state)) {
       if (e.ex || e.club.league === W.club(state.clubId).league || W.clubLevel(e.club.id) > 140) FM.market.news(state, `${clubName(e.club)} звільнив тренера ${e.old}. Новий тренер — ${e.now}${e.ex ? ' (колишній гравець, завершив кар’єру нещодавно)' : ''}.`, 'world');
     }
     // міжнародне вікно: збірні грають, гравці повертаються втомленими
-    if (FM.nations && FM.nations.windows(S).includes(S.week)) {
+    if (!second && FM.nations && FM.nations.windows(S).includes(S.week)) {
       for (const { fx, m } of FM.nations.weekly(W, state, { name: (p) => nameOf(p) })) {
         const sc = fx.home ? m.score : [m.score[1], m.score[0]];
         const mine = m.ratings.filter((r) => r.player.club === state.clubId && r.team === (fx.home ? 0 : 1)).map((r) => nameOf(r.player));
@@ -3052,6 +3187,18 @@
     for (const e of FM.morale.weekly(W, state)) FM.market.news(state, e.text);
     const r = FM.board.weekly(W, state);
     if (r.fired) state.sacked = { reason: r.reason, offers: FM.board.jobOffers(W, state, 3, 'sack') };
+    // місії тижня: підсумок минулого, нові на цей
+    for (const t of FM.missions.check(W, state)) FM.market.news(state, t, 'club');
+    FM.missions.current(W, state);
+    // гра на двох: той самий тиждень — для другого тренера (лише його клуб і справи)
+    if (!second && FM.duo.on(state)) {
+      const lp = lastPlan;
+      FM.duo.as(state, () => {
+        FM.duo.second = true;
+        try { FM.career.init(W, state); lastPlan = (lastPlan2 && lastPlan2.myClub === state.clubId && lastPlan2.plan) || curPlan(); FM.market.weekly(W, state); boardWeek(true); } finally { FM.duo.second = false; }
+      });
+      lastPlan = lp; FM.career.init(W, state);
+    }
   }
 
   function training() {
@@ -3081,13 +3228,16 @@
   let lastPlan = null;
   /** Тижневий підсумок розкладу (відновлення, розвиток, тактика, ризик травм). */
   const curPlan = () => FM.routine.aggregate(weekSchedule());
-  const devOpts = () => {
-    const plan = (lastPlan = curPlan());
-    return { training: training(), myClub: state.clubId, plan, rest: FM.medical.rested(state),
-      recovery: plan.recovery + (FM.club.lvl(state, 'fitness') - 10) * 0.4,
-      growthMult: (p) => FM.club.growthMult(state, W, p) * ((W.age(p) ?? 24) <= 21 ? 1 + (FM.career.attr(state, 'youth') - 10) * 0.015 : 1) * FM.youth.growth(state, p) * FM.routine.growthMult(state, p),
-      injuryMult: 1.2 - FM.club.lvl(state, 'fitness') * 0.02 };
+  const devOpts = (inner) => {
+    const st = state, plan = curPlan();
+    if (!inner) lastPlan = plan;
+    return { training: training(), myClub: st.clubId, plan, rest: FM.medical.rested(st),
+      recovery: plan.recovery + (FM.club.lvl(st, 'fitness') - 10) * 0.4,
+      growthMult: (p) => FM.club.growthMult(st, W, p) * ((W.age(p) ?? 24) <= 21 ? 1 + (FM.career.attr(st, 'youth') - 10) * 0.015 : 1) * FM.youth.growth(st, p) * FM.routine.growthMult(st, p),
+      injuryMult: 1.2 - FM.club.lvl(st, 'fitness') * 0.02,
+      also: !inner && FM.duo.on(st) ? [(lastPlan2 = FM.duo.as(st, () => devOpts(true)))] : [] }; // гра на двох: тренування другого тренера
   };
+  let lastPlan2 = null; // розклад тижня другого тренера (гра на двох)
   /** Після тижня: знайомство зі схемою росте від матчів і підготовки, без практики — забувається. */
   function familiarityWeek(played) {
     const fam = familiarity(), cur = myTactics().formation;
@@ -3100,6 +3250,7 @@
 
   /** Завершити сезон і почати наступний: історія, завершення кар'єри, юнаки, новий календар. */
   function startNextSeason() {
+    duoSeasonStart(); // гра на двох: підсумки другого тренера, поки таблиці сезону на місці
     const S = state.season;
     const champions = {};
     for (const l of W.db.leagues) champions[l.id] = FM.season.table(S, W, l.id)[0].id;
@@ -3249,6 +3400,8 @@
       state.jobOffers = state.board.last && state.board.last.pos <= state.board.last.target
         ? FM.board.jobOffers(W, state, 3, 'up').filter((id) => W.clubLevel(id) > lvl + 3) : [];
     }
+    duoSeasonFinish();
+    FM.missions.current(W, state);
     saveGame();
     go(state.sacked ? 'sacked' : 'report');
   }
@@ -3704,6 +3857,7 @@
       el('header', [el('h1', 'Повідомлення'), el('span.muted', `Усього ${all.length}${maxId > lastRead ? ` · нових ${all.filter((n) => n.id > lastRead).length}` : ''}`)]),
       actionCards(),
       planCard(),
+      missionsCard(),
       backupCard(),
       academyCard(),
       el('div.tabs', [['all', `Усі (${all.length})`], ...Object.entries(FM.market.NEWS_CATS).filter(([k]) => counts[k]).map(([k, l]) => [k, `${l} (${counts[k]})`])].map(([k, l]) =>
@@ -4469,6 +4623,14 @@
     return (S.year - b.s) * 48 + S.week - b.w;
   }
   /** Картка «День академії»: нове покоління вихованців, зірка випуску. */
+  /** Місії тижня (js/missions.js): 1–2 цілі на матчі ліги з нагородами. */
+  function missionsCard() {
+    const M = FM.missions.current(W, state);
+    if (!M.list.length) return null;
+    const ico = { open: '◻', done: '✅', failed: '✖' };
+    return el('div.panel.missions', [el('h3', ['🎯 Місії тижня', el('small.muted', ` · виконано за кар’єру: ${state.missionsDone || 0}`)]),
+      el('ul.plain', M.list.map((m) => el('li.m-' + m.state, [ico[m.state] + ' ', el('b', m.text), el('span.muted', ` — нагорода: ${m.reward}`)])))]);
+  }
   function academyCard() {
     const A = state.academy;
     if (!A || !A.open || A.y !== state.season.year) return null;

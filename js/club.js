@@ -160,7 +160,7 @@
     const out = [];
     const tables = {};
     for (const c of W.clubs.values()) {
-      if (c.id === state.clubId || !c.manager) continue;
+      if ((FM.duo ? FM.duo.human(state, c.id) : c.id === state.clubId) || !c.manager) continue;
       const t = tables[c.league] || (tables[c.league] = FM.season.table(S, W, c.league));
       const pos = t.findIndex((r) => r.id === c.id) + 1;
       if (!pos || !t[pos - 1].p) continue;

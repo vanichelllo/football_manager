@@ -75,6 +75,7 @@
     const b = state.board;
     const k = FM.cal ? FM.cal.weekK(S) : 1;
     for (const c of W.clubs.values()) {
+      if (FM.duo && FM.duo.skip(state, c.id)) continue; // гра на двох: клуб другого тренера рахується в його проході
       const t = posCache[c.league] || (posCache[c.league] = FM.season.table(S, W, c.league));
       const pos = t.findIndex((r) => r.id === c.id) + 1;
       const rel = t.length > 1 ? 1 - (pos - 1) / (t.length - 1) : 0.5; // 1 — лідер
@@ -87,7 +88,7 @@
       }
     }
     // бонуси за голи (пункт контракту)
-    for (const f of fx) for (const [, pid] of f.sc || []) {
+    if (!(FM.duo && FM.duo.second)) for (const f of fx) for (const [, pid] of f.sc || []) {
       const p = W.player(pid);
       if (p && p.goalBonus && p.club) W.club(p.club).balance = r2(W.club(p.club).balance - p.goalBonus / 1000);
     }
@@ -119,7 +120,7 @@
       t.forEach((row, i) => {
         const c = W.club(row.id);
         const prize = r4(c.income0 * 52 * 0.15 * (1 - i / (t.length - 1)));
-        c.balance = r4(c.balance + prize);
+        if (!(FM.duo && FM.duo.second)) c.balance = r4(c.balance + prize); // за другого тренера — лише запис, гроші вже нараховано
         if (c.id === state.clubId) b.fin.prize = prize;
       });
     }

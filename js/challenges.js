@@ -14,15 +14,31 @@
       clubs: (W) => W.db.leagues.filter((l) => l.tier === 2).map((l) => W.clubsOf(l.id).sort((a, b) => W.clubLevel(a.id) - W.clubLevel(b.id))[Math.floor(W.clubsOf(l.id).length * 0.4)]).filter(Boolean),
       check: (W, st, info) => (!info.tier2 && info.pos <= ((FM.season.ZONES[info.league] || {}).ucl || 0) ? 'done' : null),
     },
+    zero: {
+      label: 'Невідомий тренер', desc: 'Ви — нікому не відомий тренер з ліцензією C. Великі клуби навіть не відповідають: на резюме відгукнулися лише кілька найслабших. Ціль — за 10 сезонів стати чемпіоном однієї з топ-5 ліг.', seasons: 10,
+      clubs: (W) => {
+        // найслабші клуби кожної ліги: по одному з нижніх дивізіонів і найслабших чемпіонатів
+        const all = [...W.clubs.values()].map((c) => ({ c, l: W.clubLevel(c.id) })).sort((a, b) => a.l - b.l);
+        const seen = new Set(), out = [];
+        for (const { c } of all) { if (seen.has(c.league)) continue; seen.add(c.league); out.push(c); if (out.length >= 8) break; }
+        return out;
+      },
+      setup: (W, state) => {
+        if (state.board) { state.board.rep = 8; state.board.conf = 55; }
+        if (state.coach) { state.coach.licence = 'C'; for (const k of Object.keys(state.coach.attrs)) state.coach.attrs[k] = Math.min(state.coach.attrs[k], k === 'mot' ? 8 : 7); }
+      },
+      check: (W, st, info) => (info.champion && TOP5.includes(info.league) ? 'done' : null),
+    },
     academy: {
       label: 'Лише свої', desc: 'Будь-який клуб. Три сезони без купівлі гравців (вільні агенти й оренди — теж ні). Ціль — виграти кубок країни.', seasons: 3, noBuy: true,
       clubs: (W) => null, // будь-який
       check: (W, st, info) => (info.cupWon ? 'done' : null),
     },
   };
-  function start(state, id) {
+  function start(state, id, W) {
     const d = DEFS[id];
     state.challenge = { id, from: state.season.year, until: state.season.year + d.seasons - 1, status: 'ongoing' };
+    if (d.setup && W) d.setup(W, state);
     return state.challenge;
   }
   /** Чи заборонені купівлі (режим «Лише свої»). */
