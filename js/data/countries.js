@@ -74,6 +74,8 @@
     },
     /** Код → українська назва (або сам код). */
     name(code) { return NAME[code] || code || '—'; },
+    /** Усі країни: [[код, назва], …] за абеткою. */
+    all() { return Object.entries(NAME).sort((a, b) => a[1].localeCompare(b[1], 'uk')); },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.FM = root.FM || {}).countries = api;

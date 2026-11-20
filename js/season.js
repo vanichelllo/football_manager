@@ -4,7 +4,12 @@
   'use strict';
   const FM = (root.FM = root.FM || {});
 
-  const START = '2026-08-15'; // перша субота сезону
+  /** Перша субота сезону: не раніше 9 серпня року, у якому починається сезон. */
+  function firstSaturday(year) {
+    const d = new Date(Date.UTC(year, 7, 9, 12));
+    while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
 
   /** Двоколовий календар методом кола; ліга з непарною кількістю отримала б «вихідний», але в нас усі парні. */
   function roundRobin(ids, R) {
@@ -24,22 +29,27 @@
     return rounds.concat(rounds.map((g) => g.map(([h, a]) => [a, h])));
   }
 
+  const SEASON_WEEKS = 38;
   function create(W, seed) {
     const R = FM.rng('calendar-' + seed);
     const fixtures = [];
     for (const l of W.db.leagues) {
-      const ids = W.db.clubs.filter((c) => c.league === l.id).map((c) => c.id);
-      roundRobin(ids, R).forEach((games, r) => games.forEach(([h, a]) => {
-        fixtures.push({ id: fixtures.length, l: l.id, w: r, h, a, s: null, g: null });
+      const ids = [...W.clubs.values()].filter((c) => c.league === l.id).map((c) => c.id);
+      const rounds = roundRobin(ids, R);
+      // ліга з більш ніж 38 турами (Чемпіоншип — 46) грає деякі тури посеред тижня: два тури за тиждень
+      const weekOf = (r) => (rounds.length <= SEASON_WEEKS ? r : Math.floor((r * SEASON_WEEKS) / rounds.length));
+      rounds.forEach((games, r) => games.forEach(([h, a]) => {
+        fixtures.push({ id: fixtures.length, l: l.id, r, w: weekOf(r), h, a, s: null, g: null });
       }));
     }
-    return { v: 1, seed: String(seed), week: 0, fixtures, ps: {}, bans: {}, yc: {} };
+    const year = Number(String(W.today).slice(0, 4));
+    return { v: 1, seed: String(seed), year, start: firstSaturday(year), week: 0, fixtures, ps: {}, bans: {}, yc: {} };
   }
 
   const weeks = (S) => 1 + Math.max(...S.fixtures.map((f) => f.w));
   const isOver = (S) => S.week >= weeks(S);
-  const dateOf = (w) => {
-    const d = new Date(START + 'T12:00:00Z');
+  const dateOf = (w, S) => {
+    const d = new Date(((S && S.start) || firstSaturday(2026)) + 'T12:00:00Z');
     d.setUTCDate(d.getUTCDate() + 7 * w);
     return d.toISOString().slice(0, 10);
   };
@@ -48,7 +58,8 @@
   const nextFixture = (S, clubId) => clubFixtures(S, clubId).find((f) => !f.s) || null;
 
   /** Гравці, які пропускають матч (червона або 5 жовтих). */
-  const unavailable = (S, clubId, W) => new Set(W.club(clubId).players.filter((id) => S.bans[id]));
+  /** Хто не може грати: дискваліфіковані й травмовані. */
+  const unavailable = (S, clubId, W) => new Set(W.club(clubId).players.filter((id) => S.bans[id] || W.player(id).injury > 0));
 
   /**
    * Склад і тактика клубу на матч. user — { clubId, tactics } гравця-людини: його склад береться з тактики.
@@ -58,26 +69,41 @@
     const players = W.squad(clubId);
     const out = unavailable(S, clubId, W);
     const available = players.filter((p) => !out.has(p.id));
+    // замало здорових — грають ті, кому лишилося лікуватися найменше (дискваліфіковані — ні)
+    if (available.length < 11) available.push(...players.filter((p) => out.has(p.id) && !(S.bans[p.id] && S.bans[p.id][0] > 0)).sort((a, b) => (a.injury || 0) - (b.injury || 0)).slice(0, 11 - available.length));
+    if (available.length < 11) available.push(...players.filter((p) => !available.includes(p)).slice(0, 11 - available.length)); // крайній випадок
+    // криза: здорових замало — у заявку йдуть ті, хто травмований найлегше
+    if (available.length < 14) {
+      const extra = players.filter((p) => out.has(p.id) && !S.bans[p.id]).sort((a, b) => (a.injury || 0) - (b.injury || 0));
+      available.push(...extra.slice(0, 14 - available.length));
+    }
     if (user && user.clubId === clubId && user.tactics) {
       const t = user.tactics;
-      const lineup = FM.lineupFromIds(available, t.formation, t.ids);
-      return { club: W.club(clubId), players: available, formation: t.formation, lineup, mentality: t.mentality, pressing: t.pressing, passing: t.passing };
+      const lineup = FM.lineupFromIds(available, t.formation, t.ids, t);
+      return { club: W.club(clubId), players: available, formation: t.formation, lineup, mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers || {},
+        familiarity: user.familiarity ? Math.min(1, (user.familiarity[t.formation] || 0) / 100) : 1 };
     }
-    const formation = FM.bestFormation(available);
+    // ШІ дає відпочити втомленим (свіжість < 72), якщо є кому їх замінити
+    const fresh = available.filter((p) => (p.fitness ?? 100) >= 72);
+    const pool = fresh.length >= 15 && fresh.filter((p) => p.roles[0] === 'GK').length ? fresh : available;
+    const formation = FM.bestFormation(pool);
     let mentality = 'balanced';
     if (oppId) {
       const diff = W.clubLevel(clubId) - W.clubLevel(oppId) + (home ? 3 : -3);
       mentality = diff > 12 ? 'attacking' : diff > 5 ? 'positive' : diff < -12 ? 'defensive' : diff < -5 ? 'cautious' : 'balanced';
     }
-    return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(available, formation), mentality };
+    const st = FM.club ? FM.club.aiStyle(W.club(clubId), mentality) : { mentality }; // стиль тренера ШІ
+    return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(pool, formation), mentality: st.mentality, pressing: st.pressing, passing: st.passing };
   }
 
   /** Параметри матчу для двигуна (FM.match.create або play). */
   function prepare(S, W, f, name, user) {
     const hs = sideFor(S, W, f.h, user, f.a, true), as = sideFor(S, W, f.a, user, f.h, false);
     const side = (x) => ({ club: { ...x.club, name: name ? name.club(x.club) : x.club.name }, players: x.players, formation: x.formation,
-      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing });
-    return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined } };
+      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing, takers: x.takers, familiarity: x.familiarity });
+    // погода — за датою й країною господарів (детерміновано для матчу)
+    const weather = FM.weatherFor ? FM.weatherFor(dateOf(f.w != null ? f.w : S.week, S), W.club(f.h).league, FM.rng(`wx-${S.seed}-${f.id}`)) : null;
+    return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined, gen: name ? name.gen : undefined, weather } };
   }
 
   function play(S, W, f, name, user) {
@@ -88,6 +114,7 @@
   /** Записати результат матчу: рахунок, голи, статистику гравців, картки й дискваліфікації. */
   function record(S, f, m) {
     f.s = m.score.slice();
+    if (FM.morale) FM.morale.recordRatings(m);
     f.sc = []; // [команда, автор]
     for (const r of m.ratings) {
       const st = (S.ps[r.id] = S.ps[r.id] || [0, 0, 0, 0, 0, 0]); // ігри, голи, паси, сума оцінок ×10, жовті, червоні
@@ -95,6 +122,18 @@
       for (let k = 0; k < r.goals; k++) f.sc.push([r.team, r.id]);
       // дискваліфікація: [скільки матчів, тиждень, коли отримав] — відбувається лише в наступних турах
       const ban = () => { const b = S.bans[r.id]; S.bans[r.id] = [(b ? b[0] : 0) + 1, f.w]; };
+      if (r.injury) r.player.injury = Math.max(r.player.injury || 0, r.injury);
+      if (r.cond != null) r.player.fitness = r.cond;
+      // форма: оцінки за 5 останніх матчів
+      r.player.form = (r.player.form || []).concat([r.rating]).slice(-5);
+      // освоєння нової позиції: зіграв на ній щонайменше тайм
+      const mins = (r.off || 93) - (r.on || 0);
+      if (mins >= 45 && r.role !== 'GK' && !r.player.roles.includes(r.role)) {
+        const p = r.player, ada = (p.h && p.h.ada) || 10;
+        p.posExp = p.posExp || {};
+        p.posExp[r.role] = Math.min(100, (p.posExp[r.role] || 0) + 3 + ada * 0.25);
+        if (p.posExp[r.role] >= 100) { p.roles.push(r.role); delete p.posExp[r.role]; p.learned = (p.learned || []).concat([r.role]); }
+      }
       if (r.red) ban();
       else if (r.yellow) {
         S.yc[r.id] = (S.yc[r.id] || 0) + r.yellow;
@@ -113,7 +152,7 @@
   }
 
   /** Закрити тиждень: дискваліфікації тих, хто пропустив матч, минають; наступний тиждень. */
-  function advance(S, W) {
+  function advance(S, W, opts = {}) {
     const playedClubs = new Set();
     for (const f of fixturesOfWeek(S, S.week)) { playedClubs.add(f.h); playedClubs.add(f.a); }
     // дискваліфікований ще до цього туру — саме він пропустив матч
@@ -122,20 +161,30 @@
       const p = W.player(id);
       if (p && playedClubs.has(p.club)) { S.bans[id][0]--; if (S.bans[id][0] <= 0) delete S.bans[id]; }
     }
+    // травми: мінус тиждень; свіжість відновлюється (у людини — за планом тренувань)
+    for (const p of W.players.values()) {
+      if (p.injury > 0) { p.injury--; if (p.injury <= 0) delete p.injury; }
+      if (p.fitness != null) {
+        const plan = opts.recovery && p.club === opts.myClub ? opts.recovery : 22;
+        p.fitness = Math.min(100, p.fitness + plan + (p.attrs.sta || 10) * 0.6);
+        if (p.fitness >= 100) delete p.fitness;
+      }
+    }
     S.week++;
   }
 
-  /** Зіграти весь поточний тиждень і перейти до наступного. */
+  /** Зіграти весь поточний тиждень і перейти до наступного (з тижнем розвитку гравців, якщо підключено develop.js). */
   function playWeek(S, W, opts = {}) {
     const list = fixturesOfWeek(S, S.week);
     playOthers(S, W, { name: opts.name, user: opts.user });
-    advance(S, W);
+    advance(S, W, { recovery: opts.dev && opts.dev.recovery, myClub: opts.dev && opts.dev.myClub });
+    if (FM.dev && opts.develop !== false) FM.dev.weekly(W, S, opts.dev || {});
     return list;
   }
 
   /** Турнірна таблиця: очки, різниця, забиті; форма — останні 5. */
   function table(S, W, leagueId) {
-    const rows = new Map(W.db.clubs.filter((c) => c.league === leagueId).map((c) => [c.id, { id: c.id, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0, form: [] }]));
+    const rows = new Map([...W.clubs.values()].filter((c) => c.league === leagueId).map((c) => [c.id, { id: c.id, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0, form: [] }]));
     for (const f of S.fixtures) {
       if (f.l !== leagueId || !f.s) continue;
       const [hg, ag] = f.s, h = rows.get(f.h), a = rows.get(f.a);
@@ -153,27 +202,48 @@
   function leaders(S, W, leagueId, key = 1, n = 10) {
     return Object.entries(S.ps)
       .map(([id, st]) => ({ id, st, p: W.player(id) }))
-      .filter((x) => x.p && W.club(x.p.club).league === leagueId && x.st[key] > 0)
+      .filter((x) => x.p && x.p.club && W.club(x.p.club).league === leagueId && x.st[key] > 0)
       .sort((a, b) => b.st[key] - a.st[key] || a.st[0] - b.st[0])
       .slice(0, n);
   }
 
   // Зони таблиці: єврокубки й виліт (формат 2026/27, спрощено)
+  // Зони таблиці. Для вищих ліг ucl/uel — місця в єврокубках гри (js/cups.js EURO_SPOTS), rel — виліт;
+  // для других дивізіонів promo — підвищення (скільки ж вилітає з вищої ліги).
   const ZONES = {
-    eng: { ucl: 4, uel: 5, uecl: 6, rel: 3 }, esp: { ucl: 4, uel: 5, uecl: 6, rel: 3 }, ita: { ucl: 4, uel: 5, uecl: 6, rel: 3 },
-    ger: { ucl: 4, uel: 5, uecl: 6, rel: 2, playoff: 1 }, fra: { ucl: 3, uel: 4, uecl: 5, rel: 2, playoff: 1 },
-    ukr: { ucl: 1, uel: 2, uecl: 3, rel: 2, playoff: 2 },
+    eng: { ucl: 5, uel: 7, rel: 3 }, esp: { ucl: 5, uel: 7, rel: 3 }, ita: { ucl: 4, uel: 7, rel: 3 },
+    ger: { ucl: 4, uel: 7, rel: 2 }, fra: { ucl: 3, uel: 7, rel: 2 }, ukr: { ucl: 3, uel: 7, rel: 2 },
+    por: { ucl: 3, uel: 7, rel: 0 }, ned: { ucl: 3, uel: 7, rel: 0 }, tur: { ucl: 3, uel: 8, rel: 0 }, pol: { ucl: 3, uel: 8, rel: 0 },
+    eng2: { promo: 3 }, esp2: { promo: 3 }, ita2: { promo: 3 }, ger2: { promo: 2 }, fra2: { promo: 2 }, ukr2: { promo: 2 },
   };
   function zone(leagueId, pos, size) {
-    const z = ZONES[leagueId];
+    const z = ZONES[leagueId] || {};
+    if (z.promo) return pos <= z.promo ? 'promo' : null;
     if (pos <= z.ucl) return 'ucl';
     if (pos <= z.uel) return 'uel';
-    if (pos <= z.uecl) return 'uecl';
-    if (pos > size - z.rel) return 'rel';
+    if (z.uecl && pos <= z.uecl) return 'uecl';
+    if (z.rel && pos > size - z.rel) return 'rel';
     if (z.playoff && pos > size - z.rel - z.playoff) return 'playoff';
     return null;
   }
 
-  FM.season = { create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, prepare, play, record, playOthers, advance, playWeek, table, leaders, zone, roundRobin };
+  /**
+   * Підвищення й виліт між вищою й другою лігою країни (кількість — ZONES[друга].promo).
+   * Повертає [{ club, from, to, up }]. Викликати після сезону, до створення нового календаря.
+   */
+  function promote(W, S) {
+    const moves = [];
+    for (const l of W.db.leagues) {
+      if (!l.up || !ZONES[l.id] || !ZONES[l.id].promo) continue;
+      const n = ZONES[l.id].promo;
+      const upTable = table(S, W, l.up), downTable = table(S, W, l.id);
+      const down = upTable.slice(-n).map((r) => r.id), up = downTable.slice(0, n).map((r) => r.id);
+      for (const id of down) { W.club(id).league = l.id; moves.push({ club: id, from: l.up, to: l.id, up: false }); }
+      for (const id of up) { W.club(id).league = l.up; moves.push({ club: id, from: l.id, to: l.up, up: true }); }
+    }
+    return moves;
+  }
+
+  FM.season = { promote, ZONES, unavailable, firstSaturday, create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, prepare, play, record, playOthers, advance, playWeek, table, leaders, zone, roundRobin };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

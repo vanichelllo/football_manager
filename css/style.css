@@ -100,6 +100,7 @@ a { color: var(--accent); }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem; min-width: 0; }
 .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
 .panel > h3 { margin-bottom: 0.6rem; }
+.panel > * + h3 { margin-top: 1.2rem; }
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin: 0; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; }
@@ -338,3 +339,109 @@ tr.z-rel td.zone { border-left-color: #cf4040; }
 .cond i { display: block; height: 100%; background: var(--accent); }
 .cond i.low { background: var(--warn); }
 .ev.ours .min { color: var(--fg); }
+
+/* ---------- Редактор і збереження ---------- */
+.edit-btn { margin-left: auto; text-decoration: none; color: var(--fg); }
+.head-actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.head-actions .btn { text-decoration: none; color: var(--fg); }
+.edit-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 760px) { .edit-grid { grid-template-columns: minmax(0, 1fr); } }
+.form { display: grid; gap: 0.75rem 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+.form .wide { grid-column: 1 / -1; }
+.form input, .form select, .field select, .field textarea, .panel .field input[type="number"] {
+  padding: 0.45rem 0.55rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); min-width: 0; width: 100%;
+}
+.form input[type="color"] { padding: 0.15rem; height: 2.3rem; }
+.field textarea { font: 0.8rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+.checks { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
+.attr-edit { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+.attr-edit li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.2rem 0; border-bottom: 1px dashed var(--line); }
+.attr-edit input { width: 4.2rem; padding: 0.3rem 0.4rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); text-align: right; }
+.msg-ok { color: var(--accent); }
+.msg-bad { color: var(--warn); }
+.chip { background: var(--accent-soft); color: var(--fg); }
+b.up { color: var(--accent); } b.down { color: var(--warn); }
+select.tiny { padding: 0.25rem 0.35rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); max-width: 11rem; }
+
+/* ---------- Трансфери ---------- */
+.filters { display: grid; gap: 0.6rem 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); margin-bottom: 0.6rem; }
+.offer-btns { display: inline-flex; gap: 0.35rem; }
+.offer-btns .btn { padding: 0.25rem 0.6rem; }
+.confirm-inline { display: inline-flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+.news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.92rem; }
+.pre-row .field input[type="number"] { width: 9rem; }
+
+/* ---------- Правління ---------- */
+.confbar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; margin: 0.4rem 0; }
+.confbar i { display: block; height: 100%; }
+.confbar i.high { background: var(--accent); } .confbar i.mid { background: #e0a21a; } .confbar i.low { background: #cf4040; }
+p.big { font: 600 1.3rem/1.2 var(--font-display); margin: 0.2rem 0; }
+
+/* ---------- Мораль ---------- */
+.mood { font-size: 0.85rem; font-weight: 600; }
+.mood.m4 { color: var(--accent); } .mood.m3 { color: #3f9d6a; } .mood.m2 { color: var(--muted); } .mood.m1 { color: var(--warn); } .mood.m0 { color: #cf4040; }
+.talk, .press { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.75rem; border: 1px dashed var(--accent); border-radius: var(--radius); margin: 0.5rem 0 0.8rem; }
+.talk-opts, .press-opts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.press p { margin: 0; }
+
+/* ---------- Кубки ---------- */
+table.cup td { white-space: normal; }
+table.cup td.win { font-weight: 700; }
+table.cup .badge { width: 1.3rem; height: 1.3rem; font-size: 0; vertical-align: middle; display: inline-grid; }
+.cup-note { padding: 0.5rem 0.7rem; background: var(--accent-soft); border-radius: var(--radius); margin: 0.6rem 0; }
+
+/* ---------- Міні-поле й довідка ---------- */
+.mini-pitch {
+  position: relative; height: 5.5rem; margin-bottom: 0.8rem; border-radius: var(--radius); overflow: hidden;
+  background: repeating-linear-gradient(90deg, #2e7d4f 0 10%, #2a7449 10% 20%);
+}
+.mini-pitch .mp-half { position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid rgba(255, 255, 255, 0.5); }
+.mini-pitch .mp-box { position: absolute; top: 28%; bottom: 28%; width: 12%; border: 2px solid rgba(255, 255, 255, 0.5); }
+.mini-pitch .mp-box.l { left: -2px; border-left: 0; } .mini-pitch .mp-box.r { right: -2px; border-right: 0; }
+.mini-pitch .ball {
+  position: absolute; left: 50%; top: 50%; width: 0.7rem; height: 0.7rem; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); transform: translate(-50%, -50%);
+}
+@media (prefers-reduced-motion: no-preference) { .mini-pitch .ball { transition: left 0.45s ease-out, top 0.45s ease-out; } }
+.help-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.help { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.4rem; max-width: 62ch; }
+
+/* ---------- Група А: тактика, 2D-поле, підсумок ---------- */
+.slot-row { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.35rem 0; border-bottom: 1px dashed var(--line); }
+.slot-row:last-child { border-bottom: 0; }
+.slot-main { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr) 0.7rem; gap: 0.5rem; align-items: center; }
+.slot-main .pos { text-align: center; }
+.slot-extra { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; padding-left: 5.1rem; }
+.slot-extra select.tiny, .slot-main select.tiny { max-width: none; width: 100%; min-width: 0; }
+@media (max-width: 520px) { .slot-extra { padding-left: 0; } }
+.mp-dots { position: absolute; inset: 0; }
+.dot2 { position: absolute; width: 0.55rem; height: 0.55rem; border-radius: 50%; border: 1.5px solid #000; transform: translate(-50%, -50%); }
+@media (prefers-reduced-motion: no-preference) { .dot2 { transition: left 0.45s ease-out; } }
+.mini-pitch { height: 7.5rem; }
+.sb-weather { font-size: 0.75rem; opacity: 0.7; margin-top: 0.25rem; }
+.shotmap, .xgchart { width: 100%; height: auto; display: block; }
+.sm-pitch { fill: #2e7d4f; stroke: rgba(255,255,255,.5); stroke-width: 0.5; }
+.sm-line { fill: none; stroke: rgba(255,255,255,.55); stroke-width: 0.5; }
+.sm-axis { stroke: var(--line); stroke-width: 0.5; }
+.sm-grid { stroke: var(--line); stroke-width: 0.4; stroke-dasharray: 1 1; }
+.shotmap circle { stroke-width: 0.6; }
+
+/* ---------- Група Б ---------- */
+small.fam { opacity: 0.6; font-size: 0.75em; }
+.tips { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.tips li.tip-bad::marker { color: #cf4040; } .tips li.tip-warn::marker { color: #e0a21a; } .tips li.tip-info::marker { color: var(--accent); }
+details.opp { margin: 0.6rem 0; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem 0.75rem; }
+details.opp summary { cursor: pointer; font-weight: 600; }
+details.opp .facts { margin-top: 0.5rem; }
+
+/* ---------- Група Г ---------- */
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.panel-head h3 { margin: 0; }
+.loan-box { margin-top: 0.9rem; padding: 0.7rem; border: 1px dashed var(--line); border-radius: var(--radius); display: flex; flex-direction: column; gap: 0.4rem; }
+.rival { color: var(--warn); font-weight: 600; }
+
+/* ---------- Клуб ---------- */
+.staff { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.staff-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.4rem 1rem; align-items: center; padding: 0.6rem 0; border-bottom: 1px dashed var(--line); }
+.staff-row:last-child { border-bottom: 0; }
+.staff-row .cands { grid-column: 1 / -1; }

@@ -23,6 +23,18 @@ const LEAGUES = [
   { id: 'ger', en: 'Bundesliga', name: 'Бундесліга', country: 'GER' },
   { id: 'fra', en: 'Ligue 1', name: 'Ліга 1', country: 'FRA' },
   { id: 'ukr', en: 'Ukrainian Premier League', name: 'Українська Прем’єр-ліга', country: 'UKR' },
+  // другі дивізіони (підвищення й виліт з вищими)
+  { id: 'eng2', en: 'EFL Championship', name: 'Чемпіоншип', country: 'ENG', tier: 2, up: 'eng' },
+  { id: 'esp2', en: 'Segunda División', name: 'Сегунда', country: 'ESP', tier: 2, up: 'esp' },
+  { id: 'ita2', en: 'Serie B', name: 'Серія B', country: 'ITA', tier: 2, up: 'ita' },
+  { id: 'ger2', en: '2. Bundesliga', name: '2. Бундесліга', country: 'GER', tier: 2, up: 'ger' },
+  { id: 'fra2', en: 'Ligue 2', name: 'Ліга 2', country: 'FRA', tier: 2, up: 'fra' },
+  { id: 'ukr2', en: 'Ukrainian First League', name: 'Перша ліга України', country: 'UKR', tier: 2, up: 'ukr' },
+  // ще чотири країни
+  { id: 'por', en: 'Primeira Liga', name: 'Прімейра-ліга', country: 'POR' },
+  { id: 'ned', en: 'Eredivisie', name: 'Ередивізі', country: 'NED' },
+  { id: 'tur', en: 'Süper Lig', name: 'Суперліга Туреччини', country: 'TUR' },
+  { id: 'pol', en: 'Ekstraklasa', name: 'Екстракляса', country: 'POL' },
 ];
 
 const report = [];
@@ -59,7 +71,7 @@ async function main() {
       const n = prev.standings.length;
       prev.standings.forEach((code, i) => {
         const team = prev.teams.find((t) => t.code === code);
-        (prevRank[team.title] = prevRank[team.title] || [])[k] = 1 - i / (n - 1);
+        (prevRank[team.title] = prevRank[team.title] || [])[k] = { r: 1 - i / (n - 1), league: l.id };
       });
     }
     log(`  ${l.name}: ${cur.teams.length} клубів`);
@@ -74,6 +86,17 @@ async function main() {
   const prevFinal = await wiki.qidsForTitles(prevTitles);
   for (const t of prevTitles) rankByFinal[prevFinal[t] || t] = prevRank[t];
 
+  // резервні команди («Колос-2») часто ведуть на статтю основного клубу — їх у грі немає
+  const seenArt = new Map();
+  for (const c of clubs.slice()) {
+    const art = clubArticles[c.title];
+    if (!art) continue;
+    if (seenArt.has(art.title)) {
+      report.push(`${c.name}: стаття веде на ${art.title} (той самий клуб, що й ${seenArt.get(art.title)}) — пропущено`);
+      clubs.splice(clubs.indexOf(c), 1);
+      const l = LEAGUES.find((x) => x.id === c.leagueId); l.size--;
+    } else seenArt.set(art.title, c.name);
+  }
   const playerRefs = [];
   for (const c of clubs) {
     const art = clubArticles[c.title];
@@ -87,7 +110,17 @@ async function main() {
     const fy = /\b(18[5-9]\d|19\d\d|20[0-2]\d)\b/.exec(ib.founded || '');
     c.founded = fy ? Number(fy[1]) : null;
     c.colors = [P.kitColor(ib.body1), P.kitColor(ib.shorts1), P.kitColor(ib.socks1)].filter(Boolean);
-    const ranks = rankByFinal[art.qid] || rankByFinal[c.title] || [];
+    // місце в таблиці тієї ліги, де клуб грав тоді → сила в нинішній лізі (через абсолютний рівень ліги)
+    const LG = R.LEAGUE, cur = LG[c.leagueId], tierOf = (id) => (LEAGUES.find((x) => x.id === id) || {}).tier || 1;
+    const ranks = (rankByFinal[art.qid] || rankByFinal[c.title] || []).map((x) => {
+      if (!x) return x;
+      if (x.league === c.leagueId) return x.r;
+      const src = LG[x.league];
+      let s = 0.5 + (src.base + (x.r - 0.5) * 2 * src.spread - cur.base) / (2 * cur.spread);
+      if (tierOf(x.league) > tierOf(c.leagueId)) s = Math.min(s, 0); // новачок вищої ліги — у нижній частині
+      if (tierOf(x.league) < tierOf(c.leagueId)) s = Math.max(s, 0.6); // хто вилетів — серед сильніших
+      return Math.max(-0.15, Math.min(1.1, s));
+    });
     // сила: 65% минулий сезон, 35% позаминулий; новачок ліги — нижче за останнього
     const r0 = ranks[0] != null ? ranks[0] : -0.12;
     const r1 = ranks[1] != null ? ranks[1] : r0 - 0.05;
@@ -147,13 +180,29 @@ function cleanUk(label) {
   return s;
 }
 
+const CITY_UK = { 'Borussia Dortmund': 'Дортмунд', 'Borussia Mönchengladbach': 'Менхенгладбах', 'Eintracht Frankfurt': 'Франкфурт',
+  'Eintracht Braunschweig': 'Брауншвейг', 'Dynamo Dresden': 'Дрезден', 'Wisła Kraków': 'Краків', 'Wisła Płock': 'Плоцьк' };
+
 function build(clubs, playerArticles, ukLabel) {
-  const leagues = LEAGUES.map((l) => ({ id: l.id, name: l.name, country: l.country, size: l.size }));
+  const leagues = LEAGUES.map((l) => ({ id: l.id, name: l.name, country: l.country, size: l.size, tier: l.tier || 1, up: l.up || null }));
   const outClubs = [];
   const players = [];
   let pid = 0;
   const unknownNat = new Set();
 
+  // гравець — лише в одному клубі: орендований — там, де грає («on loan from»), інакше — у першому за списком
+  const home = new Map();
+  for (const [ci, c] of clubs.entries()) for (const sq of c.squad) {
+    const k = (sq.title && (playerArticles[sq.title] || {}).title) || sq.title;
+    if (!k) continue;
+    const prev = home.get(k);
+    if (!prev || (sq.onLoanFrom && !prev.loan)) home.set(k, { ci, loan: !!sq.onLoanFrom });
+  }
+  for (const [ci, c] of clubs.entries()) {
+    const before = c.squad.length;
+    c.squad = c.squad.filter((sq) => { const k = (sq.title && (playerArticles[sq.title] || {}).title) || sq.title; return !k || home.get(k).ci === ci; });
+    if (c.squad.length < before) report.push(`${c.name}: ${before - c.squad.length} гравців указано й в іншому клубі — лишено там`);
+  }
   for (const [ci, c] of clubs.entries()) {
     const clubId = 'c' + ci;
     const club = {
@@ -200,6 +249,16 @@ function build(clubs, playerArticles, ukLabel) {
     outClubs.push(club);
   }
   if (unknownNat.size) report.push('Невідомі країни: ' + [...unknownNat].join(', '));
+  // однакові короткі назви різних клубів («Боруссія», «Вісла») — додаємо місто
+  const byName = {};
+  for (const c of outClubs) (byName[c.name] = byName[c.name] || []).push(c);
+  for (const list of Object.values(byName)) {
+    if (list.length < 2) continue;
+    for (const c of list) {
+      if (c.nameEn === 'Dynamo Kyiv') continue; // «Динамо» без уточнення — київське
+      c.name = CITY_UK[c.nameEn] ? `${c.name} ${CITY_UK[c.nameEn]}` : `${c.name} (${c.nameEn})`;
+    }
+  }
   return { version: 1, season: '2026/27', seasonStart: SEASON_START, snapshot: new Date().toISOString().slice(0, 10),
     source: 'Wikipedia (CC BY-SA 4.0), Wikidata (CC0); атрибути — власна формула (tools/lib/ratings.js)',
     leagues, clubs: outClubs, players };

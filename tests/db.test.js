@@ -14,9 +14,11 @@ const FM = require('../js/world.js');
 const W = FM.createWorld(db);
 const byName = (en) => db.clubs.find((c) => c.nameEn === en);
 
-test('шість ліг і правильна кількість клубів', () => {
+test('шістнадцять ліг і правильна кількість клубів; другі дивізіони прив’язані до вищих', () => {
   const sizes = Object.fromEntries(db.leagues.map((l) => [l.id, db.clubs.filter((c) => c.league === l.id).length]));
-  assert.deepStrictEqual(sizes, { eng: 20, esp: 20, ita: 20, ger: 18, fra: 18, ukr: 16 });
+  assert.deepStrictEqual(sizes, { eng: 20, esp: 20, ita: 20, ger: 18, fra: 18, ukr: 16, eng2: 24, esp2: 22, ita2: 20, ger2: 18, fra2: 18, ukr2: 14, por: 18, ned: 18, tur: 18, pol: 18 });
+  for (const l of db.leagues) assert.strictEqual(l.size, sizes[l.id]);
+  for (const l of db.leagues.filter((x) => x.tier === 2)) assert.ok(db.leagues.some((x) => x.id === l.up && x.tier === 1), l.id);
 });
 
 test('у кожного клубу повний склад: 18+ гравців, 2+ воротарі, усі лінії', () => {
@@ -49,7 +51,10 @@ test('гранди сильніші за середняків своєї ліг�
   assert.ok(leagueAvg('ukr') < leagueAvg('fra'));
 });
 
-test('у 90%+ гравців є дата народження (решта — без статті в Wikipedia, переважно молодь УПЛ)', () => {
+test('дата народження: у вищих лігах — у 90%+ гравців, загалом — у 80%+ (решта без статті в Wikipedia, переважно нижчі ліги й молодь)', () => {
   const withBirth = db.players.filter((p) => p.born).length;
-  assert.ok(withBirth / db.players.length > 0.9, `${withBirth} з ${db.players.length}`);
+  assert.ok(withBirth / db.players.length > 0.8, `${withBirth} з ${db.players.length}`);
+  const top = new Set(db.clubs.filter((c) => ['eng', 'esp', 'ita', 'ger', 'fra'].includes(c.league)).map((c) => c.id));
+  const tp = db.players.filter((p) => top.has(p.club));
+  assert.ok(tp.filter((p) => p.born).length / tp.length > 0.9);
 });
