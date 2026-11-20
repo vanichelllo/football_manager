@@ -95,6 +95,7 @@
   function go(view) { if (location.hash !== '#' + view) location.hash = view; else render(); }
   window.addEventListener('hashchange', render);
 
+  let lastView = null; // який екран показано — щоб не скидати прокрутку при оновленні того самого
   function render() {
     clearTimeout(liveTimer); // пішли з трансляції — матч догравається миттєво й записується
     if (activeLive) activeLive.finish();
@@ -107,8 +108,21 @@
     planTouch(name);
     if (name !== 'inbox') inboxBase = null;
     const body = (screens[name] || screenOverview)(arg);
+    // той самий екран (натиснули кнопку, змінили фільтр) — прокрутка лишається; інший екран — на початок
+    const same = view === lastView;
+    const SCROLLERS = '.side, .table-wrap';
+    const keep = same ? { y: window.scrollY, x: [...app.querySelectorAll(SCROLLERS)].map((e) => e.scrollLeft) } : null;
     app.replaceChildren(shell(name, body));
-    window.scrollTo(0, 0);
+    if (keep) {
+      window.scrollTo(0, keep.y);
+      app.querySelectorAll(SCROLLERS).forEach((e, i) => { if (keep.x[i]) e.scrollLeft = keep.x[i]; });
+    } else {
+      window.scrollTo(0, 0);
+      // на телефоні меню — горизонтальна стрічка: показати в ній відкритий пункт
+      const side = app.querySelector('.side'), cur = app.querySelector('.nav [aria-current="page"]');
+      if (side && cur && side.scrollWidth > side.clientWidth) side.scrollLeft = Math.max(0, cur.offsetLeft - (side.clientWidth - cur.offsetWidth) / 2);
+    }
+    lastView = view;
   }
 
   function shell(active, body) {
