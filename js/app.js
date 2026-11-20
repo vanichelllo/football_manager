@@ -1019,7 +1019,7 @@
   function nextIsBig() {
     const S = state.season;
     if (FM.cups.pendingTie(state, state.clubId)) return true;
-    const f = FM.season.fixturesOfWeek(S, S.week).find((x) => x.h === state.clubId || x.a === state.clubId);
+    const f = myFixture();
     if (!f) return false;
     const opp = f.h === state.clubId ? f.a : f.h;
     return (FM.rivals && FM.rivals.isDerby(W, state.clubId, opp)) || W.clubLevel(opp) >= W.clubLevel(state.clubId) - 4;
@@ -2247,8 +2247,9 @@
       const wk = state.season.week;
       quickWeek();
       quick.weeks++;
-      const f = FM.season.fixturesOfWeek(state.season, wk).find((x) => x.s && (x.h === state.clubId || x.a === state.clubId));
-      if (f) { const d = f.h === state.clubId ? f.s[0] - f.s[1] : f.s[1] - f.s[0]; if (d > 0) quick.w++; else if (d < 0) quick.l++; else quick.d++; }
+      for (const f of FM.season.fixturesOfWeek(state.season, wk).filter((x) => x.s && (x.h === state.clubId || x.a === state.clubId))) { // тур посеред тижня теж
+        const d = f.h === state.clubId ? f.s[0] - f.s[1] : f.s[1] - f.s[0]; if (d > 0) quick.w++; else if (d < 0) quick.l++; else quick.d++;
+      }
       const now = state.season.week;
       if (state.sacked) { quick.stop = 'Правління звільнило вас.'; return done(); }
       if (h) { if (now >= untilWeek) { holidayInbox(h); quick.stop = 'Відпустка закінчилася.'; return done(); } }
