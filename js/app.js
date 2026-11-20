@@ -103,7 +103,8 @@
     let view = location.hash.slice(1) || 'inbox'; // як у FM: головний екран — пошта
     if (state.sacked && !['sacked', 'options'].includes(view.split('-')[0])) view = 'sacked';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, search: screenSearch, charts: screenCharts, calendar: screenCalendar, compare: screenCompare, holiday: screenHoliday, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, search: screenSearch, charts: screenCharts, calendar: screenCalendar, compare: screenCompare, holiday: screenHoliday, plan: screenPlan, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
+    planTouch(name);
     const body = (screens[name] || screenOverview)(arg);
     app.replaceChildren(shell(name, body));
     window.scrollTo(0, 0);
@@ -118,7 +119,7 @@
       el('aside.side', [
         el('div.club-head', [badge(my), el('b', clubName(my))]),
         el('nav.nav', { 'aria-label': 'Меню' }, [
-          item('overview', 'Огляд'), item('inbox', (() => { const n = FM.market.unread(state); return n ? ['Повідомлення ', el('span.count', { 'aria-label': `${n} непрочитаних` }, String(n))] : 'Повідомлення'; })()), item('squad', 'Склад'), item('dressing', 'Роздягальня'), item('u21', 'Молодь U-21'), item('leagues', 'Ліги й клуби'),
+          planNav() ? item('plan', planNav()) : null, item('overview', 'Огляд'), item('inbox', (() => { const n = FM.market.unread(state); return n ? ['Повідомлення ', el('span.count', { 'aria-label': `${n} непрочитаних` }, String(n))] : 'Повідомлення'; })()), item('squad', 'Склад'), item('dressing', 'Роздягальня'), item('u21', 'Молодь U-21'), item('leagues', 'Ліги й клуби'),
           item('fixtures', 'Сезон'), item('calendar', 'Календар'), item('table', 'Таблиця'), item('charts', 'Графіки'), item('cups', 'Кубки'), item('match', 'Товариський'),
           item('tactics', 'Тактика'), item('training', 'Тренування'), item('transfers', 'Трансфери'), item('search', 'Пошук'), item('office', 'Клуб'), item('board', 'Правління'), item('media', 'Медіа'), item('coach', 'Тренер'), item('nations', 'Збірна'), item('history', 'Історія'), item('help', 'Довідка'),
           item('options', 'Налаштування'),
@@ -1910,6 +1911,12 @@
     if (state.sacked) return go('sacked');
     if (FM.season.isOver(state.season)) return go('fixtures');
     if (needsAction().length) { contNote = 'Спершу дайте відповідь на листи (або відкладіть їх).'; return location.hash === '#inbox' ? render() : go('inbox'); }
+    const pl0 = FM.plan.current(W, state);
+    if (pl0 && !pl0.nagged && state.season.week === 0 && !FM.plan.progress(W, state, pl0).all) {
+      pl0.nagged = true; saveGame();
+      contNote = 'Асистент радить спершу пройти перші кроки. Можна й пропустити — натисніть «Продовжити» ще раз.';
+      return location.hash === '#plan' ? render() : go('plan');
+    }
     const d = curDay();
     if ((d === 6 && myFixture()) || (d === 3 && FM.cups.pendingTie(state, state.clubId))) return location.hash === '#fixtures' ? render() : go('fixtures');
     running = true; refreshTopbar();
@@ -2409,6 +2416,10 @@
     return [
       el('header', [el('h1', 'Довідка'), el('span.muted', 'Як усе влаштовано')]),
       el('div.help-grid', [
+        sec('Перші кроки в клубі', [
+          'На початку кар’єри (і в новому клубі) асистент складає план: правління, звіт про склад, тактика, тренування, скаути, слабкі позиції, зайві гравці, контракти, штаб, товариський матч. Кроки позначаються самі, будь-який можна пропустити.',
+          'Щоліта — коротша «Передсезонна підготовка». План — у меню й у пошті; перше «Продовжити» нагадає про нього один раз.',
+        ]),
         sec('Як іде час (як у FM)', [
           'Кнопка «Продовжити» вгорі (на телефоні — внизу) або пробіл: дні йдуть самі. Середа — кубки й єврокубки, субота — матч ліги.',
           'Час зупиняється, коли потрібне ваше рішення: день матчу, пропозиція за гравця, незадоволений гравець, вибір спонсора, останній день трансферного вікна.',
@@ -2599,6 +2610,129 @@
     })), contNote ? el('p.msg-bad', contNote) : null]);
   }
 
+
+  // ---------------- Перші кроки в клубі (як у FM перед сезоном) ----------------
+  /** Позначити відвідування екрана для плану; створити план, якщо його ще немає. */
+  function planTouch(name) {
+    const had = state.plan;
+    const pl = FM.plan.current(W, state);
+    const visited = pl ? FM.plan.visit(state, name) : false;
+    if (visited || state.plan !== had) saveGame();
+  }
+  /** Підпис пункту меню (поки план не закритий). */
+  function planNav() {
+    const pl = state.plan && !state.plan.none && state.plan.year === state.season.year ? state.plan : null;
+    if (!pl) return null;
+    const pr = FM.plan.progress(W, state, pl);
+    return pr.all ? null : [pl.first ? 'Перші кроки ' : 'Передсезоння ', el('span.count', { 'aria-label': `виконано ${pr.done} з ${pr.total}` }, `${pr.done}/${pr.total}`)];
+  }
+  function planCard() {
+    const pl = FM.plan.current(W, state);
+    if (!pl || pl.hidden) return null;
+    const pr = FM.plan.progress(W, state, pl);
+    if (pr.all) return null;
+    return el('div.panel.plan-card', [
+      el('div.plan-card-head', [el('h3', pl.first ? '📋 Перші кроки в клубі' : '📋 Передсезонна підготовка'), el('b', `${pr.done} з ${pr.total}`)]),
+      el('div.plan-bar', { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(pr.total), 'aria-valuenow': String(pr.done) }, el('span', { style: { width: (pr.done / pr.total * 100) + '%' } })),
+      pr.next ? el('p', [el('span.muted', 'Наступний крок: '), el('b', pr.next.title)]) : null,
+      el('div.actions', [el('a.btn.primary', { href: '#plan' }, 'Відкрити план'), el('button.btn.link', { type: 'button', onclick: () => { pl.hidden = true; saveGame(); render(); } }, 'Сховати з пошти')]),
+    ]);
+  }
+  let planMsg = null;
+  function screenPlan() {
+    const pl = FM.plan.current(W, state);
+    if (!pl) return [el('header', el('h1', 'Перші кроки')), el('div.panel', el('p.muted', 'Плану на цей сезон немає: він з’являється на початку кар’єри, у новому клубі й перед кожним сезоном.'))];
+    const S = state.season, me = W.club(state.clubId);
+    const t = myTactics();
+    const r = FM.plan.report(W, state.clubId, S.year, t.formation);
+    const best = r.best;
+    const st = FM.plan.steps(W, state, pl);
+    const pr = FM.plan.progress(W, state, pl);
+    const save = (msg) => { planMsg = msg || null; saveGame(); render(); };
+    const link = (href, label) => el('a.btn', { href }, label);
+    const playersList = (ids, extra) => el('ul.plist.plan-list', ids.map((id) => W.player(id)).filter((p) => p && p.club === state.clubId).map((p) => el('li', [
+      el('span', [el('a', { href: '#player-' + p.id }, nameOf(p)), el('small.muted', ` ${FM.positions(p)}, ${W.age(p) ?? '—'} р.${extra ? ' · ' + extra(p) : ''}`)]), starsEl(p.ca, 'Рівень')])));
+
+    const details = {
+      board: () => [link('#board', 'До правління')],
+      squad: () => [el('button.btn.primary', { type: 'button', onclick: () => { pl.done.squad = true; save(); } }, 'Прочитав звіт'), link('#squad', 'До складу')],
+      tactics: () => {
+        const cur = t.formation;
+        return [el('p.small', best === cur ? `Асистент згоден зі схемою ${cur}: найкращі гравці грають на своїх позиціях.` : `Асистент радить ${best} замість ${cur}: так найкращі гравці стануть на свої позиції.`),
+          best !== cur ? el('button.btn.primary', { type: 'button', onclick: () => {
+            const avail = availablePlayers(state.clubId);
+            Object.assign(t, { formation: best, ids: FM.pickLineup(avail, best).xi.map((x) => x.player.id), roles: {}, variants: {}, instr: {} });
+            pl.done.tactics = true; save(`Схема ${best}: склад розставив асистент.`);
+          } }, `Поставити ${best}`) : null, link('#tactics', 'До тактики')];
+      },
+      training: () => {
+        const adv = FM.plan.trainingAdvice(W, state, familiarity()), tr = training();
+        const lbl = FM.dev.PLANS[adv.plan].label;
+        return [el('p.small', `Порада: «${lbl}» — ${adv.why}. Зараз: «${FM.dev.PLANS[tr.plan || 'balanced'].label}».`),
+          tr.plan !== adv.plan ? el('button.btn.primary', { type: 'button', onclick: () => { tr.plan = adv.plan; pl.done.training = true; save(`Тренування: «${lbl}».`); } }, `Застосувати «${lbl}»`) : null, link('#training', 'До тренувань')];
+      },
+      scouts: () => {
+        const idle = FM.market.scouts(state).filter((sc) => !sc.region);
+        const lg = FM.plan.scoutLeague(W, state);
+        return [el('p.small', idle.length ? `Без завдання: ${idle.length} ${idle.length === 1 ? 'скаут' : 'скаути'}. Асистент радить${lg ? ` розвідати ${W.league(lg).name} (схожа за силою)` : ''}${idle.length > 1 || !lg ? ' і шукати таланти в Південній Америці' : ''}.` : 'Усі скаути мають завдання.'),
+          idle.length ? el('button.btn.primary', { type: 'button', onclick: () => {
+            idle.forEach((sc, i) => { sc.region = i === 0 && lg ? lg : 'w-sa'; sc.prog = 0; });
+            save('Скаути отримали завдання.');
+          } }, 'Дати завдання за порадою') : null, link('#transfers', 'Скаутська мережа')];
+      },
+      needs: () => {
+        if (!pl.needRoles.length) return [el('p.small', 'На всіх позиціях вистачає гравців потрібного рівня. Можна шукати підсилення, але це не обов’язково.')];
+        const budget = Math.max(0, me.balance || 0);
+        const cap = [60, 25, 10, 3, 1].find((v) => v <= budget * 0.6) || 1, poor = budget * 0.6 < 1;
+        return [el('ul.plist.plan-list', pl.needRoles.map((role) => {
+          const n = r.needs.find((x) => x.role === role);
+          const ok = FM.plan.isDone(W, state, { ...pl, done: {}, needRoles: [role] }, 'needs');
+          return el('li', [el('span', [ok ? '✓ ' : '', el('b', FM.ROLE_NAME[role]), el('small.muted', n ? ` · ${n.thin ? `є ${n.have} з потрібних ${n.need}` : ''}${n.thin && n.weak ? '; ' : ''}${n.weak ? 'основа слабша за решту команди' : ''}` : ' · закрито')]),
+            el('button.btn', { type: 'button', onclick: () => { Object.assign(tf, { role, league: 'all', maxAge: 31, maxPrice: cap, sort: 'ca' }); go('transfers'); } }, 'Шукати')]);
+        })), el('p.small.muted', `Пошук відкриється з фільтром за позицією й ціною до ${M(cap)} (баланс ${M(budget)}).${poor ? ' Грошей мало — шукайте дешевих або беріть в оренду (кнопка в картці гравця).' : ''} Крок виконано, коли на кожну позицію є гравець у шортлисті або купівля.`)];
+      },
+      surplus: () => {
+        const left = pl.surplusIds.map((id) => W.player(id)).filter((p) => p && p.club === state.clubId && !p.listed && !p.loan);
+        if (!pl.surplusIds.length) return [el('p.small', 'Зайвих гравців немає.')];
+        return [playersList(pl.surplusIds, (p) => (p.listed ? 'на продажі' : p.loan ? 'в оренді' : `${p.wage ?? '—'} тис. €/тиж.`)),
+          left.length ? el('button.btn.primary', { type: 'button', onclick: () => {
+            for (const p of left) p.listed = true;
+            FM.market.news(state, `На трансфер виставлено: ${left.map(nameOf).join(', ')}.`, 'transfers');
+            save(`На продаж виставлено ${left.length}.`);
+          } }, `Виставити на продаж (${left.length})`) : null];
+      },
+      contracts: () => pl.expIds.length ? [playersList(pl.expIds, (p) => ((p.contract || 9999) > S.year + 1 ? 'продовжено' : `контракт до літа ${p.contract}`)), el('p.small.muted', 'Продовжити контракт — у картці гравця, розділ «Контракт».')] : [el('p.small', 'Контракти лідерів не спливають цього сезону.')],
+      staff: () => [link('#office', 'До штабу')],
+      friendly: () => [link('#match', 'Товариський матч')],
+    };
+
+    return [
+      el('header', [el('h1', pl.first ? 'Перші кроки в клубі' : 'Передсезонна підготовка'), el('span.muted', `Виконано ${pr.done} з ${pr.total}${pr.closed > pr.done ? `, пропущено ${pr.closed - pr.done}` : ''}`)]),
+      el('div.plan-bar.big', { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(pr.total), 'aria-valuenow': String(pr.done) }, el('span', { style: { width: (pr.done / pr.total * 100) + '%' } })),
+      planMsg ? el('p.msg-ok', planMsg) : null,
+      pr.all ? el('div.panel', [el('h3', 'Готово!'), el('p', 'Клуб підготовлений. Тисніть «Продовжити» — і до першого матчу.')]) : null,
+      el('ol.plan-steps', st.map((x, i) => el('li' + (x.done ? '.done' : x.skipped ? '.skipped' : ''), [
+        el('span.plan-mark', { 'aria-hidden': 'true' }, x.done ? '✓' : x.skipped ? '–' : String(i + 1)),
+        el('div.plan-body', [
+          el('b', x.title), x.done ? el('span.chip', 'виконано') : x.skipped ? el('span.chip', 'пропущено') : null,
+          el('p.muted.small', x.hint),
+          x.done ? null : el('div.plan-act', [...(details[x.id] ? details[x.id]() : []).filter(Boolean),
+            el('button.btn.link', { type: 'button', onclick: () => { pl.skip[x.id] = !pl.skip[x.id]; save(); } }, x.skipped ? 'Повернути' : 'Пропустити')]),
+        ]),
+      ]))),
+      el('div.panel', [el('h3', 'Звіт асистента про склад'),
+        el('dl.facts', [
+          el('dt', 'Найкраща схема'), el('dd', best),
+          el('dt', 'Рівень основи'), el('dd', starsEl(r.xiAvg, 'Рівень основи')),
+          el('dt', 'Гравців'), el('dd', `${r.size}${r.size > 26 ? ' — забагато, зайві беруть зарплату' : r.size < 20 ? ' — замало на сезон' : ''}`),
+        ]),
+        r.needs.length ? el('ul.tips', r.needs.map((n) => el('li.tip-' + (n.sev >= 2 ? 'bad' : 'warn'),
+          `${FM.ROLE_NAME[n.role]}: ${n.thin ? `лише ${n.have} (треба ${n.need})` : `є ${n.have}`}${n.weak ? '; гравці основи слабші за решту команди' : ''}.`))) : el('p.muted', 'Слабких позицій немає.'),
+      ]),
+      el('p.note', pl.first ? 'План з’являється на початку кар’єри й у новому клубі; щосезону — коротша передсезонна підготовка. Кроки позначаються самі, щойно ви їх зробите.' : 'Передсезонна підготовка з’являється щоліта. Кроки позначаються самі.'),
+    ];
+  }
+
   // ---------------- Центр повідомлень (крок 44) ----------------
   let inboxCat = (() => { try { return localStorage.getItem('golovnyi-trener:inbox') || 'all'; } catch (_) { return 'all'; } })();
   function screenInbox() {
@@ -2620,6 +2754,7 @@
     return [
       el('header', [el('h1', 'Повідомлення'), el('span.muted', `Усього ${all.length}${maxId > lastRead ? ` · нових ${all.filter((n) => n.id > lastRead).length}` : ''}`)]),
       actionCards(),
+      planCard(),
       el('div.tabs', [['all', `Усі (${all.length})`], ...Object.entries(FM.market.NEWS_CATS).filter(([k]) => counts[k]).map(([k, l]) => [k, `${l} (${counts[k]})`])].map(([k, l]) =>
         el('button', { type: 'button', 'aria-pressed': String(inboxCat === k), onclick: () => { inboxCat = k; try { localStorage.setItem('golovnyi-trener:inbox', k); } catch (_) { /* приватне вікно */ } render(); } }, l))),
       el('div.panel', list.length ? el('ul.news.inbox', rows) : el('p.muted', 'Повідомлень немає.')),
