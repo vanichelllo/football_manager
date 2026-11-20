@@ -221,3 +221,28 @@ test('17. виклики: кандидати, заборона купівлі, �
   FM.challenges.start(state, 'rescue');
   assert.match(FM.challenges.endSeason(W, state, { relegated: true }), /провалено/);
 });
+
+test('18. збірна: відбір у групі з 4 (6 матчів України), турнір покроково з плей-оф до переможця', () => {
+  const { W, state } = fresh();
+  const S = state.season;
+  S.year = 2027; // сезон 2027/28 — відбір на Євро-2028
+  const Q = FM.nations.qualGroup(W, state);
+  assert.ok(Q && Q.group.length === 4 && Q.group.includes('UKR'));
+  for (const w of FM.nations.WINDOWS) { S.week = w; FM.nations.weekly(W, state, {}); }
+  const tab = FM.nations.qualTable(state);
+  assert.ok(tab.every((r) => r.p === 6), 'кожна команда — 6 матчів');
+  // турнір з Україною: покроково, до кожного матчу України
+  const T = FM.nations.createTournament(W, 2028, 's', 'in');
+  assert.ok(T.groups.some((g) => g.includes('UKR')));
+  let ukrMatches = 0;
+  for (let guard = 0; guard < 20; guard++) {
+    const nm = FM.nations.playUntil(W, T, 'UKR');
+    if (!nm) break;
+    ukrMatches++;
+    FM.nations.recordTour(T, nm, FM.nations.playNations(W, nm.m.a, nm.m.b, 'x' + guard, { neutral: true }), FM.rng('p'));
+  }
+  assert.ok(T.winner && ukrMatches >= 3 && ukrMatches <= 7, `матчів України: ${ukrMatches}`);
+  assert.strictEqual(T.ko[0].length, 8, '1/8 фіналу — 8 пар');
+  const groupOf = (c) => T.groups.findIndex((g) => g.includes(c));
+  assert.ok(T.ko[0].filter((m) => groupOf(m.a) === groupOf(m.b)).length <= 1, 'суперники з однієї групи — не в 1/8 (майже ніколи)');
+});

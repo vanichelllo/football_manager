@@ -537,3 +537,7 @@ svg.chart { width: 100%; height: auto; display: block; }
 .ch-legend { display: flex; flex-wrap: wrap; gap: 0.2rem 0.8rem; font-size: 0.85rem; margin-top: 0.3rem; }
 .ch-legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 0.3rem; background: var(--muted); }
 .ch-legend i.focus { background: var(--accent); height: 3px; }
+table.mini { width: 100%; border-collapse: collapse; margin-bottom: 0.5rem; }
+table.mini td, table.mini th { padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--line); }
+table.mini tr.me td { font-weight: 700; background: var(--accent-soft); }
+.quick { border-color: var(--accent); }

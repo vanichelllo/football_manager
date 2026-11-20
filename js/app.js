@@ -1800,6 +1800,61 @@
     showLive('fixtures', hs, as, FM.match.create(opts), myK, finishCup, [['Далі', () => go('fixtures'), true], ['Кубки', () => go('cups')]]);
   }
 
+  // ---------------- Швидкий режим (розширення 19) ----------------
+  /** Один тиждень без трансляції й без переходу між екранами. */
+  function quickWeek() {
+    const S = state.season;
+    cupsWeek();
+    const pend = FM.cups.pendingTie(state, state.clubId);
+    if (pend) {
+      const { opts } = FM.season.prepare(S, W, pend.f, NAMES, USER());
+      if (pend.neutral) opts.neutral = true;
+      cupNews(FM.cups.finishPending(W, state, pend, FM.match.play(opts)));
+      cupsWeek();
+    }
+    FM.season.playWeek(S, W, { name: NAMES, user: USER(), dev: devOpts() });
+    FM.market.weekly(W, state);
+    boardWeek();
+  }
+  let quick = null; // { weeks, w, d, l, stop, running }
+  /** Грати тижні поспіль, доки не знадобиться рішення людини. */
+  function quickRun() {
+    const S = state.season;
+    quick = { weeks: 0, w: 0, d: 0, l: 0, stop: null, running: true, start: S.week };
+    const keyIds = new Set(W.squad(state.clubId).sort((a, b) => b.ca - a.ca).slice(0, 3).map((p) => p.id));
+    const step = () => {
+      if (!quick || !quick.running) return;
+      if (FM.season.isOver(state.season)) { quick.stop = 'Сезон завершено — підбийте підсумки й почніть наступний.'; return done(); }
+      const offers0 = (state.offers || []).length, injured0 = new Set(W.squad(state.clubId).filter((p) => p.injury >= 3).map((p) => p.id));
+      const wk = state.season.week;
+      quickWeek();
+      quick.weeks++;
+      const f = FM.season.fixturesOfWeek(state.season, wk).find((x) => x.s && (x.h === state.clubId || x.a === state.clubId));
+      if (f) { const d = f.h === state.clubId ? f.s[0] - f.s[1] : f.s[1] - f.s[0]; if (d > 0) quick.w++; else if (d < 0) quick.l++; else quick.d++; }
+      const now = state.season.week;
+      if (state.sacked) { quick.stop = 'Правління звільнило вас.'; return done(); }
+      if ((state.offers || []).length > offers0) { quick.stop = 'Надійшла пропозиція за вашого гравця.'; return done(); }
+      if (FM.market.WINDOWS.some(([a]) => now === a) && quick.weeks > 0) { quick.stop = 'Відкрилося трансферне вікно.'; return done(); }
+      const hurt = W.squad(state.clubId).find((p) => keyIds.has(p.id) && p.injury >= 3 && !injured0.has(p.id));
+      if (hurt) { quick.stop = `Травма лідера: ${nameOf(hurt)} (${hurt.injury} тиж.).`; return done(); }
+      if (state.board && state.board.conf < 25) { quick.stop = 'Довіра правління — на межі.'; return done(); }
+      if (quick.weeks >= 38) { quick.stop = 'Зупинка після 38 тижнів.'; return done(); }
+      render();
+      setTimeout(step, 30); // дати браузеру намалювати хід
+    };
+    const done = () => { quick.running = false; saveGame(); state.sacked ? go('sacked') : render(); };
+    render();
+    setTimeout(step, 30);
+  }
+  function quickPanel() {
+    if (!quick) return null;
+    const q = quick;
+    return el('div.panel.quick', [el('b', q.running ? `⏩ Швидкий режим: зіграно ${q.weeks} тиж. (${q.w} В, ${q.d} Н, ${q.l} П)…` : `Швидкий режим: зіграно ${q.weeks} тиж. — ${q.w} В, ${q.d} Н, ${q.l} П.`),
+      q.stop ? el('p', 'Зупинка: ' + q.stop) : null,
+      el('div.actions', [q.running ? el('button.btn', { type: 'button', onclick: () => { q.running = false; q.stop = 'Зупинено вручну.'; saveGame(); render(); } }, 'Зупинити')
+        : el('button.btn', { type: 'button', onclick: () => { quick = null; render(); } }, 'Сховати')])]);
+  }
+
   function playMyMatch(live) {
     const S = state.season;
     const f = FM.season.fixturesOfWeek(S, S.week).find((x) => x.h === state.clubId || x.a === state.clubId);
@@ -2034,8 +2089,18 @@
     }
     // турнір збірних улітку
     if (FM.nations) {
-      const tour = FM.nations.tournament(W, S.year + 1, S.seed);
-      if (tour) { state.lastReport.tour = tour; (state.intl = state.intl || {}).tours = ((state.intl && state.intl.tours) || []).concat([{ name: tour.name, winner: tour.winner, ukr: tour.ukr }]); }
+      const st = (state.intl = state.intl || {});
+      if (st.tourney) finishTourney(); // минулий турнір не дограли — доіграє помічник
+      const Q = st.qual && st.qual.year === S.year + 1 ? FM.nations.qualTable(state) : null;
+      const ukr = Q ? (Q.slice(0, 2).some((r) => r.c === 'UKR') ? 'in' : 'out') : null;
+      if (Q) FM.market.news(state, ukr === 'in' ? `Україна виходить на ${st.qual.name.replace('Відбір: ', '')}!` : `Україна не пройшла відбір (${Q.findIndex((r) => r.c === 'UKR') + 1}-е місце в групі).`, 'intl');
+      if (st.coach && ukr === 'in') { // турнір — на екрані «Збірна», матчі України наживо
+        st.tourney = FM.nations.createTournament(W, S.year + 1, S.seed, 'in');
+        if (st.tourney) state.lastReport.tour = { name: st.tourney.name, pending: true };
+      } else {
+        const tour = FM.nations.tournament(W, S.year + 1, S.seed, ukr);
+        if (tour) { state.lastReport.tour = tour; st.tours = (st.tours || []).concat([{ name: tour.name, winner: tour.winner, ukr: tour.ukr }]); }
+      }
     }
     FM.dev.newSeason(W, state);
     FM.market.init(W, state);
@@ -2069,7 +2134,7 @@
     return [
       el('header', [el('h1', `Новий сезон ${seasonLabel()}`), el('span.muted', `Підсумки сезону ${R.year}/${String(R.year + 1).slice(2)}`)]),
       R.moves && R.moves.length ? el('div.panel', [el('h3', 'Підвищення й пониження'), el('ul.plist', R.moves.map((m) => el('li', [el('span', [el('b', clubName(W.club(m.club))), el('small.muted', ` ${m.up ? '↑' : '↓'} ${W.league(m.to).name}`)])])))]) : null,
-      R.tour ? el('div.panel', [el('h3', R.tour.name), el('p', `Переможець — ${FM.countries.name(R.tour.winner)}${R.tour.final ? ` (фінал ${FM.countries.name(R.tour.final.a)} — ${FM.countries.name(R.tour.final.b)} ${R.tour.final.score.join(':')})` : ''}.`),
+      R.tour && R.tour.pending ? el('div.panel', [el('h3', R.tour.name), el('p', ['Україна на турнірі, а ви — її тренер! Матчі збірної — на екрані ', el('a', { href: '#nations' }, '«Збірна»'), '.'])]) : R.tour ? el('div.panel', [el('h3', R.tour.name), el('p', `Переможець — ${FM.countries.name(R.tour.winner)}${R.tour.final ? ` (фінал ${FM.countries.name(R.tour.final.a)} — ${FM.countries.name(R.tour.final.b)} ${R.tour.final.score.join(':')})` : ''}.`),
         el('p.muted', `Україна: ${R.tour.ukr || 'не кваліфікувалася'}.`)]) : null,
       R.verdict ? el('div.panel', [el('h3', 'Оцінка правління'), el('p', R.verdict), R.prize ? el('p.muted', `Призові за місце й кубки: ${FM.market.fmtM(R.prize)}`) : null,
         (state.jobOffers || []).length ? el('p', ['Вами цікавляться інші клуби — див. ', el('a', { href: '#board' }, 'Правління'), '.']) : null]) : null,
@@ -2321,6 +2386,62 @@
     ];
   }
 
+  /** Турнір збірних, який тренує людина: дограти автоматично й записати підсумок. */
+  function finishTourney() {
+    const st = state.intl, T = st && st.tourney;
+    if (!T) return;
+    FM.nations.playUntil(W, T, null);
+    const sm = FM.nations.summary(T);
+    st.tours = (st.tours || []).concat([{ name: sm.name, winner: sm.winner, ukr: sm.ukr }]);
+    FM.market.news(state, `${sm.name}: переможець — ${FM.countries.name(sm.winner)}. Україна: ${sm.ukr}.`, 'intl');
+    if (sm.winner === 'UKR') { state.ach = state.ach || {}; state.ach.euro_ukr = seasonLabel(); if (state.board) state.board.rep = Math.min(100, state.board.rep + 15); }
+    st.lastTour = sm; delete st.tourney;
+  }
+  /** Зіграти наступний матч України на турнірі (live — з трансляцією). */
+  function playTourMatch(live) {
+    const st = state.intl, T = st.tourney;
+    const nm = FM.nations.playUntil(W, T, 'UKR', { name: NAMES.player });
+    if (!nm) { finishTourney(); saveGame(); return go('nations'); }
+    const picks = st.picks && st.picks.length >= 16 ? st.picks : null;
+    const A = FM.nations.side(W, nm.m.a, nm.m.a === 'UKR' ? picks : null), B = FM.nations.side(W, nm.m.b, nm.m.b === 'UKR' ? picks : null);
+    const opts = { home: A, away: B, seed: `tour-${T.seed}-${T.year}-${nm.kind}-${nm.m.a}-${nm.m.b}`, neutral: true, name: NAMES.player, gen: genOf, big: true };
+    const myK = nm.m.a === 'UKR' ? 0 : 1;
+    const done = (r) => {
+      FM.nations.recordTour(T, nm, r, FM.rng(`tourpens-${T.seed}-${T.year}`));
+      const sc = myK === 0 ? r.score : [r.score[1], r.score[0]], d = sc[0] - sc[1];
+      if (state.board) state.board.rep = Math.max(0, Math.min(100, state.board.rep + (d > 0 ? 2 : d < 0 ? -1 : 0)));
+      FM.market.news(state, `${T.name}, ${nm.label}: Україна — ${FM.countries.name(myK === 0 ? nm.m.b : nm.m.a)} ${sc.join(':')}${nm.m.pens ? ' (пенальті)' : ''}.`, 'intl');
+      if (T.winner || (T.stage.UKR && T.stage.UKR !== 'переможець')) finishTourney(); // турнір скінчився або Україна вибула — решту дограє помічник
+      saveGame();
+    };
+    if (!live) { done(FM.match.play(opts)); return go('nations'); }
+    opts[myK === 0 ? 'home' : 'away'].manual = true;
+    showLive('nations', A, B, FM.match.create(opts), myK, done, [['До збірної', () => go('nations'), true]]);
+  }
+  function tourneyPanel() {
+    const T = state.intl && state.intl.tourney;
+    if (!T) return null;
+    const gi = T.groups.findIndex((g) => g.includes('UKR'));
+    const tab = gi >= 0 ? FM.nations.groupTable(T, gi) : [];
+    const out = T.stage.UKR && T.stage.UKR !== 'переможець';
+    return el('div.panel', [el('h3', T.name),
+      tab.length ? el('table.mini', [el('thead', el('tr', ['Група ' + 'ABCDEFGH'[gi], 'І', 'РМ', 'О'].map((h, i) => el(i ? 'th.num' : 'th', h)))),
+        el('tbody', tab.map((r) => el('tr' + (r.c === 'UKR' ? '.me' : ''), [el('td', FM.countries.name(r.c)), el('td.num', r.p), el('td.num', r.gd), el('td.num', r.pts)])))]) : null,
+      T.ko.length ? el('p.muted', 'Плей-оф: ' + T.ko.map((round) => round.map((m) => `${FM.countries.name(m.a)} — ${FM.countries.name(m.b)}${m.s ? ' ' + m.s.join(':') + (m.pens ? ' (пен.)' : '') : ''}`).join('; ')).join(' → ')) : null,
+      out ? el('p.msg-bad', `Україна вибула (${T.stage.UKR}).`) : el('div.actions', [
+        el('button.btn.primary', { type: 'button', onclick: () => playTourMatch(true) }, 'Наступний матч України: з трансляцією'),
+        el('button.btn', { type: 'button', onclick: () => playTourMatch(false) }, 'Одразу результат')]),
+      out ? el('button.btn', { type: 'button', onclick: () => { finishTourney(); saveGame(); render(); } }, 'Дограти турнір') : null]);
+  }
+  function qualPanel() {
+    const Q = state.intl && state.intl.qual;
+    if (!Q || Q.year !== state.season.year + 1) return null;
+    const tab = FM.nations.qualTable(state);
+    return el('div.panel', [el('h3', Q.name), el('table.mini', [el('thead', el('tr', ['Група', 'І', 'РМ', 'О'].map((h, i) => el(i ? 'th.num' : 'th', h)))),
+      el('tbody', tab.map((r, i) => el('tr' + (r.c === 'UKR' ? '.me' : ''), [el('td', `${i + 1}. ${FM.countries.name(r.c)}`), el('td.num', r.p), el('td.num', r.gd), el('td.num', r.pts)])))]),
+      el('small.muted', 'Двоє перших виходять на турнір. Матчі — у міжнародні вікна (6, 13 і 27-й тижні).')]);
+  }
+
   function screenNations() {
     const N = FM.nations, st = (state.intl = state.intl || {});
     const pool = N.pools(W).UKR || [];
@@ -2336,6 +2457,8 @@
     };
     return [
       el('header', [el('h1', 'Збірна України'), el('span.muted', `Рівень ${Math.round(N.strength(W, 'UKR'))} · ${next ? `наступне вікно — ${next}-й тиждень` : 'цього сезону вікон більше немає'}`)]),
+      tourneyPanel(), qualPanel(),
+      st.lastTour && !st.tourney ? el('p.muted', `Останній турнір: ${st.lastTour.name}, переможець — ${FM.countries.name(st.lastTour.winner)}; Україна — ${st.lastTour.ukr}.`) : null,
       el('div.panel', [
         el('p', coach ? 'Ви тренуєте збірну паралельно з клубом: склад обираєте самі (16–26 гравців), результати впливають на вашу репутацію.'
           : 'Збірну тренує федерація; виклик ваших гравців означає втому й ризик травм після міжнародних вікон.'),
@@ -2428,6 +2551,7 @@
     const { pos, size } = myPosition();
     const blocks = [el('header', [el('h1', `Сезон ${seasonLabel()}`), el('span.muted', over ? 'Сезон завершено' : `Тиждень ${S.week + 1} з ${total} · ${fmt.date(FM.season.dateOf(S.week, state.season))}`)])];
 
+    blocks.push(quickPanel());
     if (over) {
       blocks.push(el('div.panel', [el('h3', 'Підсумки сезону'),
         el('p', `${clubName(c)} — ${pos}-е місце з ${size}.`),
@@ -2457,6 +2581,7 @@
         el('div.actions', [
           el('button.btn.primary', { type: 'button', onclick: () => playMyMatch(true) }, 'Грати з трансляцією'),
           el('button.btn', { type: 'button', onclick: () => playMyMatch(false) }, 'Одразу результат'),
+          el('button.btn', { type: 'button', title: 'Тижні граються самі; зупинка, коли потрібне ваше рішення', onclick: () => quickRun() }, '⏩ Швидкий режим'),
         ]),
         el('p.note', ['Решта матчів туру в усіх лігах зіграються одночасно. Склад, схема й інструкції — з ', el('a', { href: '#tactics' }, 'тактики'), '; у трансляції можна робити заміни й міняти підхід.']),
       ]));
