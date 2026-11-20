@@ -648,3 +648,19 @@ li.act { align-items: center; }
 .ps-bar span { display: block; height: 100%; }
 .ps-bar span:last-child { opacity: 0.75; }
 .shotmap.heat { margin-top: 0.4rem; }
+
+/* Таблиці з сортуванням і фільтрами */
+.dt { margin-bottom: 1rem; }
+.dt-bar { display: flex; flex-wrap: wrap; gap: 0.5rem 0.8rem; align-items: center; margin-bottom: 0.5rem; }
+.dt-q { min-width: 12rem; flex: 0 1 16rem; }
+.dt-tabs { margin: 0; }
+.dt-sel select { max-width: 14rem; }
+.dt-cols { position: relative; }
+.dt-cols summary { cursor: pointer; padding: 0.3rem 0.6rem; border: 1px solid var(--line); border-radius: 999px; font-size: 0.9rem; list-style: none; }
+.dt-cols summary::-webkit-details-marker { display: none; }
+.dt-cols[open] > div { position: absolute; z-index: 20; top: 2.2rem; left: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.6rem 0.8rem; display: grid; gap: 0.25rem; min-width: 14rem; box-shadow: 0 6px 24px rgba(0,0,0,0.15); }
+.dt-info { display: flex; gap: 0.8rem; align-items: center; font-size: 0.85rem; margin-bottom: 0.35rem; }
+.sort-ar { font-size: 0.7rem; color: var(--accent); }
+th[aria-sort] { color: var(--fg); }
+.dt-empty { padding: 1rem; }
+@media (max-width: 760px) { .dt-q { flex: 1 1 100%; } .dt-cols[open] > div { left: auto; right: 0; } }
