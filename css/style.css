@@ -541,3 +541,4 @@ table.mini { width: 100%; border-collapse: collapse; margin-bottom: 0.5rem; }
 table.mini td, table.mini th { padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--line); }
 table.mini tr.me td { font-weight: 700; background: var(--accent-soft); }
 .quick { border-color: var(--accent); }
+.speed select { max-width: 15rem; } .speed { display: inline-flex; align-items: center; gap: 0.3rem; }

@@ -1348,9 +1348,12 @@
   // ---------------- Матч ----------------
   let pre = null; // налаштування товариського матчу
   let liveTimer = null;
-  let liveSpeed = 1;
+  // Швидкість трансляції: мілісекунд на ігрову хвилину (93 хвилини матчу). 'key' — тихі хвилини швидко, на моментах — пауза.
+  const SPEEDS = [[6400, 'Дуже повільно', '≈10 хв'], [3900, 'Повільно', '≈6 хв'], [1950, 'Звичайно', '≈3 хв'], [970, 'Швидко', '≈1,5 хв'], [320, 'Дуже швидко', '≈30 с'], ['key', 'Лише ключові моменти', 'пауза на моментах']];
+  const SPEED_KEY = 'golovnyi-trener:speed';
+  let liveSpeed = (() => { try { const v = localStorage.getItem(SPEED_KEY); return v === 'key' ? 'key' : SPEEDS.some(([x]) => String(x) === v) ? Number(v) : 1950; } catch (_) { return 1950; } })();
+  const setSpeed = (v) => { liveSpeed = v; try { localStorage.setItem(SPEED_KEY, String(v)); } catch (_) { /* приватне вікно */ } };
   let activeLive = null; // поточна трансляція: якщо піти з неї — матч догравається й записується
-  const SPEEDS = [[1, 'Звичайно'], [4, 'Швидко']];
 
   function teamSide(clubId) {
     if (clubId === state.clubId) return mySide();
@@ -1561,15 +1564,16 @@
     };
     let ballX = 50, ballY = 50, bt = 0;
     const moveBall = (x, y) => { ballX = x; ballY = y; ball.style.left = x + '%'; ball.style.top = y + '%'; };
-    let shown = 0, paused = false, finished = false, hold = 0, acc = 0, talkAsked = false, talkMsg = null;
-    const MS_PER_MIN = 260, TICK = 100;
+    let shown = 0, paused = false, finished = false, hold = 0, acc = 0, talkAsked = false, talkMsg = null, idle = 0;
+    const TICK = 100;
+    const msPerMin = () => (liveSpeed === 'key' ? 320 : liveSpeed);
     const pct = (v) => v + '%';
     const f2 = (v) => String(v).replace('.', ',');
 
     const drawSpeed = () => speedBtns.replaceChildren(
       el('button', { type: 'button', disabled: finished || null, 'aria-pressed': String(paused), onclick: () => { paused = !paused; drawSpeed(); drawControl(); } }, paused ? 'Продовжити' : 'Пауза'),
-      ...SPEEDS.map(([v, label]) => el('button', { type: 'button', 'aria-pressed': String(!paused && liveSpeed === v), disabled: finished || null,
-        onclick: () => { liveSpeed = v; paused = false; drawSpeed(); } }, label)),
+      el('label.speed', [el('span.muted', 'Швидкість '), el('select', { 'aria-label': 'Швидкість трансляції', disabled: finished || null, onchange: (e) => { setSpeed(e.target.value === 'key' ? 'key' : Number(e.target.value)); paused = false; drawSpeed(); } },
+        SPEEDS.map(([v, label, hint]) => el('option', { value: String(v), selected: String(liveSpeed) === String(v) || null }, `${label} (${hint})`)))]),
       el('button', { type: 'button', disabled: finished || null, onclick: () => { M.result(); flush(); finish(); } }, 'Одразу результат'),
       el('button', { type: 'button', 'aria-pressed': String(FM.sound.on), title: 'Свисток, трибуни, гол (звук синтезується в браузері)', onclick: () => {
         FM.sound.set(!FM.sound.on); if (FM.sound.on) { FM.sound.whistle(1); FM.sound.ambient(!finished); } drawSpeed();
@@ -1583,12 +1587,13 @@
         feed.prepend(el('li.ev.ev-' + e.type + (myK != null && e.team === myK ? '.ours' : '') + (e.type === 'goal' ? '.flash' : ''), [el('span.min', e.min + '′'), team ? badge(team) : el('span.dot'), el('span', e.text)]));
         scoreEl.textContent = e.score.join(':');
         // звук і анімація
-        if (e.type === 'goal') { hold = 1800; FM.sound.goal(myK == null || e.team === myK); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
+        if (e.type === 'goal') { hold = liveSpeed === 'key' ? 4000 : 1800; FM.sound.goal(myK == null || e.team === myK); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
         else if (e.type === 'chance' || e.type === 'miss') FM.sound.chance();
         else if (e.type === 'kickoff') { FM.sound.whistle(1); FM.sound.ambient(true); }
         else if (e.type === 'half' && String(e.min).startsWith('45')) FM.sound.whistle(2);
         else if (e.type === 'full') { FM.sound.whistle(3); FM.sound.ambient(false); }
         if (e.type === 'half' && String(e.min).startsWith('45')) hold = 1200;
+        if (liveSpeed === 'key' && ['chance', 'miss', 'red', 'injury', 'penalty'].includes(e.type)) hold = Math.max(hold, 2500); // ключовий момент — пауза, щоб прочитати
       }
       const s = M.liveStats();
       const lastEv = M.events[M.events.length - 1];
@@ -1664,9 +1669,9 @@
     function tick() {
       if (finished) return;
       if (!paused) {
-        if (hold > 0) hold -= TICK * liveSpeed;
+        if (hold > 0) hold -= TICK; // пауза після гола чи моменту — у реальному часі
         else {
-          acc += (TICK / MS_PER_MIN) * liveSpeed;
+          acc += TICK / msPerMin();
           let changed = false;
           while (acc >= 1 && !M.done) {
             acc -= 1; M.step(); changed = true;
@@ -1681,6 +1686,7 @@
             clock.textContent = ht ? 'Перерва' : m + '′';
             if (myK != null && M.minuteNum % 5 === 0) drawControl();
           }
+          else if (++idle % 7 === 0) flush(); // повільна швидкість: між хвилинами м'яч і гравці трохи рухаються
           if (M.done) return finish();
         }
       }
