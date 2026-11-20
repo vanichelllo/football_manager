@@ -1877,7 +1877,7 @@
       hlTimers.push(setTimeout(() => {
         const out = e.hl.out;
         hlBar.className = 'hl-bar ' + (out === 'goal' ? (ours ? 'hl-goal' : 'hl-goal-against') : 'hl-' + out);
-        hlBar.replaceChildren(el('b', HL_OUT[out] || 'Момент'), el('span.muted', ` ${clubName(team)} · ${e.min}′${e.hl.xg != null ? ` · xG ${String(e.hl.xg).replace('.', ',')}` : ''}`));
+        hlBar.replaceChildren(el('b', e.hl.og ? 'Автогол!' : e.hl.special === 'gk' ? '🧤 ГОЛ ВОРОТАРЯ!' : e.hl.special ? '🚀 ГОЛ-ШЕДЕВР!' : HL_OUT[out] || 'Момент'), el('span.muted', ` ${clubName(team)} · ${e.min}′${e.hl.xg != null ? ` · xG ${String(e.hl.xg).replace('.', ',')}` : ''}`));
         if (out === 'goal') moveBall(k === 0 ? 98 : 2, 50);
         else if (out === 'wide') moveBall(k === 0 ? 99 : 1, sy < 50 ? 30 : 70);
         else if (out === 'post') moveBall(k === 0 ? 97 : 3, 44);
@@ -2286,6 +2286,7 @@
     for (const o of state.offers || []) { const p = W.player(o.pid); if (p && p.club === state.clubId && !o.seen) out.push({ kind: 'offer', o, p }); }
     for (const p of W.squad(state.clubId)) if (p.wantsOut && p.wantsOutAck !== S.year) out.push({ kind: 'unhappy', p });
     if (!(state.sponsor && state.sponsor.year === S.year) && state.sponsorLater !== S.year && S.week <= 4) out.push({ kind: 'sponsor' });
+    if (state.evPending) out.push({ kind: 'event' });
     return out;
   }
   /** Наступна подія для верхньої панелі. */
@@ -2414,6 +2415,7 @@
     }
     for (const p of W.squad(state.clubId)) if (p.wantsOut) p.wantsOutAck = S.year;
     if (!(state.sponsor && state.sponsor.year === S.year)) FM.finance.choose(W, state, 'fixed');
+    if (state.evPending) { const r = FM.events.answer(W, state, 0, nameOf); if (r) FM.market.news(state, '🎲 Асистент вирішив за вас: ' + r, 'club'); }
   }
 
   function quickRun(opts = {}) {
@@ -2438,6 +2440,7 @@
       if (h) { if (now >= untilWeek) { holidayInbox(h); quick.stop = 'Відпустка закінчилася.'; return done(); } }
       else {
         if ((state.offers || []).length > offers0) { quick.stop = 'Надійшла пропозиція за вашого гравця.'; return done(); }
+        if (state.evPending) { quick.stop = 'Подія в клубі потребує вашого рішення (пошта).'; return done(); }
         if (FM.market.windows(state.season).some(([a]) => now === a) && quick.weeks > 0) { quick.stop = 'Відкрилося трансферне вікно.'; return done(); }
         const hurt = W.squad(state.clubId).find((p) => keyIds.has(p.id) && p.injury >= 3 && !injured0.has(p.id));
         if (hurt) { quick.stop = `Травма лідера: ${nameOf(hurt)} (${hurt.injury} тиж.).`; return done(); }
@@ -2652,6 +2655,10 @@
     for (const t of FM.awards.week(W, state, nameOf)) FM.market.news(state, t, 'match');
     // глядачі на домашніх матчах тижня й атрибутика
     for (const f of myFs.filter((x) => x.h === state.clubId)) attendanceNews(f.a, 'league');
+    // випадкова подія тижня: новина або лист з вибором
+    const ev = FM.events.week(W, state, nameOf, genOf);
+    if (ev && ev.text) FM.market.news(state, '🎲 ' + ev.text, 'club');
+    else if (ev && ev.ask) FM.market.news(state, '🎲 ' + ev.ask + ' Рішення — у листі з дією.', 'club');
     const mr = FM.money.merch(W, state);
     if (mr.star) FM.market.news(state, `Футболки з прізвищем ${nameOf(mr.star)} розлітаються: атрибутика принесла ${M(mr.money)} за тиждень.`, 'club');
     FM.finance.week(W, state, wonAny);
@@ -3138,6 +3145,12 @@
             el('button.btn', { type: 'button', onclick: () => { rejectOffer(a.o); done(); } }, 'Відхилити'),
             el('button.btn.link', { type: 'button', onclick: () => { a.o.seen = true; done(); } }, 'Пізніше'),
           ])]);
+      }
+      if (a.kind === 'event') {
+        const pe = state.evPending;
+        return el('li.act', [el('span', ['🎲 ', pe.ask]), el('span.offer-btns', pe.opts.map(([label, hint], i) => el('button.btn' + (i === 0 ? '.primary' : ''), { type: 'button', title: hint, onclick: () => {
+          const r = FM.events.answer(W, state, i, nameOf); if (r) FM.market.news(state, '🎲 ' + r, 'club'); done();
+        } }, label)))]);
       }
       if (a.kind === 'unhappy') return el('li.act', [el('span', [el('a', { href: '#player-' + a.p.id }, nameOf(a.p)), ` незадоволений (${a.p.mr || 'настрій'}) і просить поговорити або продати його.`]),
         el('span.offer-btns', [el('a.btn.primary', { href: '#player-' + a.p.id }, 'Поговорити'), el('button.btn', { type: 'button', onclick: () => { a.p.listed = true; a.p.wantsOutAck = S.year; FM.market.news(state, `${nameOf(a.p)} виставлений на трансфер на його прохання.`, 'players'); done(); } }, 'Виставити на продаж'),

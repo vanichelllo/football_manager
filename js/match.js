@@ -349,6 +349,7 @@
       };
     });
     for (const t of sides) Object.assign(t.stats, { corners: 0, fouls: 0, spGoals: 0 });
+    const ownGoals = [0, 0]; // автоголи на користь команди
     /** Дія вигуку з бровки на команду: множник ключа (rate, oppRate, ctrl, def, boost, cards, tire). */
     const shX = (t, key) => (t.shout && SHOUTS[t.shout.kind][key]) || 1;
     const [H, A] = sides;
@@ -470,7 +471,26 @@
         if (kind === 'corner' || kind === 'freekick' || spKind === 'fkcross') t.stats.spGoals++;
         if (assister) t.perf.get(assister.p.id).assists++;
         if (gkX) o.perf.get(gkX.p.id).conceded++;
-        say(min, 'goal', t, [lead, ' ', fill(R.pick(usable(T.goal, vars)), vars), assister ? fill(R.pick(usable(T.goalAssist, vars)), vars) : ''], {}, shotMeta('goal'));
+        // рідкісні яскраві голи
+        let wow = '';
+        if (spKind === 'gk') wow = ` ВОРОТАР ЗАБИВАЄ! ${vars.p} прибіг на кутовий — і головою в сітку! Неймовірно!`;
+        else if (kind === 'solo' && q < 0.06) wow = ' Неймовірний удар здалеку — кандидат на гол сезону!';
+        else if (kind === 'header' && R.chance(0.05)) wow = ' Удар через себе! Стадіон шаленіє!';
+        const meta = shotMeta('goal');
+        if (wow) meta.special = spKind === 'gk' ? 'gk' : 'wonder';
+        say(min, 'goal', t, [lead, ' ', fill(R.pick(usable(T.goal, vars)), vars), assister ? fill(R.pick(usable(T.goalAssist, vars)), vars) : '', wow], {}, meta);
+        if (sPerf.goals === 3) say(min, 'info', t, [`ХЕТ-ТРИК! ${vars.p} забиває втретє в цьому матчі!`]);
+        return true;
+      } else if (R.chance(0.004)) { // автогол: м'яч рикошетить від захисника у власні ворота
+        const og = R.weighted(o.onPitch.filter((x) => !x.out && x.slot.role !== 'GK'), (x) => ({ CB: 3, FB: 2, DM: 1.5 }[x.slot.role] || 0.5));
+        if (og) {
+          t.stats.goals++; t.stats.onTarget++;
+          const op = o.perf.get(og.p.id); op.og = (op.og || 0) + 1;
+          if (gkX) o.perf.get(gkX.p.id).conceded++;
+          ownGoals[t.k]++;
+          say(min, 'goal', t, [lead, ` М'яч рикошетить від ${G(og.p) || name(og.p)} — і в сітку! Автогол.`], {}, { ...shotMeta('goal'), og: true });
+          return true;
+        }
       } else {
         const out = R.weighted(['saved', 'wide', 'blocked', 'post'], (k) => ({ saved: 0.4 * (o.units.gk / 12), wide: 0.36, blocked: 0.18, post: 0.06 }[k]));
         if (out === 'saved') { t.stats.onTarget++; if (gkX) o.perf.get(gkX.p.id).saves++; }
@@ -482,6 +502,7 @@
         // кутовий після сейву чи блоку
         if ((out === 'saved' || out === 'blocked' || out === 'wide') && R.chance(out === 'wide' ? 0.15 : 0.7)) corner(t, o, min);
       }
+      return false;
     }
 
     /** Кутовий: подача й удар головою найкращого в повітрі. */
@@ -498,13 +519,22 @@
       const tk = taker(t, 'corner');
       const pool = t.onPitch.filter((x) => !x.out && x !== tk && x.slot.role !== 'GK' && (sp.cbUp || x.slot.role !== 'CB'));
       const order = pool.sort((a, b) => (b.p.attrs.hea + b.p.attrs.str / 2) - (a.p.attrs.hea + a.p.attrs.str / 2));
-      const header = sp.corner === 'near' ? order[R.int(Math.min(5, order.length))] : order[R.int(Math.min(3, order.length))];
+      let header = sp.corner === 'near' ? order[R.int(Math.min(5, order.length))] : order[R.int(Math.min(3, order.length))];
+      // остання хвилина, програємо одним м'ячем — воротар біжить на кутовий
+      const gkUp = minuteNum >= 89 && t.stats.goals === sides[1 - t.k].stats.goals - 1 && R.chance(0.35);
+      if (gkUp) { const g = t.onPitch.find((x) => !x.out && x.slot.role === 'GK'); if (g) { header = g; say(min, 'info', t, [`${t.club.name}: воротар ${name(g.p)} біжить у чужий штрафний на кутовий!`]); } }
       if (!header) return;
       const gkX = o.onPitch.find((x) => !x.out && x.slot.role === 'GK');
       t.stats.shots++; t.perf.get(header.p.id).shots++;
       const k = { near: 0.9, far: 1.05, short: 1.1 }[sp.corner] || 1;
       const q = 0.075 * k * (sp.cbUp ? 1 : 0.85) * Math.min(1.5, Math.max(0.6, (header.p.attrs.hea + ((tk.p.attrs.set || 8) + (tk.p.attrs.cro || 8)) / 2) / 26)) * WX.q;
-      finishChance(t, o, min, 'corner', header, tk, q, gkX, gkX ? name(gkX.p) : 'воротар');
+      const scored = finishChance(t, o, min, 'corner', header, tk, gkUp && header.slot.role === 'GK' ? q * 0.9 : q, gkX, gkX ? name(gkX.p) : 'воротар', gkUp && header.slot.role === 'GK' ? 'gk' : null);
+      // воротар не встиг повернутися — порожні ворота
+      if (gkUp && header.slot.role === 'GK' && !scored && R.chance(0.3)) {
+        say(min, 'info', o, [`${o.club.name} перехоплює — і ворота порожні!`]);
+        const sh = pickShooter(o); o.stats.shots++; o.perf.get(sh.p.id).shots++;
+        finishChance(o, t, min, 'through', sh, null, 0.55, null, 'порожні ворота');
+      }
     }
 
     /** Прямий штрафний. */
@@ -870,7 +900,7 @@
         for (const x of t.onPitch) {
           const pf = t.perf.get(x.p.id);
           const minutes = (x.subbedOff || 93) - (x.subbedOn || 0);
-          let r = 6.3 + 0.25 * res + pf.goals * 1.0 + pf.assists * 0.6 + pf.shots * 0.05 - pf.yellow * 0.2 - (pf.red ? 1.5 : 0);
+          let r = 6.3 + 0.25 * res + pf.goals * 1.0 + pf.assists * 0.6 + pf.shots * 0.05 - pf.yellow * 0.2 - (pf.red ? 1.5 : 0) - (pf.og || 0) * 0.8; // автогол
           r += (pf.keyPasses || 0) * 0.12 + ((pf.tackles || 0) + (pf.interceptions || 0) + (pf.blocks || 0)) * 0.03 + (pf.passes ? (pf.passOk / pf.passes - 0.8) * 0.8 : 0);
           if (x.slot.role === 'GK') r += pf.saves * 0.25 - pf.conceded * 0.35 + (o.stats.goals === 0 ? 0.6 : 0);
           else if (LINE[x.slot.role] === 'def') r += (o.stats.goals === 0 ? 0.5 : -0.15 * o.stats.goals);
@@ -910,7 +940,7 @@
         stats: [H.stats, A.stats].map((st) => ({ ...st, xg: Math.round(st.xg * 100) / 100 })),
         ratings, motm, formations: [H.formation, A.formation], units: startUnits,
         lineups: sides.map((t) => t.lineup), shots: shotLog, weather,
-        possSeg: seg.map(([s, n]) => (n ? Math.round((s / n) * 100) : null)), scoreHT: scoreHT || null,
+        possSeg: seg.map(([s, n]) => (n ? Math.round((s / n) * 100) : null)), scoreHT: scoreHT || null, ownGoals: ownGoals.slice(),
         fitness: sides.flatMap((t) => t.onPitch.map((x) => [x.p.id, Math.round(x.cond), x.subbedOn ? 93 - x.subbedOn : (x.subbedOff || 93)])),
       };
       return final;

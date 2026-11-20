@@ -64,7 +64,8 @@ test('цілий сезон: таблиця, очки, бомбардири уз
     assert.ok(t.every((r) => r.p === 2 * (l.size - 1)));
     const goals = fx.reduce((s, f) => s + f.s[0] + f.s[1], 0);
     const scored = Object.entries(S.ps).filter(([id]) => W.club(W.player(id).club).league === l.id).reduce((s, [, st]) => s + st[1], 0);
-    assert.strictEqual(scored, goals, `${l.id}: голи гравців = голи в матчах`);
+    const og = fx.reduce((s, f) => s + (f.og ? f.og[0] + f.og[1] : 0), 0);
+    assert.strictEqual(scored + og, goals, `${l.id}: голи гравців + автоголи = голи в матчах`);
     // чемпіон — серед найсильніших за складом (топ-5 ліг — суворо, решта — у середньому, нижче)
     const order = W.clubsOf(l.id).map((c) => [c.id, W.clubLevel(c.id)]).sort((a, b) => b[1] - a[1]).map((x) => x[0]);
     const rank = order.indexOf(t[0].id) + 1;

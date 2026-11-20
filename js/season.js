@@ -128,6 +128,7 @@
   /** Записати результат матчу: рахунок, голи, статистику гравців, картки й дискваліфікації. */
   function record(S, f, m) {
     f.s = m.score.slice();
+    if (m.ownGoals && (m.ownGoals[0] || m.ownGoals[1])) f.og = m.ownGoals.slice(); // автоголи — не в статистиці гравців
     if (FM.morale) FM.morale.recordRatings(m);
     f.sc = []; // [команда, автор]
     for (const r of m.ratings) {
