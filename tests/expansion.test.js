@@ -72,3 +72,19 @@ test('4. роздягальня: групи й лідери, збори впли
   FM.market.complete(W, state, leader, buyer.id, 10, 50, 3);
   if (FM.dressing.influence(W, leader) >= 55) assert.ok(FM.morale.get(mate) < m0);
 });
+
+test('5. U-21: переведення, матчі молодіжної ліги, швидший розвиток, не в заявці основи', () => {
+  require('../js/youth.js');
+  const { W, state } = fresh('Dynamo Kyiv');
+  const kids = W.squad(state.clubId).filter((p) => FM.youth.eligible(W, p)).slice(0, 9);
+  assert.ok(kids.length >= 7, 'у Динамо вистачає молоді');
+  for (const p of kids) assert.ok(FM.youth.toU21(W, state, p.id));
+  for (let w = 1; w <= 5; w++) { state.season.week = w; FM.youth.week(W, state); }
+  assert.strictEqual(state.u21Results.length, 5);
+  assert.ok(Object.values(state.u21Stats).some((s) => s[0] === 5));
+  assert.ok(FM.youth.growth(state, kids[0]) > 1);
+  const side = FM.season.sideFor(state.season, W, state.clubId, { clubId: state.clubId, reserve: FM.youth.set(state) }, null, true);
+  assert.ok(!side.players.some((p) => kids.includes(p)), 'гравців U-21 немає в заявці основи');
+  FM.youth.promote(state, kids[0].id);
+  assert.ok(!FM.youth.set(state).has(kids[0].id));
+});

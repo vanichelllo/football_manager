@@ -66,7 +66,11 @@
    * Суперники обирають ментальність за співвідношенням сил.
    */
   function sideFor(S, W, clubId, user, oppId, home) {
-    const players = W.squad(clubId);
+    let players = W.squad(clubId);
+    if (user && user.clubId === clubId && user.reserve && user.reserve.size) { // молодіжна команда — не в заявці основи
+      const first = players.filter((p) => !user.reserve.has(p.id));
+      if (first.length >= 16) players = first;
+    }
     const out = unavailable(S, clubId, W);
     const available = players.filter((p) => !out.has(p.id));
     // замало здорових — грають ті, кому лишилося лікуватися найменше (дискваліфіковані — ні)
