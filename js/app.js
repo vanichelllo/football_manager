@@ -613,6 +613,7 @@
           const sellOn = document.getElementById('bid-sellon').checked;
           const inst = Number(document.getElementById('bid-inst').value) || 0, apps = Number(document.getElementById('bid-apps').value) || 0;
           const bonus = apps ? Math.round(fee * 0.15 * 20) / 20 : 0;
+          if (!FM.budget.canSpend(W, state, fee)) { deal.msg = `Не вистачає трансферного бюджету: ${M(FM.budget.available(W, state))}. Перекиньте гроші із зарплатного бюджету («Правління» → «Бюджети») або продайте когось.`; deal.ok = false; return render(); }
           if (FM.deals.upfront(fee, inst) > me.balance) { deal.msg = `Не вистачає грошей: баланс ${M(me.balance)}${inst ? `, одразу треба ${M(FM.deals.upfront(fee, inst))}` : ''}.`; deal.ok = false; return render(); }
           if (buyBlocked()) { deal.msg = buyBlocked(); deal.ok = false; return render(); }
           const swapVal = swap ? W.player(swap).value * 0.85 : 0; // гравець в обмін рахується як 85% його ціни
@@ -631,12 +632,12 @@
             const opt = document.getElementById('loan-opt').checked;
             const gap = W.clubLevel(p.club) - W.clubLevel(me.id);
             if (gap > 15 + 10 * share) { deal.msg = 'Клуб не хоче віддавати гравця в настільки слабкий клуб.'; deal.ok = false; return render(); }
-            if (FM.market.loanFee(p) > me.balance) { deal.msg = 'Не вистачає грошей на оренду.'; deal.ok = false; return render(); }
+            if (FM.market.loanFee(p) > me.balance || !FM.budget.canSpend(W, state, FM.market.loanFee(p) * (document.getElementById('loan-opt').checked ? 1.25 : 1))) { deal.msg = `Не вистачає грошей на оренду (трансферний бюджет ${M(FM.budget.available(W, state))}).`; deal.ok = false; return render(); }
             if (buyBlocked()) { deal.msg = buyBlocked(); deal.ok = false; return render(); }
             if (share < 0.75 && W.clubLevel(p.club) > W.clubLevel(me.id)) { deal.msg = 'Сильніший клуб хоче, щоб ви платили щонайменше 75% зарплати.'; deal.ok = false; return render(); }
             const owner = p.club, extraFee = opt ? Math.round(FM.market.loanFee(p) * 0.25 * 100) / 100 : 0;
             FM.market.loanIn(W, state, p, me.id, share);
-            if (opt) { p.loan.option = FM.deals.optionPrice(W, p, S); me.balance = Math.round((me.balance - extraFee) * 100) / 100; W.club(owner).balance = Math.round((W.club(owner).balance + extraFee) * 100) / 100; }
+            if (opt) { p.loan.option = FM.deals.optionPrice(W, p, S); me.balance = Math.round((me.balance - extraFee) * 100) / 100; FM.budget.spend(W, state, extraFee); W.club(owner).balance = Math.round((W.club(owner).balance + extraFee) * 100) / 100; }
             FM.market.news(state, `${nameOf(p)} — в оренді у вас до кінця сезону${opt ? `, з опцією викупу за ${M(p.loan.option)}` : ''}.`);
             state.known = state.known || {}; state.known[p.id] = true;
             deal = null; saveGame(); render();
@@ -660,6 +661,7 @@
           const r = FM.market.playerResponse(W, p, me.id, wage, years, { rival: rv, clauses: { clause, goalBonus } });
           if (!r.ok) { deal.msg = r.reason; deal.ok = false; return render(); }
           const ag = FM.market.agentFee(deal.fee, wage, p);
+          if (!FM.budget.canSpend(W, state, deal.fee + ag)) { deal.msg = `Не вистачає трансферного бюджету: ${M(FM.budget.available(W, state))}, а з агентом треба ${M(deal.fee + ag)}.`; deal.ok = false; return render(); }
           if (FM.deals.upfront(deal.fee, deal.inst) + ag > me.balance) { deal.msg = `Не вистачає грошей: баланс ${M(me.balance)}, з агентом — ${M(deal.fee + ag)}.`; deal.ok = false; return render(); }
           const bill = FM.market.wageBill(W, me.id) - (deal.swap ? W.player(deal.swap).wage || 0 : 0);
           if (bill + wage > me.wageBudget) { deal.msg = `Правління не погоджує: фонд зарплат ${me.wageBudget} тис. €/тиж., уже витрачено ${bill}. Продайте когось або запропонуйте менше.`; deal.ok = false; return render(); }
@@ -668,6 +670,7 @@
           state.board.fin.transfers = Math.round((state.board.fin.transfers - now - ag) * 100) / 100;
           FM.market.complete(W, state, p, me.id, now, wage, years, { agent: ag, sellOn: deal.sellOn ? 0.15 : 0, clause: clause || null, goalBonus: goalBonus || null, swap: deal.swap });
           FM.deals.register(state, p, fromId, deal.fee, { inst: deal.inst, apps: deal.apps, bonus: deal.bonus });
+          if (deal.fee - now > 0) FM.budget.spend(W, state, deal.fee - now); // розстрочка: бюджет рахує всю суму одразу
           state.known = state.known || {}; state.known[p.id] = true;
           FM.market.news(state, `Ви підписали ${nameOf(p)}${from ? ` (${from}, ${M(deal.fee)}${deal.swap ? ' + обмін' : ''})` : ' (вільний агент)'}.`);
           deal = null; saveGame(); render();
@@ -789,6 +792,7 @@
           ...(FM.deals.debt(state) ? [el('dt', 'Борг за розстрочкою'), el('dd', FM.market.fmtM(FM.deals.debt(state)))] : []),
         ]), el('p.note', 'Дохід клубу розрахований так, щоб за стартових зарплат сезон був трохи в плюсі. Дорогі контракти з’їдають прибуток; від’ємний баланс знижує довіру.')]),
       ]),
+      budgetPanel(),
       sponsorPanel(),
       requestsPanel(),
       affiliatePanel(),
@@ -804,6 +808,43 @@
     ];
   }
 
+  let budMsg = null;
+  /** Бюджети: трансферний і зарплатний, перекидання між ними, кредит, прогноз, права на назву стадіону. */
+  function budgetPanel() {
+    const me = W.club(state.clubId), b = FM.budget.get(W, state), bill = FM.market.wageBill(W, me.id);
+    const room = Math.max(0, me.wageBudget - bill); // вільне в зарплатному
+    const minM = -FM.budget.toMln(room), maxM = Math.round(b.transfer * 100) / 100;
+    let v = 0;
+    const out = el('p.muted.bud-preview', 'Посуньте повзунок: вліво — у трансфери, вправо — у зарплати.');
+    const slider = el('input', { type: 'range', min: String(Math.min(0, minM)), max: String(Math.max(0, maxM)), step: '0.05', value: '0', 'aria-label': 'Перекинути між бюджетами', oninput: (e) => {
+      v = Number(e.target.value);
+      out.textContent = !v ? 'Без змін.' : v > 0 ? `${M(v)} з трансферного → +${FM.budget.toWeekly(v)} тис. €/тиж. у зарплатний (трансфери: ${M(b.transfer - v)}, зарплати: ${me.wageBudget + FM.budget.toWeekly(v)} тис.)`
+        : `${-FM.budget.toWeekly(v)} тис. €/тиж. із зарплатного → +${M(-v)} у трансферний (трансфери: ${M(b.transfer - v)}, зарплати: ${me.wageBudget + FM.budget.toWeekly(v)} тис.)`;
+    } });
+    const fc = FM.budget.forecast(W, state), L = state.loan && state.loan.left > 0 ? state.loan : null;
+    let loanAmt = Math.round(FM.budget.loanMax(W, state) * 100) / 100;
+    return el('div.panel.budget', [el('h3', 'Бюджети'),
+      el('div.grid', [
+        el('div', [el('small.muted', 'Трансферний бюджет'), el('p.big', M(FM.budget.available(W, state))), el('small.muted', `на старті ${M(b.start)} · витрачено ${M(b.spent)} · з продажів +${M(b.earned)} (75% виручки)`)]),
+        el('div', [el('small.muted', 'Зарплатний бюджет'), el('p.big', `${me.wageBudget} тис. €/тиж.`), el('small.muted', `зайнято ${bill} · вільно ${room} тис. €/тиж.`)]),
+      ]),
+      el('div.field.bud-move', [el('b', 'Перекинути гроші між бюджетами'), el('div.bud-slider', [el('small', 'У трансфери'), slider, el('small', 'У зарплати')]), out,
+        el('button.btn', { type: 'button', onclick: () => { if (!v) return; const r = FM.budget.move(W, state, v); budMsg = r.text; if (r.ok) FM.market.news(state, r.text, 'club'); saveGame(); render(); } }, 'Застосувати')]),
+      el('p.note', '1 млн € трансферного бюджету = 19 тис. € на тиждень зарплат (річна сума). Більший зарплатний бюджет — можна платити більше новим гравцям; більший трансферний — купувати дорожчих.'),
+      budMsg ? el('p.msg-ok', budMsg) : null,
+      el('dl.facts', [
+        el('dt', 'Прогноз на кінець сезону'), el('dd', `${M(fc.end)} (${fc.weekly >= 0 ? '+' : ''}${M(fc.weekly)} на тиждень, без трансферів і призових)`),
+        el('dt', 'Кредит'), el('dd', L ? `${M(L.total - L.paid)} ще повернути · ${M(L.perWeek)}/тиж., ${L.left} тиж.` : 'немає'),
+        el('dt', 'Назва стадіону'), el('dd', me.namingSold ? `«${me.namingSold.sponsor} Арена» (продано ${me.namingSold.s})` : me.stadium || '—'),
+      ]),
+      el('div.actions', [
+        L ? el('button.btn', { type: 'button', onclick: () => { const r = FM.budget.repayLoan(W, state); budMsg = r.text; saveGame(); render(); } }, 'Погасити кредит достроково')
+          : el('span.bud-loan', [el('label', { for: 'loan-amt' }, 'Кредит, млн € '), el('input', { id: 'loan-amt', type: 'number', min: '0.1', max: String(loanAmt), step: '0.1', value: String(loanAmt), style: { width: '6rem' }, onchange: (e) => { loanAmt = Number(e.target.value) || loanAmt; } }),
+            el('button.btn', { type: 'button', title: `До ${M(FM.budget.loanMax(W, state))}, 8% за два роки`, onclick: () => { const r = FM.budget.takeLoan(W, state, loanAmt); budMsg = r.text; if (r.ok) FM.market.news(state, r.text, 'club'); saveGame(); render(); } }, 'Взяти')]),
+        me.namingSold ? null : el('button.btn', { type: 'button', title: 'Одноразові гроші; фанатам не сподобається', onclick: () => { const r = FM.budget.sellNaming(W, state); budMsg = r.text; if (r.ok) FM.market.news(state, r.text, 'club'); saveGame(); render(); } }, `Продати права на назву стадіону (${M(FM.budget.naming(W, state))})`),
+      ]),
+    ]);
+  }
   let reqMsg = null, affCands = null;
   /** Прохання до правління: одне кожного виду на сезон. */
   function requestsPanel() {
@@ -1264,8 +1305,9 @@
       el('header', [el('h1', 'Трансфери'), el('span.muted', open ? 'Трансферне вікно відкрите' : `Вікно закрите · ${nw != null ? `відкриється на ${nw + 1}-му тижні` : 'наступне — влітку'}`)]),
       el('div.grid', [
         el('div.panel', [el('h3', 'Фінанси'), el('dl.facts', [
+          el('dt', 'Трансферний бюджет'), el('dd', el('b', M(FM.budget.available(W, state)))),
           el('dt', 'Баланс'), el('dd', M(me.balance)),
-          el('dt', 'Зарплати'), el('dd', `${FM.market.wageBill(W, me.id)} тис. € на тиждень`),
+          el('dt', 'Зарплати'), el('dd', `${FM.market.wageBill(W, me.id)} з ${me.wageBudget} тис. € на тиждень`),
           el('dt', 'Гравців'), el('dd', me.players.length),
         ])]),
         el('div.panel', [el('h3', 'Пропозиції за ваших гравців'), offers.length ? el('ul.plist', offers.map((o) => el('li', [
@@ -2739,6 +2781,7 @@
     for (const t of FM.routine.delegateWeek(W, state)) FM.market.news(state, t);
     for (const t of FM.boardroom.promisesWeek(W, state)) FM.market.news(state, t, 'club');
     for (const t of FM.deals.week(W, state)) FM.market.news(state, t, 'transfers');
+    const ln = FM.budget.loanWeek(W, state); if (ln) FM.market.news(state, ln, 'club');
     const fresh = FM.medical.restWeek(W, state, `${S.year}-${S.week - 1}`);
     if (fresh.length) FM.market.news(state, `Після тижня відпочинку повністю свіжі: ${fresh.map(nameOf).join(', ')}.`, 'players');
     // міжнародне вікно, що минуло: хто їздив у збірні
@@ -3308,14 +3351,14 @@
       },
       needs: () => {
         if (!pl.needRoles.length) return [el('p.small', 'На всіх позиціях вистачає гравців потрібного рівня. Можна шукати підсилення, але це не обов’язково.')];
-        const budget = Math.max(0, me.balance || 0);
+        const budget = FM.budget ? FM.budget.available(W, state) : Math.max(0, me.balance || 0);
         const cap = [60, 25, 10, 3, 1].find((v) => v <= budget * 0.6) || 1, poor = budget * 0.6 < 1;
         return [el('ul.plist.plan-list', pl.needRoles.map((role) => {
           const n = r.needs.find((x) => x.role === role);
           const ok = FM.plan.isDone(W, state, { ...pl, done: {}, needRoles: [role] }, 'needs');
           return el('li', [el('span', [ok ? '✓ ' : '', el('b', FM.ROLE_NAME[role]), el('small.muted', n ? ` · ${n.thin ? `є ${n.have} з потрібних ${n.need}` : ''}${n.thin && n.weak ? '; ' : ''}${n.weak ? 'основа слабша за решту команди' : ''}` : ' · закрито')]),
             el('button.btn', { type: 'button', onclick: () => { Object.assign(tf, { role, league: 'all', maxAge: 31, maxPrice: cap, sort: 'ca' }); go('transfers'); } }, 'Шукати')]);
-        })), el('p.small.muted', `Пошук відкриється з фільтром за позицією й ціною до ${M(cap)} (баланс ${M(budget)}).${poor ? ' Грошей мало — шукайте дешевих або беріть в оренду (кнопка в картці гравця).' : ''} Крок виконано, коли на кожну позицію є гравець у шортлисті або купівля.`)];
+        })), el('p.small.muted', `Пошук відкриється з фільтром за позицією й ціною до ${M(cap)} (трансферний бюджет ${M(budget)}).${poor ? ' Грошей мало — шукайте дешевих або беріть в оренду (кнопка в картці гравця).' : ''} Крок виконано, коли на кожну позицію є гравець у шортлисті або купівля.`)];
       },
       surplus: () => {
         const left = pl.surplusIds.map((id) => W.player(id)).filter((p) => p && p.club === state.clubId && !p.listed && !p.loan);

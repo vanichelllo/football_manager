@@ -188,6 +188,11 @@
     if (from && from === state.clubId && buyerId !== state.clubId && FM.dressing) { const t = FM.dressing.onSale(W, state, p); if (t) news(state, t, 'players'); }
     const buyer = W.club(buyerId);
     buyer.balance = Math.round((buyer.balance - fee - (extra.agent || 0)) * 100) / 100;
+    // трансферний бюджет людини (js/budget.js): купівля — витрата, продаж — 75% повертається в бюджет
+    if (FM.budget && state.clubId) {
+      if (buyerId === state.clubId) FM.budget.spend(W, state, fee + (extra.agent || 0));
+      else if (from === state.clubId && fee > 0) FM.budget.earn(W, state, fee);
+    }
     if (from) {
       let toSeller = fee;
       if (p.sellOn && fee > 0) { // відсоток з наступного продажу — попередньому клубу
@@ -224,6 +229,7 @@
     const fee = loanFee(p);
     W.club(toClub).balance = Math.round((W.club(toClub).balance - fee) * 100) / 100;
     W.club(p.club).balance = Math.round((W.club(p.club).balance + fee) * 100) / 100;
+    if (FM.budget && toClub === state.clubId) FM.budget.spend(W, state, fee);
     p.loan = { from: p.club, to: toClub, share, until: state.season.year };
     loanReset(W);
     W.move(p.id, toClub);
