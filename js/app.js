@@ -1919,8 +1919,13 @@
     const pct = (v) => v + '%';
     const f2 = (v) => String(v).replace('.', ',');
 
-    const drawSpeed = () => speedBtns.replaceChildren(
-      el('button', { type: 'button', disabled: finished || null, 'aria-pressed': String(paused), onclick: () => { if (preTalk === 'ask') preTalk = 'done'; paused = !paused; drawSpeed(); drawControl(); } }, paused ? 'Продовжити' : 'Пауза'),
+    // пауза — одна на всю трансляцію, кнопок кілька: угорі, біля стрічки подій і в панелі тренера
+    const feedPause = el('span.feed-pause');
+    const togglePause = () => { if (preTalk === 'ask') preTalk = 'done'; paused = !paused; drawSpeed(); drawControl(); };
+    const pauseButton = (cls = '') => el('button.btn.tiny-btn.pause-btn' + cls, { type: 'button', disabled: finished || null, 'aria-pressed': String(paused),
+      onclick: (e) => { e.preventDefault(); e.stopPropagation(); togglePause(); } }, paused ? '▶ Продовжити' : '⏸ Пауза');
+    const drawSpeed = () => { feedPause.replaceChildren(...(finished ? [] : [pauseButton()])); speedBtns.replaceChildren(
+      el('button', { type: 'button', disabled: finished || null, 'aria-pressed': String(paused), onclick: () => togglePause() }, paused ? 'Продовжити' : 'Пауза'),
       el('label.speed', [el('span.muted', 'Швидкість '), el('select', { 'aria-label': 'Швидкість трансляції', disabled: finished || null, onchange: (e) => { setSpeed(e.target.value === 'key' ? 'key' : Number(e.target.value)); paused = false; drawSpeed(); } },
         SPEEDS.map(([v, label, hint]) => el('option', { value: String(v), selected: String(liveSpeed) === String(v) || null }, `${label} (${hint})`)))]),
       el('label.speed', [el('span.muted', 'Моменти '), el('select', { 'aria-label': 'Виділення моментів', disabled: finished || null, onchange: (e) => { setHl(e.target.value); drawSpeed(); } },
@@ -1929,7 +1934,7 @@
       el('button', { type: 'button', 'aria-pressed': String(FM.sound.on), title: 'Свисток, трибуни, гол (звук синтезується в браузері)', onclick: () => {
         FM.sound.set(!FM.sound.on); if (FM.sound.on) { FM.sound.whistle(1); FM.sound.ambient(!finished); } drawSpeed();
       } }, FM.sound.on ? '🔊 Звук' : '🔇 Звук'),
-    );
+    ); };
 
     function flush() {
       while (shown < M.events.length) {
@@ -2031,7 +2036,7 @@
         onclick: () => { const r = M.shout(myK, k); shoutMsg = r ? r.text : null; flush(); drawControl(); },
       }, d.label))), el('small.muted', act ? `Діє «${FM.match.SHOUTS[act.kind].label}» — ще ${Math.max(0, act.until - M.minuteNum)} хв.` : shoutMsg || 'Вигук діє 10 хвилин. Наведіть, щоб побачити ефект.')]);
       put(control,
-        el('h3', paused ? 'Пауза — рішення тренера' : 'Рішення тренера'),
+        el('div.control-head', [el('h3', paused ? 'Пауза — рішення тренера' : 'Рішення тренера'), pauseButton()]),
         reacts,
         report,
         talk,
@@ -2134,7 +2139,7 @@
       el('div.live-controls', speedBtns),
       hlBar,
       el('div.live-grid', [
-        el('details.panel.feed-box', { open: true }, [el('summary', 'Стрічка подій'), el('div.feed-wrap', feed)]),
+        el('details.panel.feed-box', { open: true }, [el('summary', [el('span', 'Стрічка подій'), feedPause]), el('div.feed-wrap', feed)]),
         el('div.live-side', [el('div.panel', [el('h3', 'Статистика наживо'), miniPitch, statsBox]), control]),
       ]),
       after,
