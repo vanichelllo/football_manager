@@ -73,7 +73,7 @@ test('розмови й обіцянки: виконана — настрій в
   const { W, state } = fresh('Dynamo Kyiv');
   const S = state.season;
   const sq = W.squad(state.clubId).sort((a, b) => b.ca - a.ca);
-  const bench = sq[18];
+  const bench = sq.slice(11).find((p) => FM.morale.status(W, p) !== 'youth' && FM.morale.status(W, p) !== 'key'); // дорослий запасний (молодь не просить продажу)
   const opts = FM.career.talkOptions(W, state, bench).map((o) => o.kind);
   assert.ok(opts.includes('time') && !opts.includes('sign'));
   const m0 = FM.morale.get(bench);
@@ -86,7 +86,7 @@ test('розмови й обіцянки: виконана — настрій в
   assert.ok(news.some((t) => t.includes('не дотримали')));
   assert.ok(bench.wantsOut);
   // інший гравець — дали зіграти 3 матчі
-  const other = sq[17];
+  const other = sq.slice(11).filter((p) => p !== bench && FM.morale.status(W, p) !== 'key')[1];
   S.week = 0;
   FM.career.talk(W, state, other, 'time');
   S.ps[other.id] = [(S.ps[other.id] || [0])[0] + 3, 0, 0, 0, 0, 0];

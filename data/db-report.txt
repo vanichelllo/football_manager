@@ -4,8 +4,6 @@ Polissya Zhytomyr: 1 гравців указано й в іншому клубі
 Celta Fortuna: 1 гравців указано й в іншому клубі — лишено там
 Heerenveen: 1 гравців указано й в іншому клубі — лишено там
 Wieczysta Kraków: 1 гравців указано й в іншому клубі — лишено там
-Brentford: без дати народження — Jannik Schuster
-Coventry City: без дати народження — Sidiki Cherif
 Fulham: без статті — Alex Borto
 Newcastle United: без статті — Aidan Harris
 Alavés: без статті — Izei Hernández
@@ -20,33 +18,22 @@ Athletic Bilbao: без статті — Íñigo Lafuente
 Athletic Bilbao: без статті — Íñaki Fontás
 Athletic Bilbao: без статті — Ibai Estebaranz
 Athletic Bilbao: без статті — Aingeru Aguirregomezcorta
-Levante: без дати народження — Axel Tape
-Real Sociedad: без дати народження — Orri Óskarsson
-Sevilla: без дати народження — Arouna Sangante
 Sevilla: без статті — Rafa Romero
 Atalanta: без статті — Thomas Pompei
-Cagliari: без дати народження — Yael Trepy
 Cagliari: без статті — Raphael Kofler
 Cagliari: без статті — Demi Akarakiri
-Cagliari: без дати народження — Paul Mendy
-Cagliari: без дати народження — Alessandro Sugamele
 Cagliari: без статті — Nicola Grandu
 Como: без статті — Lorenzo Luigi Ginelli
 Como: без статті — Federico Grilli
 Como: без статті — Cristiano De Paoli
 Como: без статті — Zebedee Kennedy
-Fiorentina: без дати народження — Federico Croci
 Fiorentina: без статті — Sulayman Jallow
 Fiorentina: без статті — Brando Mazzeo
 Fiorentina: без статті — Antonio Pirrò
-Frosinone: без дати народження — Anthony Oyono
-Genoa: без дати народження — Tommaso Baldanzi
-Genoa: без дати народження — Samuel Wiafe
 Genoa: без статті — Lukas Klišys
 Genoa: без статті — Mamedi Doucouré
 Genoa: без статті — Marcelo Vaz
 Genoa: без статті — Rendijs Mihelsons
-Lazio: без дати народження — Matteo Cancellieri
 Lazio: без статті — Davide Renzetti
 Lazio: без статті — Federico Serra
 Lazio: без статті — Valerio Farcomeni
@@ -55,48 +42,37 @@ Lazio: без статті — Leonardo Di Tommaso
 Lecce: без статті — Plamen Penev
 Lecce: без статті — Hjalte Lærke
 Lecce: без статті — Marlon Ubani
-Lecce: без дати народження — Oumar Ngom
 Lecce: без статті — Niko Kovač
 Lecce: без статті — Vernon Addo
 Lecce: без статті — Christian Lupo
-AC Milan: без дати народження — Filippo Terracciano
 Napoli: без статті — Claudio Pugliese
-Napoli: без дати народження — Vanja Milinković-Savić
 Napoli: без статті — Milton Pereyra
 Napoli: без статті — Andrea Chiummariello
 Napoli: без статті — Mykyta Melnyk
 Napoli: без статті — Claudio Lieto
 Napoli: без статті — David Spinelli
 Parma: без статті — Alessandro Mazzocchi
-Roma: без дати народження — Emanuele Lulli
 Roma: без статті — Levente Kilvinger
 Roma: без статті — Valerio Maccaroni
 Roma: без статті — Lorenzo Paratici
 Roma: без статті — Mandjou Camara
 Sassuolo: без статті — Lorenzo Nyarko
 Sassuolo: без статті — Giorgio Vezzosi
-Sassuolo: без дати народження — Darryl Bakola
 Torino: без статті — Lapo Siviero
-Torino: без дати народження — Alessio Cacciamani
 Torino: без статті — Andrea Luongo
 Torino: без статті — Manuel Carrascosa
 Torino: без статті — Zalán Kugyela
-Udinese: без дати народження — Nicolò Bertola
 Udinese: без статті — Giulio Vinciati
 Venezia: без статті — Alessio Pozzi
 Venezia: без статті — Lorenzo Berardi
-FC Augsburg: без дати народження — Anton Kade
 FC Augsburg: без статті — Tom Wisbereit
 Union Berlin: без статті — Andrik Markgraf
 Union Berlin: без статті — Julien Friedrich
 Werder Bremen: без статті — Darwin Soylu
 Werder Bremen: без статті — Luca Höcker
 Werder Bremen: без статті — Mats Heitmann
-Borussia Dortmund: без дати народження — Enzo dos Santos
 SV Elversberg: без статті — Luis Seifert
-SV Elversberg: без дати народження — Noah Darvich
 SV Elversberg: без статті — Elias Etringer
-Eintracht Frankfurt: без дати народження — Niko Iličević
 Eintracht Frankfurt: без статті — Amil Šiljević
 SC Freiburg: без статті — Rouven Tarnutzer
 Hamburger SV: без статті — Joel Agyekum
@@ -110,8 +86,6 @@ TSG Hoffenheim: без статті — Luca Philipp
 1. FC Köln: без статті — David Fürst
 RB Leipzig: без статті — Benno Kaltefleiter
 Mainz 05: без статті — Maximilian Kinzig
-Borussia Mönchengladbach: без дати народження — Fritz Fleck
-Borussia Mönchengladbach: без дати народження — Mathieu Nguefack
 Borussia Mönchengladbach: без статті — Josiah Uwakhonye
 SC Paderborn: без статті — Clemens Lippmann
 SC Paderborn: без статті — Florian Pruhs
@@ -120,13 +94,9 @@ SC Paderborn: без статті — Timur Gayret
 SC Paderborn: без статті — Tristan Zobel
 Schalke 04: без статті — Johannes Siebeking
 Schalke 04: без статті — Luca Vozar
-VfB Stuttgart: без дати народження — Justin Diehl
 VfB Stuttgart: без статті — Ertuğrul Yiğit
-Angers: без дати народження — Maël Gernigon
 Angers: без статті — Bané Diatta
 Angers: без статті — Jules Bouffandeau
-Auxerre: без дати народження — Kévin Danois
-Auxerre: без дати народження — Lamine Sy
 Auxerre: без статті — Rayan Mandengue
 Auxerre: без статті — Lamfia Dioubaté
 Auxerre: без статті — Elikya Legros
@@ -136,28 +106,18 @@ Brest: без статті — Noé Poillion
 Brest: без статті — Mathis Lainé
 Brest: без статті — Romain Cagnon
 Le Havre: без статті — Guy-Noël Zohouri
-Le Havre: без дати народження — Simon Ebonog
-Le Havre: без дати народження — Paul Argney
-Le Havre: без дати народження — Élysée Logbo
 Le Mans: без статті — Augustin Delbecque
-Lens: без дати народження — Mezian Mesloub
 Lens: без статті — Ilan Jourdren
 Lorient: без статті — Daniel Semedo
-Lorient: без дати народження — Mamadou Koné
 Marseille: без статті — Théo Vermot
-Monaco: без дати народження — Stanis Idumbo
 Monaco: без статті — Jules Stawiecki
 Monaco: без статті — Aymen Assab
 Monaco: без статті — Oumar Konaté
-Monaco: без дати народження — Samuel Nibombé
-Monaco: без дати народження — Anis Soubeir
 Monaco: без статті — Safouane Benzahra
 Nice: без статті — Nassim Laarej
-Nice: без дати народження — Xavier Mandza
 Nice: без статті — Martin Ponsot
 Paris FC: без статті — Emmanuel Mbemba
 Rennes: без статті — Kilian Belazzoug
-Rennes: без дати народження — Ayanda Sishuba
 Strasbourg: без статті — Ghianny Kodia
 Toulouse: без статті — Aymen Amaaouch
 Troyes: без статті — Noah Donkor
@@ -170,7 +130,6 @@ Troyes: без статті — Enisio Carneiro
 Bukovyna Chernivtsi: без статті — Fedir Babak
 Bukovyna Chernivtsi: без статті — Arseniy Kilyevyi
 Bukovyna Chernivtsi: без статті — Mor Talla
-Chornomorets Odesa: без дати народження — Kiril Popov
 Chornomorets Odesa: без статті — Nikita Stepovyi
 Chornomorets Odesa: без статті — Stanislav Yarmola
 Chornomorets Odesa: без статті — Timerlan Hryhorchuk
@@ -216,7 +175,6 @@ Kryvbas Kryvyi Rih: без статті — Volodymyr Vilivald
 Kryvbas Kryvyi Rih: без статті — Vyacheslav Kulbachuk
 Kryvbas Kryvyi Rih: без статті — Yaroslav Shevchenko
 Kryvbas Kryvyi Rih: без статті — Shakeone Satchwell
-Kryvbas Kryvyi Rih: без дати народження — Assane Seck
 Kryvbas Kryvyi Rih: без статті — Joseph Jones
 Kryvbas Kryvyi Rih: без статті — Thiago Borges
 Kryvbas Kryvyi Rih: без статті — Bar Lin
@@ -268,7 +226,6 @@ Polissya Zhytomyr: без статті — Borel Tomandzoto
 Polissya Zhytomyr: без статті — Yaroslav Karaman
 Polissya Zhytomyr: без статті — Nazar Makarenko
 Shakhtar Donetsk: без статті — Denys Tvardovskyi
-Shakhtar Donetsk: без дати народження — Ryan Roberto
 Shakhtar Donetsk: без статті — Tymur Puzankov
 Veres Rivne: без статті — Pavlo Stefanyuk
 Veres Rivne: без статті — Pavlo Bahriy
@@ -292,7 +249,6 @@ Zorya Luhansk: без статті — Ítalo Henrique
 Zorya Luhansk: без статті — Artem Serdyuk
 Birmingham City: без статті — Brad Mayo
 Birmingham City: без статті — Cobi Maddox
-Bristol City: без дати народження — Noah Eile
 Bristol City: без статті — Daniel Ezendu
 Cardiff City: без статті — Paul Moreno
 Derby County: без статті — Charlie Smith
@@ -301,20 +257,14 @@ Lincoln City: без статті — Charlie Parks
 Norwich City: без статті — Caleb Ansen
 Preston North End: без статті — George Gryba
 Preston North End: без статті — Ed Nolan
-Queens Park Rangers: без дати народження — Amadou Mbengue
 Queens Park Rangers: без статті — Matteo Salamon
 Sheffield United: без статті — Tommy Betts
 Sheffield United: без статті — Benjamin Grainger
-Watford: без дати народження — Edoardo Bove
-West Bromwich Albion: без дати народження — Brayann Pereira
-Wolverhampton Wanderers: без дати народження — Rodrigo Gomes
 Wrexham: без статті — Samuel Chesworth
-Andorra: без дати народження — Nacho Quintana
 Andorra: без статті — Tiago Olmedo
 Cádiz: без статті — Rubén Domínguez
 Castellón: без статті — Sergi Torner
 Celta Fortuna: без статті — Marcos González
-Leganés: без дати народження — Yassine Kechta
 Real Sociedad B: без статті — Theo Folgado
 Arezzo: без статті — Luca Trombini
 Arezzo: без статті — Alessandro Renzi
@@ -329,15 +279,12 @@ Arezzo: без статті — Gennaro Iaccarino
 Ascoli: без статті — Samuele Vitale
 Ascoli: без статті — Giovanni Corradini
 Ascoli: без статті — Rocco Dente
-Ascoli: без дати народження — Simone D'Uffizi
 Ascoli: без статті — Luca Lo Scalzo
 Ascoli: без статті — Manuel Alagna
 Ascoli: без статті — Rok Bržan
 Ascoli: без статті — Davide Barosi
 Ascoli: без статті — Matteo Raffaelli
-Avellino: без дати народження — Filippo Missori
 Avellino: без статті — Alessandro Di Bitonto
-Avellino: без дати народження — Giacomo Faticanti
 Avellino: без статті — Jacopo Sassi
 Avellino: без статті — Emanuele Adamo
 Avellino: без статті — Sebastiano Di Paolo
@@ -379,7 +326,6 @@ Catanzaro: без статті — Gabriel Arditi
 Catanzaro: без статті — Edoardo Borrelli
 Cesena: без статті — Luca Schirone
 Cesena: без статті — Matteo Francesconi
-Cesena: без дати народження — Riccardo Pagano
 Cesena: без статті — Matteo Guidi
 Cesena: без статті — Matteo Casadei
 Cesena: без статті — Marco Dalla Vecchia
@@ -389,7 +335,6 @@ Cesena: без статті — Antonio Fiori
 Cesena: без статті — Tommaso Mazzi
 Cesena: без статті — Alessandro Debenedetti
 Cremonese: без статті — Simone Lottici Tessadri
-Cremonese: без дати народження — Tommaso Berti
 Cremonese: без статті — Adrian Lickūnas
 Cremonese: без статті — Yuri Rocchetti
 Cremonese: без статті — Federico Agazzi
@@ -398,15 +343,12 @@ Empoli: без статті — Jacopo Seghetti
 Empoli: без статті — Emiliano Filippis
 Empoli: без статті — Salvatore Monaco
 Empoli: без статті — Gabriele Indragoli
-Empoli: без дати народження — Matteo Egan
-Empoli: без дати народження — Edoardo Biondini
 Empoli: без статті — Roberto Berizzi
 Empoli: без статті — Lapo Deli
 Empoli: без статті — Andrea Orlandi
 Hellas Verona: без статті — Leorat Bega
 Hellas Verona: без статті — Giacomo Toniolo
 Hellas Verona: без статті — Noé Maël Tagne
-Hellas Verona: без дати народження — Salvatore Cerbone
 Hellas Verona: без статті — Nicolò Calabrese
 Hellas Verona: без статті — Ruben Akalé
 Hellas Verona: без статті — Davide De Battisti
@@ -440,7 +382,6 @@ Mantova: без статті — Yassin Banna
 Mantova: без статті — Federico Chinetti
 Mantova: без статті — Filippo Vesentini
 Modena: без статті — Andrea Maran
-Modena: без дати народження — Tito Fabbri
 Modena: без статті — Martino Odero
 Modena: без статті — Joris Manquant
 Modena: без статті — Leonardo Consiglio
@@ -450,7 +391,6 @@ Modena: без статті — Luca Bacchin
 Modena: без статті — Wisdom Acquah
 Modena: без статті — Diego Ronco
 Modena: без статті — Treasure Egharevba
-Modena: без дати народження — Giacomo Olzer
 Modena: без статті — Pietro Arnaboldi
 Modena: без статті — Daniel Tonoli
 Padova: без статті — Giovanni Giunti
@@ -459,33 +399,23 @@ Padova: без статті — Alessandro Seghetti
 Padova: без статті — Simone Scaglia
 Padova: без статті — Alessandro Capelli
 Padova: без статті — Enrico Silletti
-Padova: без дати народження — Matteo Cocchi
-Padova: без дати народження — Christian Pastina
 Padova: без статті — Carlo Faedo
 Padova: без статті — Diego Marcolini
-Palermo: без дати народження — Dominic Vavassori
 Palermo: без статті — Manfredi Nespola
-Palermo: без дати народження — Mattia Fortin
-Palermo: без дати народження — Patryk Peda
 Palermo: без статті — Andrea Bozzolan
 Pisa: без статті — Andrea Primasso
-Pisa: без дати народження — Emanuele Rao
 Pisa: без статті — Tommaso Marras
 Pisa: без статті — Omar Correia
-Pisa: без дати народження — Mateus Lusuardi
 Pisa: без статті — Simone Zanon
-Sampdoria: без дати народження — Mattia Viti
 Sampdoria: без статті — Andrey Krastev
 Sampdoria: без статті — Francesco Conti
 Sampdoria: без статті — Karim Diop
-Südtirol: без дати народження — Fabio Rispoli
 Südtirol: без статті — Rok Vadjunec
 Südtirol: без статті — Mattia Pellini
 Südtirol: без статті — Federico Davi
 Südtirol: без статті — Andrea Giorgini
 Südtirol: без статті — Elias Schrott
 Vicenza: без статті — Giulio Pellizzari
-Vicenza: без дати народження — Thomas Sandon
 Vicenza: без статті — Lorenzo Caferri
 Vicenza: без статті — Matteo Vescovi
 Vicenza: без статті — Raul Talarico
@@ -526,7 +456,6 @@ VfL Bochum: без статті — Hugo Rölleke
 VfL Bochum: без статті — Lasse Isbruch
 Eintracht Braunschweig: без статті — Yann Sturm
 Eintracht Braunschweig: без статті — Max Marie
-Eintracht Braunschweig: без дати народження — Sanoussy Ba
 Eintracht Braunschweig: без статті — Tristan Wagner
 Eintracht Braunschweig: без статті — Nick Bodon
 Eintracht Braunschweig: без статті — Damjan Kovacevic
@@ -541,14 +470,12 @@ Energie Cottbus: без статті — Jannis Zaydan
 Energie Cottbus: без статті — Aaron Reschke
 Energie Cottbus: без статті — Joey Taubeneck
 Darmstadt 98: без статті — Benedikt Börner
-Darmstadt 98: без дати народження — Max Pfister
 Darmstadt 98: без статті — Milian Herbst
 Darmstadt 98: без статті — Manolo Merx
 Dynamo Dresden: без статті — Kaan İnanoğlu
 Dynamo Dresden: без статті — Till Neininger
 Dynamo Dresden: без статті — Elias Bethke
 Dynamo Dresden: без статті — Friedrich Müller
-Greuther Fürth: без дати народження — Florian Hellstern
 Greuther Fürth: без статті — Maxim Dal
 Greuther Fürth: без статті — Benjamin Zank
 Greuther Fürth: без статті — Loris Giandomenico
@@ -557,7 +484,6 @@ Greuther Fürth: без статті — Christian Ortag
 Greuther Fürth: без статті — Omar Sillah
 Greuther Fürth: без статті — Silas Prüfrock
 Greuther Fürth: без статті — Mehmet Avlayici
-Hannover 96: без дати народження — Waniss Taïbi
 Hannover 96: без статті — Karl Steinmann
 Hannover 96: без статті — Noah Engelbreth
 Hannover 96: без статті — Yunus Ünal
@@ -577,10 +503,8 @@ Hannover 96: без статті — Merlin Sinanović
 1. FC Kaiserslautern: без статті — Kelven Frees
 1. FC Kaiserslautern: без статті — Yannick Onohiol
 1. FC Kaiserslautern: без статті — Enis Kamga
-1. FC Kaiserslautern: без дати народження — David Schramm
 1. FC Kaiserslautern: без статті — Erik Müller
 1. FC Kaiserslautern: без статті — Owen Gibs
-1. FC Kaiserslautern: без дати народження — Dion Hofmeister
 1. FC Kaiserslautern: без статті — Kian Scheer
 1. FC Kaiserslautern: без статті — Ben Jungfleisch
 Karlsruher SC: без статті — Kevin Wiethaup
@@ -606,7 +530,6 @@ Holstein Kiel: без статті — Ben Schmit
 1. FC Magdeburg: без статті — Robert Kampa
 1. FC Nürnberg: без статті — Robin Lisewski
 1. FC Nürnberg: без статті — Andrea Ceresoli
-1. FC Nürnberg: без дати народження — Marko Soldić
 1. FC Nürnberg: без статті — Rafael Lubach
 1. FC Nürnberg: без статті — Can Moustfa
 1. FC Nürnberg: без статті — Tim Janisch
@@ -644,7 +567,6 @@ Boulogne: без статті — Jonathan Kapenga
 Boulogne: без статті — Aymane Nassiri
 Boulogne: без статті — Martin Lecolier
 Boulogne: без статті — Abdel Hbouch
-Boulogne: без дати народження — Noah Fatar
 Boulogne: без статті — Joffrey Bultel
 Boulogne: без статті — Benjamin Bešić
 Boulogne: без статті — Nolan Binet
@@ -661,7 +583,6 @@ Boulogne: без статті — Théo Epailly
 Clermont: без статті — Ethan Kena Kabeya
 Clermont: без статті — Jean Grillot
 Clermont: без статті — El Hadj Koné
-Clermont: без дати народження — Luís Semedo
 Clermont: без статті — Julien Astic
 Clermont: без статті — Ousmane Diop
 Clermont: без статті — Noam Strotz
@@ -704,7 +625,6 @@ Dunkerque: без статті — Alex Daho
 Dunkerque: без статті — Enzo Mayilla
 Grenoble: без статті — Arthur Lallias
 Grenoble: без статті — Nesta Zahui
-Grenoble: без дати народження — Matthéo Xantippe
 Grenoble: без статті — Zé Leite
 Grenoble: без статті — Mohamed Bechikh
 Grenoble: без статті — Aurélien Pelon
@@ -739,12 +659,10 @@ Laval: без статті — Mathys Houdayer
 Laval: без статті — Yanis Court
 Laval: без статті — Layousse Samb
 Metz: без статті — Vincent Gomis
-Metz: без дати народження — Nathan Mbala
 Metz: без статті — Abdoulaye Nassoko
 Metz: без статті — Alassane Sy
 Metz: без статті — Tahirys dos Santos
 Metz: без статті — Adam Marchal
-Metz: без дати народження — Abdourahmane Mbodj
 Metz: без статті — Bryan Song
 Metz: без статті — Abdoulaye Agne-Ba
 Montpellier: без статті — Oscar Etoundi
@@ -755,7 +673,6 @@ Montpellier: без статті — Jérémy Hatchi
 Montpellier: без статті — Kevin Kamdem
 Montpellier: без статті — Grégory Ayem
 Nancy: без статті — Héliohdino Tavares
-Nancy: без дати народження — Nehemiah Fernandez
 Nancy: без статті — Kouroufia Kébé
 Nancy: без статті — Zakaria Fdaouch
 Nancy: без статті — Walid Bouabdeli
@@ -780,11 +697,9 @@ Pau: без статті — Maxime Adam
 Pau: без статті — Rony Mimb Baheng
 Pau: без статті — Abdoulaye Mbaye
 Red Star: без статті — Yanis Benchaouch
-Red Star: без дати народження — Elyaz Zidane
 Red Star: без статті — Ilija Despotovic
 Red Star: без статті — Sékou Guindo
 Red Star: без статті — Idrissa Sabaly
-Red Star: без дати народження — Leonardo Buta
 Red Star: без статті — Cheick Konaté
 Red Star: без статті — Côme Bianay Balcot
 Reims: без статті — John Otomewo
@@ -1010,7 +925,6 @@ Académico de Viseu: без статті — Lorougnon Gohi
 Académico de Viseu: без статті — Tomás Silva
 Académico de Viseu: без статті — Matheus Sampaio
 Académico de Viseu: без статті — Raphael Nunes
-Alverca: без дати народження — Noah Raveyre
 Alverca: без статті — Vasco Moreira
 Alverca: без статті — Ikker Julian
 Alverca: без статті — Zakaria Kassary
@@ -1018,22 +932,17 @@ Alverca: без статті — Óscar Torrellas
 Alverca: без статті — Tiago Octávio
 Arouca: без статті — Martim Duarte
 Arouca: без статті — Park Si-hoo
-Casa Pia: без дати народження — Patrick Sequeira
 Casa Pia: без статті — Kevin Prieto
 Casa Pia: без статті — Aymen Zouin
 Casa Pia: без статті — Abdu Dafé
 Casa Pia: без статті — Ivan Mandić
-Estoril Praia: без дати народження — Martin Turk
 Estoril Praia: без статті — Diogo Dias
-Estoril Praia: без дати народження — Jordan Arnolin
 Estoril Praia: без статті — Luís Gomes
 Estrela da Amadora: без статті — Vuk Pavićević
 Estrela da Amadora: без статті — David Grilo
 Estrela da Amadora: без статті — Yang Si-Woo
-Estrela da Amadora: без дати народження — Rafa Soares
 Estrela da Amadora: без статті — Emerson Vanga
 Estrela da Amadora: без статті — Henrique Poniewas
-Estrela da Amadora: без дати народження — Santiago Serra
 Estrela da Amadora: без статті — Alisson Souza
 Estrela da Amadora: без статті — Bénito
 Famalicão: без статті — Gabriel Cabral
@@ -1052,13 +961,10 @@ Moreirense: без статті — Pedro Jesus
 Moreirense: без статті — Guilherme Liberato
 Moreirense: без статті — Afonso Vieira
 Moreirense: без статті — Yan Maranhão
-Nacional: без дати народження — Chiheb Labidi
 Nacional: без статті — Njoya Abdel
 Nacional: без статті — Kevyn
 Nacional: без статті — Deivison
 Nacional: без статті — Pablo Ruan
-Porto: без дати народження — João Costa
-Porto: без дати народження — João Afonso
 Rio Ave: без статті — Tobías Medina
 Rio Ave: без статті — Caike
 Rio Ave: без статті — Antoine Wenck
@@ -1068,7 +974,6 @@ Santa Clara: без статті — Fredy
 Santa Clara: без статті — Kamika
 Santa Clara: без статті — Sorriso
 Santa Clara: без статті — Cristian
-Santa Clara: без дати народження — Vitinho
 Vitória de Guimarães: без статті — Rica Rocha
 Vitória de Guimarães: без статті — Francisco Dias
 ADO Den Haag: без статті — Sem Eekhout
@@ -1078,14 +983,7 @@ Cambuur: без статті — Wiebe van der Heide
 Cambuur: без статті — Danyello Look
 Cambuur: без статті — Jasper Meijster
 Cambuur: без статті — Matthijs Kalisvaart
-Excelsior: без дати народження — Eric da Silva Moreira
-Excelsior: без дати народження — Jan Plug
 Excelsior: без статті — Guilliano Cairo
-Feyenoord: без дати народження — Tobias van den Elshout
-Feyenoord: без дати народження — Thijs Kraaijeveld
-Feyenoord: без дати народження — Givairo Read
-Feyenoord: без дати народження — Tijme Wessels
-Feyenoord: без дати народження — Jivayno Zinhagel
 Go Ahead Eagles: без статті — Thomas Hulleman
 Go Ahead Eagles: без статті — Dani Tijman
 Go Ahead Eagles: без статті — Nando Verdoni
@@ -1098,12 +996,9 @@ NEC: без статті — Freek Entius
 NEC: без статті — Joep Geneste
 NEC: без статті — Yassin Moslih
 PSV Eindhoven: без статті — Shuryjano Cornecion
-Sparta Rotterdam: без дати народження — Isaac Babadi
-Sparta Rotterdam: без дати народження — Casper Terho
 Twente: без статті — Yannick Gerritsen
 Utrecht: без статті — Per Kloosterboer
 Utrecht: без статті — Emmanuel Chigozie Owen
-PEC Zwolle: без дати народження — Olivier Aertssen
 PEC Zwolle: без статті — Gilles van der Wal
 Fortuna Sittard: без статті — Kaylen Reitmaier
 Fortuna Sittard: без статті — Kevin van Burgsteden
@@ -1157,8 +1052,6 @@ Eyüpspor: без статті — Musa Eren Karakaş
 Eyüpspor: без статті — Christ Sadia
 Eyüpspor: без статті — Umut Keseci
 Eyüpspor: без статті — Diabel Ndoye
-Fenerbahçe: без дати народження — Amara Diouf
-Galatasaray: без дати народження — Lesley Ugochukwu
 Galatasaray: без статті — Arda Yılmaz
 Galatasaray: без статті — Enes Büyük
 Gaziantep: без статті — Ali Osman Kalın
@@ -1188,7 +1081,6 @@ Kasımpaşa: без статті — Emirhan Boz
 Kasımpaşa: без статті — Muhammed Emin Bektaş
 Kasımpaşa: без статті — Emirhan Yiğit
 Kocaelispor: без статті — Muharrem Cinan
-Kocaelispor: без дати народження — Gonçalo Sousa
 Kocaelispor: без статті — Arda Özyar
 Kocaelispor: без статті — Hulusi Destici
 Kocaelispor: без статті — Ege Bilim
@@ -1213,9 +1105,7 @@ Samsunspor: без статті — Efe Yiğit Üstün
 Samsunspor: без статті — Enes Albak
 Samsunspor: без статті — Mustafa Tan
 Samsunspor: без статті — Saikuba Jarju
-Samsunspor: без дати народження — Gabriele Guarino
 Samsunspor: без статті — Efe Berat Töruz
-Trabzonspor: без дати народження — Cihan Çanak
 Trabzonspor: без статті — Erol Can Çolak
 Trabzonspor: без статті — Ali Habeşoğlu
 Cracovia: без статті — Beno Selan
@@ -1225,7 +1115,6 @@ Cracovia: без статті — Kacper Śmiglewski
 Cracovia: без статті — Wiktor Dej
 Cracovia: без статті — Konrad Cymerys
 Cracovia: без статті — Alex Marciniak
-Cracovia: без дати народження — Mauro Perković
 Cracovia: без статті — Jakub Chrapusta
 Cracovia: без статті — Aleksander Bobek
 Cracovia: без статті — Jakub Wilczek
@@ -1329,7 +1218,6 @@ Raków Częstochowa: без статті — Tarik Karić
 Śląsk Wrocław: без статті — Dominik Szala
 Śląsk Wrocław: без статті — Irodotos Christodoulou
 Śląsk Wrocław: без статті — Luka Marjanac
-Śląsk Wrocław: без дати народження — Karol Borys
 Śląsk Wrocław: без статті — Adrian Żulewski
 Śląsk Wrocław: без статті — Hubert Śliczniak
 Śląsk Wrocław: без статті — Dorian Markowski
@@ -1343,7 +1231,6 @@ Wieczysta Kraków: без статті — Duje Dujmović
 Wieczysta Kraków: без статті — Patryk Stechnij
 Wieczysta Kraków: без статті — Tobiasz Mras
 Wisła Kraków: без статті — Rafał Mikulec
-Wisła Kraków: без дати народження — James Igbekeme
 Wisła Kraków: без статті — Maxence Maisonneuve
 Wisła Kraków: без статті — Patryk Letkiewicz
 Wisła Kraków: без статті — Karol Tokarczyk
@@ -1354,7 +1241,6 @@ Wisła Kraków: без статті — Maciej Kuziemka
 Wisła Kraków: без статті — Jakub Stępak
 Wisła Kraków: без статті — Bartosz Neugebauer
 Wisła Kraków: без статті — Wiktor Biedrzycki
-Wisła Kraków: без дати народження — Olivier Sukiennicki
 Wisła Kraków: без статті — Oumar Conté
 Wisła Kraków: без статті — Karol Dziedzic
 Wisła Płock: без статті — Krystian Pomorski
@@ -1385,4 +1271,647 @@ Zagłębie Lubin: без статті — Jakub Ligocki
 Zagłębie Lubin: без статті — Maciej Urbański
 Zagłębie Lubin: без статті — Franciszek Nowak
 Zagłębie Lubin: без статті — Cyprian Popielec
-Невідомі країни: LCA, BRB, SGP, SKN, BAN, ROM, PHL, GBS, JAP, DRC, SWI, CAF, CUR
+Anderlecht: без статті — Mattis Seghers
+Anderlecht: без статті — Kaïs Barry
+Anderlecht: без статті — Michiel Haentjens
+Antwerp: без статті — Louie Van Gelder
+Antwerp: без статті — Modibo Fofana
+Antwerp: без статті — Eran Tuypens
+Antwerp: без статті — Luca Schelfhout
+Antwerp: без статті — Jeff Godelaine
+Antwerp: без статті — Snayder Porozo
+Antwerp: без статті — Carlos Mejía
+Antwerp: без статті — Niels Devalckeneer
+Antwerp: без статті — Luis Narh
+Beveren: без статті — Maxim Deman
+Beveren: без статті — Milan De Schutter
+Beveren: без статті — Josua Lusamba
+Cercle Brugge: без статті — Yago Lincoln
+Cercle Brugge: без статті — Krys Kouassi
+Cercle Brugge: без статті — Viggo Martens
+Cercle Brugge: без статті — Sebbe Gheerardyns
+Cercle Brugge: без статті — Bas Langenbick
+Cercle Brugge: без статті — Tiemen De Bel
+Charleroi: без статті — Amine Boukamir
+Charleroi: без статті — Arthur Cremer
+Charleroi: без статті — Isaac Cissé
+Charleroi: без статті — Boubakar Dembaga
+Charleroi: без статті — Noah Solheid
+Charleroi: без статті — Massamba Sow
+Charleroi: без статті — Mory Kera
+Charleroi: без статті — Naël Piron
+Charleroi: без статті — Rafaël Teugels
+Club Brugge: без статті — Samba Coulibaly
+Club Brugge: без статті — Argus Vanden Driessche
+Genk: без статті — Christian Akpan
+Genk: без статті — Emmanuel Sarfo
+Genk: без статті — Kenan Haroun
+Genk: без статті — Emile Doucouré
+Gent: без статті — Lars Cooman
+Gent: без статті — Bas Evers
+Gent: без статті — Gilles De Meyer
+Gent: без статті — Hyllarion Goore
+Gent: без статті — Victor De Coninck
+Gent: без статті — Mamadou Diallo
+Gent: без статті — Matties Volckaert
+Kortrijk: без статті — Matthew Anderson
+Kortrijk: без статті — Ebbe De Vlaeminck
+Kortrijk: без статті — Mohamed Fofana
+Kortrijk: без статті — Rok Štorman
+Kortrijk: без статті — Axel Drouhin
+Kortrijk: без статті — Basile Vroninks
+Kortrijk: без статті — Rudy Kohon
+Kortrijk: без статті — Anthony Philips
+Kortrijk: без статті — Ken Masui
+La Louvière: без статті — Nolan Gillot
+La Louvière: без статті — Mátyás Kovács
+La Louvière: без статті — Mame Wade
+La Louvière: без статті — Timéo Kerckhofs
+La Louvière: без статті — Siad Gourville
+La Louvière: без статті — Joël Ito
+La Louvière: без статті — Patrick Nkoa
+La Louvière: без статті — Quentin Benaets
+La Louvière: без статті — Lucas Monteiro
+La Louvière: без статті — Léandro Rousseau
+La Louvière: без статті — Théo Radelet
+Lommel: без статті — Nikola Ivezić
+Lommel: без статті — Emile Vandecraen
+Lommel: без статті — Matthias Pieklak
+Lommel: без статті — Josias Lama
+Lommel: без статті — Rik Vercauteren
+Lommel: без статті — Henry Oware
+Lommel: без статті — Isaiah Dada-Mascoll
+Lommel: без статті — Niek Corthouts
+Lommel: без статті — Lars Beirinckx
+Lommel: без статті — Alexander Reumers
+Mechelen: без статті — Tijn Van Ingelgom
+Mechelen: без статті — Adeshina Adoyele
+Mechelen: без статті — Cedric Van Meirvenne
+Mechelen: без статті — Ian Struyf
+Mechelen: без статті — Malcolm Lohunanu-Mbasi
+Mechelen: без статті — Bouke Boersma
+Mechelen: без статті — Marco Decherf
+Mechelen: без статті — Axel Willockx
+Mechelen: без статті — Massimo Decoene
+Mechelen: без статті — Amine Ouahabi
+Mechelen: без статті — Mats Van Helden
+Mechelen: без статті — Yanis Asghir
+OH Leuven: без статті — Hasan Bulut
+OH Leuven: без статті — Sebastian Murru
+OH Leuven: без статті — Matteo Heremans
+OH Leuven: без статті — Marcel Van Dijck
+OH Leuven: без статті — Chike Van De Ven
+Sint-Truiden: без статті — Frédéric Soèllé Soèllé
+Sint-Truiden: без статті — Matt Lendfers
+Sint-Truiden: без статті — Ahmad Abu Rasen
+Sint-Truiden: без статті — Jeremy Mbambi
+Sint-Truiden: без статті — Illyès Benachour
+Sint-Truiden: без статті — Alouis Diriken
+Sint-Truiden: без статті — Rune Verheyden
+Standard Liège: без статті — Laurens Goemaere
+Standard Liège: без статті — Adnane Abid
+Standard Liège: без статті — Noah Sy
+Union SG: без статті — Nohim Chibani
+Union SG: без статті — Giorgi Kavlashvili
+Union SG: без статті — Ilan Hurtevent
+Union SG: без статті — Keo Boets
+Westerlo: без статті — Naoufal Bohamdi-Kamoni
+Westerlo: без статті — Jahnilo Wiegel-Triebel
+Westerlo: без статті — Emmanuel Tsimba
+Westerlo: без статті — Lucas Mbamba
+Westerlo: без статті — Michée Ndembi
+Westerlo: без статті — Philippe Bibout
+Zulte Waregem: без статті — Enrique Lofolomo
+Zulte Waregem: без статті — Thomas Claes
+Zulte Waregem: без статті — Niko Horvat
+Zulte Waregem: без статті — Mouhamadou Sall
+Zulte Waregem: без статті — Dirk Asare
+Zulte Waregem: без статті — Florian Van Bever
+Zulte Waregem: без статті — Arnaud Dobbels
+Zulte Waregem: без статті — Benoit De Jaegere
+Zulte Waregem: без статті — Franz Tangala
+Zulte Waregem: без статті — Kewan Vemba
+Zulte Waregem: без статті — Yannick Cappelle
+Zulte Waregem: без статті — Hemsley Akpa-Chukwu
+Dundee: без статті — Alfie Harrison
+Dundee United: без статті — Abdoulaye Yoro
+Dundee United: без статті — Cohen Leiper
+Dundee United: без статті — Lorenzo Sassetti
+Falkirk: без статті — Paul McGovern
+Falkirk: без статті — Conor McLeod
+Falkirk: без статті — Leo Harris
+Heart of Midlothian: без статті — Leart Kabashi
+Hibernian: без статті — Freddie Owens
+Kilmarnock: без статті — Roshaun Mathurin
+Kilmarnock: без статті — Ieuan Owen
+Motherwell: без статті — Matthew Connelly
+St Johnstone: без статті — Taylor Steven
+St Johnstone: без статті — Kyle Thomson
+St Mirren: без статті — Josh Farquhar
+St Mirren: без статті — Marcello De Barros
+St Mirren: без статті — Ryan Mullen
+St Mirren: без статті — Luke Douglas
+St Mirren: без статті — Grant Tamosevicius
+St Mirren: без статті — Carrick McEvoy
+AEK Athens: без статті — Zois Karargyris
+AEK Athens: без статті — Marios Balamotis
+A.E. Kifisia: без статті — Filippos Roberts
+A.E. Kifisia: без статті — Jon de Luis
+A.E. Kifisia: без статті — Alexandros Pothas
+A.E. Kifisia: без статті — Michalis Patiras
+A.E. Kifisia: без статті — Nektarios Kaloskamis
+A.E. Kifisia: без статті — Konstantinos Polykratis
+A.E. Kifisia: без статті — Georgios Zygouras
+A.E. Kifisia: без статті — Clément Jolibois
+A.E. Kifisia: без статті — Vangelis Manganas
+A.E. Kifisia: без статті — Lefteris Klimathianos
+A.E. Kifisia: без статті — Tiago Manso
+A.E. Kifisia: без статті — Loukas Stamellos
+Aris: без статті — Diallo Sanoussi
+Aris: без статті — Michalis Voriazidis
+Aris: без статті — Apostolos Barbopoulos
+Aris: без статті — Sarafianos Papasarafianos
+Aris: без статті — Christos Kamtsis
+Aris: без статті — Konstantinos Charoupas
+Aris: без статті — Matar Thiam
+Asteras Tripolis: без статті — Kalvin Ketu
+Asteras Tripolis: без статті — Chrysanthos Gezos
+Asteras Tripolis: без статті — Giannis Gitersos
+Asteras Tripolis: без статті — Giannis Kriaras
+Asteras Tripolis: без статті — Spyros Angelidis
+Asteras Tripolis: без статті — Dimitrios Laskaris
+Asteras Tripolis: без статті — Theofilos Kakadiaris
+Atromitos: без статті — Athanasios Karamanis
+Atromitos: без статті — Mattheos Mountes
+Atromitos: без статті — Georgios Papadopoulos
+Atromitos: без статті — Elton Hoxha
+Atromitos: без статті — Panagiotis Tsantilas
+Atromitos: без статті — Spyros Ampartzidis
+Atromitos: без статті — Petros Tsagdis
+Atromitos: без статті — Anastasios Kotsis
+Atromitos: без статті — Konstantinos Batos
+Atromitos: без статті — Vangelis Paliouras
+Iraklis: без статті — Georgios Karakasidis
+Iraklis: без статті — Orestis Tsintonis
+Iraklis: без статті — Carlos Rodríguez
+Iraklis: без статті — Nikos Anastasiadis
+Kalamata: без статті — Ben Zidane
+Kalamata: без статті — Eugene Frimpong
+Kalamata: без статті — Gonzalo Piñeiro
+Kalamata: без статті — Erik Hamza
+Kalamata: без статті — Uros Ignjatović
+Kalamata: без статті — Julián Bonetto
+Kalamata: без статті — Dimitrios Naoumis
+Kalamata: без статті — Savvas Mouzakis
+Kalamata: без статті — Pavlos Varelas
+Kalamata: без статті — Stavros Angelis
+Levadiakos: без статті — Stelios Vallindras
+Levadiakos: без статті — Jallow Lamarana
+Levadiakos: без статті — Konstantinos Goumas
+Levadiakos: без статті — Mahamadou Balde
+Levadiakos: без статті — Mohamed Ndiaye
+Levadiakos: без статті — Nikolaos Tsaras
+OFI: без статті — Manuel Kalafatis
+OFI: без статті — Konstantinos Lagoudakis
+OFI: без статті — Athanasios Sitmalidis
+OFI: без статті — Pavlos Kenourgiakis
+OFI: без статті — Emmanouil Chnaris
+Panetolikos: без статті — Michalis Pardalos
+Panetolikos: без статті — Adriano Bregou
+Panetolikos: без статті — Efthymis Papazois
+Panetolikos: без статті — Diego Esteban
+Panetolikos: без статті — Endri Goxhaj
+Panetolikos: без статті — Aristidis Albanis
+Panetolikos: без статті — David Galiatsos
+Volos: без статті — Hatim Es-Saoubi
+Volos: без статті — Matías González
+Volos: без статті — Konstantinos Lykourinos
+Volos: без статті — Alexandros Garavelas
+Volos: без статті — Athanasios Papathanasiou-Gerofokas
+Volos: без статті — Fabio Refatllari
+Artis Brno: без статті — Štěpán Harazim
+Artis Brno: без статті — Quadri Adediran
+Artis Brno: без статті — Albert Labík
+Artis Brno: без статті — El Hadji Ndiaye
+Artis Brno: без статті — Pavel Sokol
+Artis Brno: без статті — Adam Petrák
+Artis Brno: без статті — Emmanuel Fully
+Artis Brno: без статті — Danijel Kolarić
+Artis Brno: без статті — Ismael Sylla
+Artis Brno: без статті — Daniel Toula
+Artis Brno: без статті — Milan Lutonský
+Artis Brno: без статті — Ondřej Čoudek
+Artis Brno: без статті — Richard Kašík
+Artis Brno: без статті — Jiří Borek
+Artis Brno: без статті — Tadeáš Stoppen
+Artis Brno: без статті — Neil Glossoa
+Artis Brno: без статті — Karel Pojezný
+Artis Brno: без статті — Sebastian Boháč
+Artis Brno: без статті — Martin Tauš
+Bohemians 1905: без статті — Matěj Kadlec
+Bohemians 1905: без статті — Dominik Pleštil
+Bohemians 1905: без статті — Ladislav Krobot
+Bohemians 1905: без статті — Vladimír Zeman
+Bohemians 1905: без статті — Mathews Banda
+Bohemians 1905: без статті — Jakub Tichý
+Bohemians 1905: без статті — Denis Vala
+Bohemians 1905: без статті — Peter Kareem
+Bohemians 1905: без статті — Petr Mirvald
+Bohemians 1905: без статті — Vojtěch Smrž
+Bohemians 1905: без статті — Oliver Mikuda
+Bohemians 1905: без статті — Šimon Černý
+Hradec Králové: без статті — Patrik Vízek
+Hradec Králové: без статті — David Ludvíček
+Hradec Králové: без статті — Filip Mielke
+Hradec Králové: без статті — Filip Čihák
+Hradec Králové: без статті — Abdullahi Umar
+Hradec Králové: без статті — Daniel Horák
+Jablonec: без статті — Nelson Okeke
+Jablonec: без статті — Kevin-Prince Milla
+Jablonec: без статті — David Nykrín
+Jablonec: без статті — Dušan Pavlović
+Jablonec: без статті — Jiří Sláma
+Jablonec: без статті — Roman Horák
+Jablonec: без статті — Kryštof Karban
+Jablonec: без статті — Klemen Mihelak
+Slovan Liberec: без статті — Petr Hodouš
+Slovan Liberec: без статті — Milan Lexa
+Slovan Liberec: без статті — Petr Juliš
+Slovan Liberec: без статті — Jan Knapík
+Slovan Liberec: без статті — Haris Berbić
+Slovan Liberec: без статті — Patrik Dulay
+Slovan Liberec: без статті — Matěj Mikulenka
+Slovan Liberec: без статті — Vojtěch Sychra
+Slovan Liberec: без статті — Dominik Kúdelčík
+Slovan Liberec: без статті — Lukáš Pešl
+Slovan Liberec: без статті — Fallou Faye
+Slovan Liberec: без статті — Enej Marsetič
+Mladá Boleslav: без статті — Marek Obdržálek
+Mladá Boleslav: без статті — Jan Harušťák
+Mladá Boleslav: без статті — Filip Lehký
+Mladá Boleslav: без статті — Filip Špatenka
+Mladá Boleslav: без статті — Marek Havran
+Mladá Boleslav: без статті — Matěj Zachoval
+Mladá Boleslav: без статті — Adam Kadlec
+Mladá Boleslav: без статті — Filip Matoušek
+Mladá Boleslav: без статті — Filip Kolář
+Mladá Boleslav: без статті — Jan Jinoch
+Mladá Boleslav: без статті — Josef Kolářík
+Mladá Boleslav: без статті — Jan Buryán
+Mladá Boleslav: без статті — Jan Zíka
+Mladá Boleslav: без статті — Victor Ogungbayi
+Sigma Olomouc: без статті — Patrik Berka
+Sigma Olomouc: без статті — Jiří Spáčil
+Sigma Olomouc: без статті — Marko Soldo
+Sigma Olomouc: без статті — Filip Slavíček
+Sigma Olomouc: без статті — Daniel Barát
+Sigma Olomouc: без статті — David Tkáč
+Sigma Olomouc: без статті — Stéphane Noumbissie
+Sigma Olomouc: без статті — Filip Uriča
+Sigma Olomouc: без статті — Václav Zahradníček
+Sigma Olomouc: без статті — Jan Koutný
+Sigma Olomouc: без статті — Igor Brzyski
+Baník Ostrava: без статті — Aboubacar Traore
+Baník Ostrava: без статті — David Látal
+Baník Ostrava: без статті — David Planka
+Baník Ostrava: без статті — Filip Šancl
+Baník Ostrava: без статті — Vít Škrkoň
+Baník Ostrava: без статті — Martin Hrubý
+Baník Ostrava: без статті — Abdullahi Bewene
+Baník Ostrava: без статті — Jiří Míček
+Baník Ostrava: без статті — Matouš Babka
+Pardubice: без статті — Jáchym Šerák
+Pardubice: без статті — Marek Icha
+Pardubice: без статті — Daniel Smékal
+Pardubice: без статті — Jiří Zima
+Pardubice: без статті — Jan Trédl
+Pardubice: без статті — Emmanuel Godwin
+Pardubice: без статті — Tomáš Jelínek
+Pardubice: без статті — Mouhamed Traore
+Pardubice: без статті — Samuel Šimek
+Pardubice: без статті — Denis Halinský
+Pardubice: без статті — Victor Samuel
+Pardubice: без статті — Tobias Boledovič
+Pardubice: без статті — Jason Noslin
+Pardubice: без статті — Simon Bammens
+Pardubice: без статті — Vladimír Neuman
+Pardubice: без статті — Kahuan Vinicius
+Viktoria Plzeň: без статті — Jan Paluska
+Viktoria Plzeň: без статті — Stefan Pirgić
+Slavia Prague: без статті — Samuel Isife
+Slavia Prague: без статті — Pavel Kačor
+Slavia Prague: без статті — Mikuláš Konečný
+Slavia Prague: без статті — Eliáš Piták
+Slovácko: без статті — Filip Horský
+Slovácko: без статті — Gibril Sosseh
+Slovácko: без статті — Filip Hruška
+Slovácko: без статті — Jan Fiala
+Slovácko: без статті — Tomáš Král
+Slovácko: без статті — Šimon Slončík
+Slovácko: без статті — Paul Ndubuisi
+Slovácko: без статті — Leoš Prior
+Slovácko: без статті — Alexandr Urban
+Slovácko: без статті — Pavel Juroška
+Sparta Prague: без статті — Jakub Surovčík
+Sparta Prague: без статті — Ondřej Penxa
+Teplice: без статті — Luděk Němeček
+Teplice: без статті — Josef Švanda
+Teplice: без статті — Oskars Vientiess
+Teplice: без статті — Michal Bílek
+Teplice: без статті — Abdourahman Badamosi
+Teplice: без статті — Matyáš Kozák
+Teplice: без статті — Jaroslav Harušťák
+Teplice: без статті — John Auta
+Teplice: без статті — Robert Jukl
+Teplice: без статті — Artem Garzha
+Teplice: без статті — Pavel Svatek
+Teplice: без статті — Daniel Danihel
+Teplice: без статті — Matěj Náprstek
+Teplice: без статті — Kryštof Lichtenberg
+Teplice: без статті — Sebastian Pech
+Teplice: без статті — Nojus Vytis Audinis
+Teplice: без статті — Matěj Radosta
+Zbrojovka Brno: без статті — Filip Večeřa
+Zbrojovka Brno: без статті — Ondřej Prodělal
+Zbrojovka Brno: без статті — Afolabi Soliu
+Zlín: без статті — Tom Ulbrich
+Zlín: без статті — David Machalík
+Zlín: без статті — Daniel Šmiga
+Zlín: без статті — Stanislav Petruta
+Zlín: без статті — Adam Gaži
+Zlín: без статті — Zvonimir Katalinić
+Zlín: без статті — Prince Emmanuel
+Zlín: без статті — Frank Appiah
+Zlín: без статті — Michal Cupák
+Zlín: без статті — Jakub Kolář
+Zlín: без статті — Milan Knobloch
+Zlín: без статті — Ondřej Kukučka
+Zlín: без статті — Prince Mukuba
+Zlín: без статті — Tomáš Hellebrand
+Zlín: без статті — Štěpán Bachůrek
+AGF: без статті — Mouhammade Camara
+Brøndby: без статті — Lukas Larsen
+Brøndby: без статті — Viggo Poulsen
+Copenhagen: без статті — Tobias Breum-Harild
+Horsens: без статті — Valassina Diomande
+Horsens: без статті — Julius Madsen
+Horsens: без статті — Abdul Moro
+Horsens: без статті — Anestis Tricholidis
+Horsens: без статті — John Batigi
+Horsens: без статті — Fallou Sene
+Horsens: без статті — Seniko Doua
+Horsens: без статті — Anders Hoff
+Horsens: без статті — Abdoulaye Gouba
+Horsens: без статті — Omar Jarju
+Lyngby: без статті — Cornelius Allen
+Lyngby: без статті — Daníel Kristjánsson
+Lyngby: без статті — Davíd Helgi Aronsson
+Lyngby: без статті — Renzo Tytens
+Lyngby: без статті — Mikkel Fischer
+Lyngby: без статті — Jón Sölvi Símonarson
+Midtjylland: без статті — Djé Beni
+Midtjylland: без статті — Stanley Iheanacho
+Midtjylland: без статті — Alamara Djabi
+Midtjylland: без статті — Abdou Aziz Ndiaye
+Midtjylland: без статті — Mark Ugboh
+Nordsjælland: без статті — Andreas Søndenbroe
+Nordsjælland: без статті — Victor Gustafsen
+Nordsjælland: без статті — Villads Rutkjær
+Nordsjælland: без статті — Matej Tuka
+Nordsjælland: без статті — Mouekeinga Kone
+Nordsjælland: без статті — William Faber
+OB: без статті — Nikolaj Juul-Sandberg
+OB: без статті — Adam Amrani
+OB: без статті — Lasse Legolas
+OB: без статті — Marcus Eskildsen
+Randers: без статті — Mert Demirci
+Randers: без статті — Benjamin Örn
+Randers: без статті — Ousseynou Fall Seck
+Randers: без статті — Hector Lux
+Randers: без статті — Simon Stüker
+Randers: без статті — Felix Sommer
+Randers: без статті — Cyril Edudzi
+Silkeborg: без статті — Villads Westh
+Silkeborg: без статті — Kristian Kirkegaard
+Silkeborg: без статті — Bastian Holm
+Silkeborg: без статті — Malthe Hansen
+Silkeborg: без статті — Alexander Priesborg Madsen
+Silkeborg: без статті — Mikkel Øxenberg
+Silkeborg: без статті — William Kirk
+Silkeborg: без статті — William Møller
+Sønderjyske: без статті — Anders Hoeg
+Sønderjyske: без статті — Omran Khatar
+Sønderjyske: без статті — Bubacarr Tambedou
+Sønderjyske: без статті — Berkant Bayrak
+Sønderjyske: без статті — Gustav Wagner
+Sønderjyske: без статті — David Boison
+Viborg: без статті — Giulio Gabriel da Silva
+Viborg: без статті — Emil Monrad
+Austria Lustenau: без статті — Alieu Conateh
+Austria Lustenau: без статті — Dominik Weixelbraun
+Austria Lustenau: без статті — Novak Rajic
+Austria Lustenau: без статті — Precious Benjamin
+Austria Lustenau: без статті — Emmanuel Chukwu
+Austria Lustenau: без статті — Robin Voisine
+Austria Lustenau: без статті — Lord Afrifa
+Austria Lustenau: без статті — Seydou Diarra
+Austria Lustenau: без статті — Niklas Pertlwieser
+Austria Lustenau: без статті — Phillip Böhm
+Austria Lustenau: без статті — Frederic Flatz
+Austria Lustenau: без статті — Antonio Verinac
+Austria Lustenau: без статті — Melih Akbulut
+Austria Lustenau: без статті — Haris Ismailcebioglu
+Austria Wien: без статті — Jonas Feddersen
+Austria Wien: без статті — Romeo Mörth
+Austria Wien: без статті — Daniel Nnodim
+Austria Wien: без статті — Valentin Toifl
+Austria Wien: без статті — Abdoulaye Kanté
+Grazer AK: без статті — Jakob Meierhofer
+Grazer AK: без статті — Liam Hermesh
+Grazer AK: без статті — Anthony Smits
+Grazer AK: без статті — Christian Lichtenberger
+Grazer AK: без статті — Mark Grosse
+Grazer AK: без статті — Alexander Hofleitner
+Grazer AK: без статті — Yannick Oberleitner
+Grazer AK: без статті — Matthias Gragger
+Grazer AK: без статті — Petar Markovic
+TSV Hartberg: без статті — Simon Freund
+TSV Hartberg: без статті — Habib Coulibaly
+TSV Hartberg: без статті — Matthias Postl
+TSV Hartberg: без статті — Agustín Urrutia
+TSV Hartberg: без статті — Jonas Karner
+TSV Hartberg: без статті — Fabian Wilfinger
+TSV Hartberg: без статті — Paul Bratschko
+TSV Hartberg: без статті — Marco Hoffmann
+TSV Hartberg: без статті — Florian Gerstl
+TSV Hartberg: без статті — Harald Postl
+TSV Hartberg: без статті — Chilohem Onuoha
+TSV Hartberg: без статті — David Korherr
+TSV Hartberg: без статті — Nikolaus Feldhofer
+LASK: без статті — Mohamed Sanogo
+LASK: без статті — Filip Perović
+LASK: без статті — Fabian Schillinger
+LASK: без статті — Cheikne Kébé
+SK Rapid: без статті — Eaden Roka
+SK Rapid: без статті — Nicolas Bajlicz
+SK Rapid: без статті — Moulaye Haïdara
+SK Rapid: без статті — Lorenz Szladits
+SK Rapid: без статті — Amin-Elias Gröller
+SK Rapid: без статті — Laurenz Orgler
+SK Rapid: без статті — Benjamin Göschl
+SK Rapid: без статті — Dominik Vincze
+Red Bull Salzburg: без статті — Aboubacar Camara
+Red Bull Salzburg: без статті — Nikola Šarčević
+Red Bull Salzburg: без статті — Valentin Zabransky
+SCR Altach: без статті — Henrique Bell
+SCR Altach: без статті — Denizcan Cosgun
+SCR Altach: без статті — Erkin Yalcin
+SCR Altach: без статті — Jakob Brandtner
+SCR Altach: без статті — Yanis Eisschill
+SCR Altach: без статті — Salif Tietietta
+SCR Altach: без статті — Filip Milojević
+SCR Altach: без статті — Yann Massombo
+SCR Altach: без статті — Elias Scherf
+SCR Altach: без статті — Paul Piffer
+SCR Altach: без статті — Adrian Vonbrül
+SCR Altach: без статті — Rodney Elongo-Yombo
+SV Ried: без статті — Oliver Sorg
+SV Ried: без статті — Joris Boguo
+SV Ried: без статті — Fabian Rossdorfer
+SV Ried: без статті — Tobias Lund Jensen
+SV Ried: без статті — Tino Kusanović
+SV Ried: без статті — Sefiwu Abubakar
+SV Ried: без статті — Alessandro Goiginger
+SV Ried: без статті — Dominik Stöger
+SV Ried: без статті — Nermin Mesic
+SV Ried: без статті — Leonit Zeqiri
+SV Ried: без статті — Fabian Lechner
+SV Ried: без статті — Evan Eghosa Aisowieren
+SV Ried: без статті — Raphael Pesu
+SV Ried: без статті — Conrad Scholl
+SV Ried: без статті — Felix Wimmer
+Sturm Graz: без статті — Paul Koller
+Sturm Graz: без статті — Elias Lorenz
+WSG Tirol: без статті — Marc Striednig
+WSG Tirol: без статті — Alexander Eckmayr
+WSG Tirol: без статті — David Kubatta
+WSG Tirol: без статті — Mazou Bambara
+WSG Tirol: без статті — David Falkner
+WSG Tirol: без статті — David Jaunegg
+WSG Tirol: без статті — Michael Neuner
+WSG Tirol: без статті — Raphael Gschösser
+WSG Tirol: без статті — Felix Libiseller
+WSG Tirol: без статті — Julian Margreiter
+Wolfsberger: без статті — Luca Hassler
+Wolfsberger: без статті — Aaron Sky Schwarz
+Wolfsberger: без статті — Lior Gliklich
+Wolfsberger: без статті — Marco Schabauer
+Wolfsberger: без статті — Michael Schweiger
+Wolfsberger: без статті — Thorsten Schriebl
+Wolfsberger: без статті — David Skubl
+Wolfsberger: без статті — Veljko Vukojević
+Wolfsberger: без статті — Phillip Verhounig
+Wolfsberger: без статті — Fabian Wohlmuth
+Wolfsberger: без статті — Matteo Kitz
+Wolfsberger: без статті — David Đurić
+Basel: без статті — Coleen Louis
+Basel: без статті — Kaio Eduardo
+Basel: без статті — Bennett Hoch
+Basel: без статті — Renato
+Grasshopper: без статті — Marvin Hübel
+Grasshopper: без статті — Tim Meyer
+Grasshopper: без статті — Matteo Mantini
+Grasshopper: без статті — Samuel Krasniqi
+Grasshopper: без статті — Diego Ferrazza
+Grasshopper: без статті — Samuel Marques
+Grasshopper: без статті — Dominik Papic
+Grasshopper: без статті — Denis Sahin
+Grasshopper: без статті — Nico Rissi
+Grasshopper: без статті — Yannick Bettkober
+Grasshopper: без статті — Samuele Bengondo
+Grasshopper: без статті — Manex Guibelalde
+Grasshopper: без статті — Dorian Paloschi
+Lausanne-Sport: без статті — Dircssi Ngonzo
+Lausanne-Sport: без статті — Seydou Traoré
+Lausanne-Sport: без статті — Thomas Cordier
+Lausanne-Sport: без статті — Souleymane N'Diaye
+Lausanne-Sport: без статті — Ibrahim Bah Mendes
+Lausanne-Sport: без статті — Emilien Grosso
+Lugano: без статті — Damian Kelvin
+Lugano: без статті — Joel Bichsel
+Lugano: без статті — Gjan Ajdin
+Lugano: без статті — Jason Parente
+Lugano: без статті — Nicolò Puddu
+Lugano: без статті — Christian Raffa
+Lugano: без статті — Bryan Zurmühle
+Lugano: без статті — Ian Tiraboschi
+Lugano: без статті — Carbone
+Lugano: без статті — Diego Mina
+Luzern: без статті — Bung Hua Freimann
+Luzern: без статті — Nando Toggenburger
+Luzern: без статті — Sandro Wyss
+Luzern: без статті — Faveurdi Bongeli
+Luzern: без статті — Loïc Lüthi
+Luzern: без статті — Rúben Dantas Fernandes
+Luzern: без статті — Tim Hottiger
+Luzern: без статті — Levin Winkler
+Luzern: без статті — Jérôme Bieler
+Luzern: без статті — Demir Xhemalija
+Luzern: без статті — Raphael Radtke
+Luzern: без статті — Sascha Meyer
+Luzern: без статті — Erblin Sadikaj
+Luzern: без статті — Mio Zimmermann
+Servette: без статті — Jarell Simo
+Servette: без статті — Téo Allix
+Servette: без статті — Alonzo Vincent
+Servette: без статті — Thomas Lopes
+Servette: без статті — Sylvain Djoho
+Servette: без статті — Benoît Sida
+Servette: без статті — Tristan Nunez
+Servette: без статті — Ivan Izquierdo
+Servette: без статті — Louis Rieder
+Servette: без статті — Léo Besson
+Sion: без статті — Adrien Llukes
+Sion: без статті — Damien Möschinger
+Sion: без статті — Ryan Kessler
+Sion: без статті — Simon Caillet
+Sion: без статті — Lorenzo Villa
+St. Gallen: без статті — Cyrill May
+St. Gallen: без статті — Nino Weibel
+St. Gallen: без статті — Bela Dumrath
+St. Gallen: без статті — Jorge Rans
+St. Gallen: без статті — Nevio Scherrer
+St. Gallen: без статті — Joel Ruiz
+St. Gallen: без статті — Yannick Bujard
+Thun: без статті — Dario Wälti
+Thun: без статті — Mats Seiler
+Thun: без статті — Noah Christoffersson
+Thun: без статті — Leo Stucki
+Thun: без статті — Adam Ilić
+Thun: без статті — Louis Passavant
+Thun: без статті — Simon Lengen
+Vaduz: без статті — Liridon Berisha
+Vaduz: без статті — Daniel Kasper
+Vaduz: без статті — Tim-Tiado Oehri
+Vaduz: без статті — Mischa Eberhard
+Vaduz: без статті — Mats Hammerich
+Vaduz: без статті — Mattia Walker
+Vaduz: без статті — Luca Celentano
+Vaduz: без статті — Nico Föllmi
+Young Boys: без статті — Benjamin Kabeya
+Young Boys: без статті — Edin Etoski
+Zürich: без статті — Cosimo Fiorini
+Zürich: без статті — Yevhen Morozov
+Zürich: без статті — Nevio Di Giusto
+Zürich: без статті — Mohamed Bangoura
+Zürich: без статті — Leandro Schödler
+Zürich: без статті — Mohamed Essakkati
+Zürich: без статті — Mario Greco
+Zürich: без статті — Neil Volken
+Zürich: без статті — Sebastian Walker
+Zürich: без статті — Jill Stiel
+Zürich: без статті — Doron Lichtenstein
+Zürich: без статті — Kelechi Ihendu
+Zürich: без статті — Din Ramić
+Zürich: без статті — Tyrese Pinthus
+Невідомі країни: LCA, BRB, SGP, SKN, BAN, ROM, PHL, GBS, JAP, DRC, SWI, CAF, CUR, TTO

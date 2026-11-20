@@ -66,7 +66,11 @@
    * Суперники обирають ментальність за співвідношенням сил.
    */
   function sideFor(S, W, clubId, user, oppId, home) {
-    const players = W.squad(clubId);
+    let players = W.squad(clubId);
+    if (user && user.clubId === clubId && user.reserve && user.reserve.size) { // молодіжна команда — не в заявці основи
+      const first = players.filter((p) => !user.reserve.has(p.id));
+      if (first.length >= 16) players = first;
+    }
     const out = unavailable(S, clubId, W);
     const available = players.filter((p) => !out.has(p.id));
     // замало здорових — грають ті, кому лишилося лікуватися найменше (дискваліфіковані — ні)
@@ -81,7 +85,7 @@
       const t = user.tactics;
       const lineup = FM.lineupFromIds(available, t.formation, t.ids, t);
       return { club: W.club(clubId), players: available, formation: t.formation, lineup, mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers || {},
-        familiarity: user.familiarity ? Math.min(1, (user.familiarity[t.formation] || 0) / 100) : 1 };
+        familiarity: user.familiarity ? Math.min(1, (user.familiarity[t.formation] || 0) / 100) : 1, boost: user.boost || 1 };
     }
     // ШІ дає відпочити втомленим (свіжість < 72), якщо є кому їх замінити
     const fresh = available.filter((p) => (p.fitness ?? 100) >= 72);
@@ -100,10 +104,11 @@
   function prepare(S, W, f, name, user) {
     const hs = sideFor(S, W, f.h, user, f.a, true), as = sideFor(S, W, f.a, user, f.h, false);
     const side = (x) => ({ club: { ...x.club, name: name ? name.club(x.club) : x.club.name }, players: x.players, formation: x.formation,
-      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing, takers: x.takers, familiarity: x.familiarity });
+      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing, takers: x.takers, familiarity: x.familiarity, boost: x.boost });
     // погода — за датою й країною господарів (детерміновано для матчу)
     const weather = FM.weatherFor ? FM.weatherFor(dateOf(f.w != null ? f.w : S.week, S), W.club(f.h).league, FM.rng(`wx-${S.seed}-${f.id}`)) : null;
-    return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined, gen: name ? name.gen : undefined, weather } };
+    const derby = FM.rivals ? FM.rivals.derby(W, f.h, f.a) : null;
+    return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined, gen: name ? name.gen : undefined, weather, derby, big: !!derby } };
   }
 
   function play(S, W, f, name, user) {
@@ -214,6 +219,7 @@
     eng: { ucl: 5, uel: 7, rel: 3 }, esp: { ucl: 5, uel: 7, rel: 3 }, ita: { ucl: 4, uel: 7, rel: 3 },
     ger: { ucl: 4, uel: 7, rel: 2 }, fra: { ucl: 3, uel: 7, rel: 2 }, ukr: { ucl: 3, uel: 7, rel: 2 },
     por: { ucl: 3, uel: 7, rel: 0 }, ned: { ucl: 3, uel: 7, rel: 0 }, tur: { ucl: 3, uel: 8, rel: 0 }, pol: { ucl: 3, uel: 8, rel: 0 },
+    bel: { rel: 0 }, sco: { rel: 0 }, gre: { rel: 0 }, cze: { rel: 0 }, den: { rel: 0 }, aut: { rel: 0 }, sui: { rel: 0 }, // ucl/uel/uecl — з квот (cups.js)
     eng2: { promo: 3 }, esp2: { promo: 3 }, ita2: { promo: 3 }, ger2: { promo: 2 }, fra2: { promo: 2 }, ukr2: { promo: 2 },
   };
   function zone(leagueId, pos, size) {

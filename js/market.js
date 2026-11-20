@@ -6,10 +6,10 @@
   const FM = (root.FM = root.FM || {});
 
   const LEAGUE_MONEY = { eng: 3, esp: 2, ita: 1.6, ger: 1.8, fra: 1.4, ukr: 0.9, eng2: 1.1, esp2: 0.6, ita2: 0.55, ger2: 0.7, fra2: 0.5, ukr2: 0.2,
-    por: 1, ned: 1, tur: 1.1, pol: 0.5 };
+    por: 1, ned: 1, tur: 1.1, pol: 0.5, bel: 0.9, sco: 0.7, gre: 0.7, cze: 0.55, den: 0.7, aut: 0.65, sui: 0.8 };
   const WAGE_MULT = { eng: 1.3, esp: 1.1, ita: 1, ger: 1.05, fra: 0.95, ukr: 0.55, eng2: 1.1, esp2: 0.8, ita2: 0.8, ger2: 0.85, fra2: 0.75, ukr2: 0.4,
-    por: 0.8, ned: 0.85, tur: 1.1, pol: 0.65 };
-  const MIN_WAGE = { eng: 8, esp: 4, ita: 3, ger: 4, fra: 3, ukr: 1, eng2: 3, esp2: 1.5, ita2: 1.5, ger2: 2, fra2: 1.5, ukr2: 1, por: 1.5, ned: 2, tur: 2, pol: 1 };
+    por: 0.8, ned: 0.85, tur: 1.1, pol: 0.65, bel: 0.8, sco: 0.7, gre: 0.7, cze: 0.6, den: 0.75, aut: 0.7, sui: 0.85 };
+  const MIN_WAGE = { eng: 8, esp: 4, ita: 3, ger: 4, fra: 3, ukr: 1, eng2: 3, esp2: 1.5, ita2: 1.5, ger2: 2, fra2: 1.5, ukr2: 1, por: 1.5, ned: 2, tur: 2, pol: 1, bel: 1.5, sco: 1, gre: 1, cze: 1, den: 1.5, aut: 1.2, sui: 1.5 };
 
   /** Тижнева зарплата за ринковою ціною: ~15% ціни на рік. */
   function fairWage(value, league) {
@@ -114,7 +114,7 @@
     let k = p.club ? 1.15 : 1; // за перехід — надбавка
     if (gap > 8) k *= 1 + (gap - 8) * 0.03;
     if (gap < -10) k *= 0.95; // у сильніший клуб — охочіше
-    return Math.round(base * k * (FM.career ? FM.career.negFor(buyerId) : 1));
+    return Math.round(base * k * (FM.career ? FM.career.negFor(buyerId) : 1) * (FM.agents ? FM.agents.greed(p) : 1));
   }
 
   /** Суперник у боротьбі за гравця (детерміновано на тиждень): { club, wage } або null. */
@@ -131,7 +131,7 @@
     return d == null ? null : { club: c.id, wage: Math.round(d * R.range(1, 1.18)) };
   }
   /** Комісія агента: 5% суми (або 4 тижневі зарплати для вільного агента), млн €. */
-  const agentFee = (fee, wage) => Math.round(Math.max(fee * 0.05, (wage * 4) / 1000) * 100) / 100;
+  const agentFee = (fee, wage, p) => Math.round(Math.max(fee * 0.05, (wage * 4) / 1000) * (p && FM.agents ? FM.agents.feeMult(p) : 1) * 100) / 100; // жадібний агент бере більше
 
   /** Наскільки пункти контракту знижують вимоги: відступні — −10%, бонус за голи — до −8%. */
   function clauseDiscount(p, clauses) {
@@ -183,6 +183,7 @@
   /** Завершити трансфер: гроші, контракт, перехід, запис в історію. */
   function complete(W, state, p, buyerId, fee, wage, years, extra = {}) {
     const from = p.club;
+    if (from && from === state.clubId && buyerId !== state.clubId && FM.dressing) { const t = FM.dressing.onSale(W, state, p); if (t) news(state, t, 'players'); }
     const buyer = W.club(buyerId);
     buyer.balance = Math.round((buyer.balance - fee - (extra.agent || 0)) * 100) / 100;
     if (from) {
@@ -281,9 +282,49 @@
    * Тиждень ринку: пропозиції за гравців людини, трансфери ШІ, підписання вільних агентів.
    * Викликати після закриття туру.
    */
+  // ---------------- Динамічні ціни й чутки ----------------
+  /** Ціни щотижня: форма, травми, повернення до норми. Для ваших гравців і шортлиста — новини про великі зміни. */
+  function valuesWeek(W, state) {
+    const S = state.season;
+    const watch = new Set([...(state.shortlist || []), ...W.club(state.clubId).players]);
+    for (const p of W.players.values()) {
+      if (!p.club || p.retired) continue;
+      const f = p.form && p.form.length ? p.form.reduce((a, b) => a + b, 0) / p.form.length : 6.6;
+      let target = Math.max(0.75, Math.min(1.45, 1 + (f - 6.6) * 0.28));
+      if ((p.injury || 0) >= 4) target *= 0.85;
+      const h = (p.hype ?? 1) + (target - (p.hype ?? 1)) * 0.15;
+      p.hype = Math.round(h * 1000) / 1000;
+      const base = FM.marketValue(p.ca, W.age(p) ?? 24, W.club(p.club).league, p.pa);
+      p.value = Math.max(0.05, Math.round(base * p.hype * 20) / 20);
+      if (watch.has(p.id) && p.value >= 1) {
+        const ref = p.valueSeen || p.value;
+        const ch = p.value / ref - 1;
+        if (Math.abs(ch) >= 0.25) {
+          news(state, `${p.club === state.clubId ? 'Ваш гравець' : 'Шортлист'}: ціна ${p.name} ${ch > 0 ? 'зросла' : 'впала'} до ${fmtM(p.value)} (${ch > 0 ? '+' : ''}${Math.round(ch * 100)}%).`, 'transfers');
+          p.valueSeen = p.value;
+        } else if (!p.valueSeen) p.valueSeen = p.value;
+      }
+    }
+  }
+  /** Чутки: сильніші клуби помічають ваших гравців у формі — у вікно від них частіше пропозиції. */
+  function rumoursWeek(W, state, R) {
+    const S = state.season, lvl = W.clubLevel(state.clubId);
+    for (const p of W.squad(state.clubId)) {
+      const f = p.form && p.form.length >= 3 ? p.form.reduce((a, b) => a + b, 0) / p.form.length : 0;
+      if (f < 7.2 || p.loan || (p.interest && p.interest.until > S.year * 100 + S.week) || !R.chance(0.08)) continue;
+      const cands = [...W.clubs.values()].filter((c) => c.id !== state.clubId && W.clubLevel(c.id) > lvl + 5 && c.balance > p.value);
+      if (!cands.length) continue;
+      const c = R.pick(cands);
+      p.interest = { club: c.id, until: S.year * 100 + S.week + 12 };
+      news(state, `Чутки: ${c.name} стежить за грою ${p.name}. Скаути клубу були на вашому матчі.`, 'transfers');
+    }
+  }
+
   function weekly(W, state) {
     const S = state.season;
     const R = FM.rng(`market-${S.seed}-${S.week}`);
+    valuesWeek(W, state);
+    rumoursWeek(W, state, R);
     state.offers = (state.offers || []).filter((o) => S.week - o.w <= 2 && W.player(o.pid) && W.player(o.pid).club === state.clubId);
     // скаутські звіти: те, що замовили минулого тижня, — тепер відомо точно
     state.known = state.known || {};
@@ -314,12 +355,13 @@
       for (const p of W.squad(state.clubId)) {
         if (p.loan) continue;
         const big = p.value >= 4 && rankInClub(W, p) < 8;
-        let chance = (p.listed ? 0.45 : big ? 0.05 : 0.01) * (deadline ? 1.6 : 1);
+        const hot = p.interest && p.interest.until > S.year * 100 + S.week && W.club(p.interest.club);
+        let chance = (p.listed ? 0.45 : big ? 0.05 : 0.01) * (deadline ? 1.6 : 1) * (hot ? 4 : 1);
         if (p.clause && big) chance = Math.max(chance, 0.04);
         if (!R.chance(chance)) continue;
         const buyers = clubs.filter((c) => c.id !== state.clubId && c.balance > p.value * 0.9 && W.clubLevel(c.id) >= p.ca - 15);
-        if (!buyers.length) continue;
-        const b = R.pick(buyers);
+        if (!buyers.length && !hot) continue;
+        const b = hot && W.club(p.interest.club).balance > p.value * 0.9 ? W.club(p.interest.club) : R.pick(buyers.length ? buyers : [W.club(p.interest.club)]);
         let fee = Math.round(p.value * (p.listed ? R.range(0.75, 1.05) : R.range(1.1, 1.45)) * 20) / 20;
         const byClause = p.clause && b.balance >= p.clause && p.clause <= p.value * 1.6;
         if (byClause) fee = p.clause;
@@ -337,9 +379,25 @@
         if (c.id === state.clubId) continue;
         for (const p of W.squad(c.id)) if ((W.age(p) ?? 24) >= 31 && rankInClub(W, p) >= 8 && !p.loan) p.listed = true;
       }
+      // зимова «паніка»: аутсайдери (нижні 4 місця) купують охочіше й переплачують
+      const panic = new Set();
+      if (S.week >= 20) for (const l of W.db.leagues) { const t = FM.season.table(S, W, l.id); for (const r of t.slice(-4)) panic.add(r.id); }
+      // суперники перехоплюють гравців з вашого шортлиста
+      for (const id of state.shortlist || []) {
+        const p = W.player(id);
+        if (!p || !p.club || p.club === state.clubId || p.loan || !R.chance(deadline ? 0.06 : 0.025)) continue;
+        const rivals = clubs.filter((c) => c.id !== state.clubId && c.id !== p.club && c.balance > p.value * 1.6 && W.clubLevel(c.id) >= p.ca - 8 && W.clubLevel(c.id) <= p.ca + 20);
+        if (!rivals.length) continue;
+        const c = R.pick(rivals), ask = askingPrice(W, p, S), wd = wageDemand(W, p, c.id);
+        if (wd == null || clubResponse(W, p, ask, c.id, S).ok !== true) continue;
+        const from = W.club(p.club);
+        complete(W, state, p, c.id, ask, wd, 3 + R.int(2));
+        news(state, `Вас випередили: ${p.name} з вашого шортлиста переходить з ${from.name} до ${c.name} за ${fmtM(ask)}.`, 'transfers');
+      }
       // клуби ШІ латають слабкі позиції: беруть молодших, бережуть бюджет і фонд зарплат
       for (const c of clubs) {
-        if (c.id === state.clubId || !R.chance(deadline ? 0.3 : 0.12) || c.balance < 0.5) continue;
+        const scared = panic.has(c.id);
+        if (c.id === state.clubId || !R.chance((deadline ? 0.3 : 0.12) * (scared ? 2.5 : 1)) || c.balance < 0.5) continue;
         const weak = weakestRole(W, c.id);
         if (!weak) continue;
         const lvl = W.clubLevel(c.id);
@@ -350,16 +408,18 @@
         const score = (p, ask) => p.ca + (p.pa - p.ca) * 0.3 - Math.max(0, (W.age(p) ?? 24) - 27) * 2 - ask * 0.5;
         for (const p of cands) {
           const ask = askingPrice(W, p, S);
-          if (ask > c.balance * 0.5 || clubResponse(W, p, ask, c.id, S).ok !== true) continue;
+          if (ask > c.balance * (scared ? 0.8 : 0.5) || clubResponse(W, p, ask, c.id, S).ok !== true) continue;
           const wd = wageDemand(W, p, c.id);
           if (wd == null || wd > room + (W.squad(c.id).filter((x) => x.roles[0] === weak.role).length > 3 ? 0 : room * 0.2)) continue;
           if (!best || score(p, ask) > score(best.p, best.ask)) best = { p, ask };
         }
         if (best) {
-          const wage = wageDemand(W, best.p, c.id);
+          const wage = Math.round(wageDemand(W, best.p, c.id) * (scared ? 1.15 : 1));
           const from = W.club(best.p.club);
-          complete(W, state, best.p, c.id, best.ask, wage, 2 + R.int(3));
-          if (best.ask >= 20 || c.league === W.club(state.clubId).league || from.league === W.club(state.clubId).league) {
+          const fee = Math.round(best.ask * (scared ? 1.15 : 1) * 20) / 20; // у паніці переплачують
+          complete(W, state, best.p, c.id, fee, wage, 2 + R.int(3));
+          if (scared && c.league === W.club(state.clubId).league) news(state, `Паніка: ${c.name}, що бореться за виживання, переплачує за ${best.p.name} — ${fmtM(fee)}.`, 'transfers');
+          else if (best.ask >= 20 || c.league === W.club(state.clubId).league || from.league === W.club(state.clubId).league) {
             news(state, `Трансфер: ${best.p.name} — з ${from.name} до ${c.name} за ${fmtM(best.ask)}.`);
           }
         }
@@ -398,7 +458,7 @@
   function scoutsWeek(W, state) {
     state.knownLeagues = state.knownLeagues || {};
     for (const s of scouts(state)) {
-      if (!s.region || state.knownLeagues[s.region]) continue;
+      if (!s.region || state.knownLeagues[s.region] || !W.league(s.region)) continue; // світові регіони — окремо (world-scout.js)
       s.prog += s.level;
       if (s.prog >= 150) {
         state.knownLeagues[s.region] = true;
@@ -449,7 +509,7 @@
 
   /** Продовжити контракт свого гравця. */
   function renewDemand(W, p) {
-    return Math.round(Math.max(p.wage || 0, fairWage(p.value, W.club(p.club).league)) * 1.1);
+    return Math.round(Math.max(p.wage || 0, fairWage(p.value, W.club(p.club).league)) * 1.1 * (FM.agents ? FM.agents.greed(p) : 1));
   }
   function renew(W, state, p, wage, years) {
     const demand = renewDemand(W, p);
@@ -460,7 +520,7 @@
     return { ok: true, demand };
   }
 
-  FM.market = { WINDOWS, NEWS_CATS, newsCat, unread, rival, agentFee, clauseDiscount, loanable, loanFee, loanIn, loanOffers, returnLoans, scouts, hireScout, scoutWage, scoutAccuracy, ensureKeepers, init, fairWage, wageBill, windowOpen, nextWindow, askingPrice, clubResponse, wageDemand, playerResponse,
+  FM.market = { valuesWeek, rumoursWeek, WINDOWS, NEWS_CATS, newsCat, unread, rival, agentFee, clauseDiscount, loanable, loanFee, loanIn, loanOffers, returnLoans, scouts, hireScout, scoutWage, scoutAccuracy, ensureKeepers, init, fairWage, wageBill, windowOpen, nextWindow, askingPrice, clubResponse, wageDemand, playerResponse,
     complete, release, releaseCost, weekly, endSeason, renewDemand, renew, rankInClub, news, fmtM, WINDOWS };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

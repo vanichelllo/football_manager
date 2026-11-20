@@ -36,6 +36,13 @@ const LEAGUES = [
   { id: 'ned', en: 'Eredivisie', name: 'Ередивізі', country: 'NED' },
   { id: 'tur', en: 'Süper Lig', name: 'Суперліга Туреччини', country: 'TUR' },
   { id: 'pol', en: 'Ekstraklasa', name: 'Екстракляса', country: 'POL' },
+  { id: 'bel', en: 'Belgian Pro League', name: 'Про-ліга Бельгії', country: 'BEL' },
+  { id: 'sco', en: 'Scottish Premiership', name: 'Прем’єршип Шотландії', country: 'SCO' },
+  { id: 'gre', en: 'Super League Greece', name: 'Суперліга Греції', country: 'GRE' },
+  { id: 'cze', en: 'Czech First League', name: 'Перша ліга Чехії', country: 'CZE' },
+  { id: 'den', en: 'Danish Superliga', name: 'Суперліга Данії', country: 'DEN' },
+  { id: 'aut', en: 'Austrian Football Bundesliga', name: 'Бундесліга Австрії', country: 'AUT' },
+  { id: 'sui', en: 'Swiss Super League', name: 'Суперліга Швейцарії', country: 'SUI' },
 ];
 
 const report = [];
@@ -219,19 +226,24 @@ function build(clubs, playerArticles, ukLabel) {
     for (const s of c.squad) {
       const art = s.title && playerArticles[s.title];
       const ib = art ? P.infobox(art.text) || {} : {};
-      const born = P.birthDate(ib.birth_date) || null;
-      const age = born ? ageAt(born, SEASON_START) : 24;
+      const gen = []; // поля, яких немає у Wikipedia і які згенеровано
+      const key = (art && art.title) || `${c.title}/${s.name}`;
+      let born = P.birthDate(ib.birth_date) || null;
+      if (!born) { born = R.genBorn(key, s.number, !art, SEASON_START); gen.push('born'); }
+      const age = ageAt(born, SEASON_START);
       const rr = P.roles(ib.position);
       let roles = rr.roles.filter((r) => ROLE_GROUP[r] === s.group || !s.group);
       if (!roles.length) roles = s.group ? [GROUP_DEFAULT_ROLE[s.group]] : rr.roles.length ? rr.roles : ['CM'];
       // крайні: у складі «FW», а в інфобоксі «Winger» — W; «DF» з «Full-back» — FB
       const main = roles[0];
-      const nat = COUNTRIES.code(s.nat);
+      let nat = COUNTRIES.code(s.nat);
       if (!nat && s.nat) unknownNat.add(s.nat);
+      if (!nat && !s.nat) { nat = (LEAGUES.find((l) => l.id === c.leagueId) || {}).country || ''; gen.push('nat'); } // громадянство не вказано — країна ліги
       const car = art ? P.career(ib) : { leagueApps: null, leagueGoals: null, caps: 0, intlGoals: 0 };
-      const key = (art && art.title) || `${c.title}/${s.name}`;
+      let height = P.height(ib.height);
+      if (!height) { height = R.genHeight(key, main); gen.push('height'); }
       const facts = { key, age, caps: car.caps, intlGoals: car.intlGoals, nat: nat || '', leagueApps: car.leagueApps, leagueGoals: car.leagueGoals,
-        pos: main, posGroup: s.group || ROLE_GROUP[main], height: P.height(ib.height) };
+        pos: main, posGroup: s.group || ROLE_GROUP[main], height };
       const { ca, pa } = R.abilities(facts, { league: c.leagueId, strength: Math.max(0, c.strength) });
       const attrs = R.attributes(facts, ca);
       const id = stableId('p', key);
@@ -244,6 +256,7 @@ function build(clubs, playerArticles, ukLabel) {
         onLoanFrom: s.onLoanFrom, captain: s.captain || undefined,
         ca, pa, attrs, value: R.marketValue(ca, age, c.leagueId, pa),
         wiki: art ? art.title : null,
+        gen: gen.length ? gen : undefined,
       });
       club.players.push(id);
       if (!art) report.push(`${club.nameEn}: без статті — ${s.name}`);
@@ -301,7 +314,7 @@ function legacyMap(db) {
 function writeOut(db) {
   const lm = legacyMap(db);
   if (lm) db.legacyIds = lm;
-  const dir = path.join(__dirname, '..', 'data');
+  const dir = process.env.DB_OUT_DIR || path.join(__dirname, '..', 'data'); // DB_OUT_DIR — зібрати в іншу папку
   fs.mkdirSync(dir, { recursive: true });
   const js = '// Згенеровано tools/build-db.js — не редагуйте вручну.\n' +
     `// Джерела: ${db.source}. Знімок: ${db.snapshot}.\n` +

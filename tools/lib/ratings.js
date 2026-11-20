@@ -27,6 +27,8 @@ const LEAGUE = {
   eng2: { base: 104, spread: 14 }, esp2: { base: 99, spread: 12 }, ita2: { base: 97, spread: 12 },
   ger2: { base: 101, spread: 13 }, fra2: { base: 95, spread: 12 }, ukr2: { base: 68, spread: 12 },
   por: { base: 108, spread: 24 }, ned: { base: 107, spread: 22 }, tur: { base: 106, spread: 20 }, pol: { base: 96, spread: 15 },
+  bel: { base: 104, spread: 20 }, sco: { base: 96, spread: 26 }, gre: { base: 100, spread: 22 }, cze: { base: 97, spread: 18 },
+  den: { base: 99, spread: 16 }, aut: { base: 99, spread: 18 }, sui: { base: 99, spread: 16 },
 };
 
 // Рівень збірних (приблизно за рейтингом ФІФА 2025–2026). Решта країн — рівень 4.
@@ -129,10 +131,38 @@ function attributes(p, ca) {
 /** Орієнтовна ринкова ціна, млн €. */
 function marketValue(ca, age, league, pa = ca) {
   if (age < 24) ca = ca + (pa - ca) * 0.5 * (24 - age) / 6; // за молодь платять наперед
-  const leagueMult = { eng: 1.6, esp: 1.3, ita: 1.15, ger: 1.2, fra: 1.1, ukr: 0.9, eng2: 0.9, esp2: 0.6, ita2: 0.55, ger2: 0.65, fra2: 0.5, ukr2: 0.3, por: 0.95, ned: 0.95, tur: 0.85, pol: 0.5 }[league] || 1;
+  const leagueMult = { eng: 1.6, esp: 1.3, ita: 1.15, ger: 1.2, fra: 1.1, ukr: 0.9, eng2: 0.9, esp2: 0.6, ita2: 0.55, ger2: 0.65, fra2: 0.5, ukr2: 0.3, por: 0.95, ned: 0.95, tur: 0.85, pol: 0.5, bel: 0.8, sco: 0.6, gre: 0.6, cze: 0.55, den: 0.65, aut: 0.6, sui: 0.65 }[league] || 1;
   const ageMult = age <= 23 ? 1.35 : age <= 27 ? 1.15 : age <= 29 ? 0.9 : age <= 31 ? 0.6 : age <= 33 ? 0.35 : 0.15;
   const v = 0.22 * Math.exp((ca - 80) / 16) * leagueMult * ageMult;
   return Math.round(clamp(v, 0.05, 200) * 20) / 20; // крок 50 тис.
 }
 
-module.exports = { abilities, attributes, marketValue, hash01, TIER_OF, OUTFIELD, GOALKEEPER, LEAGUE };
+// ---------------- Згенеровані дані, коли справжніх немає ----------------
+// Детерміновано від ключа гравця: після перебудови бази ті самі значення.
+
+/**
+ * Дата народження. noArticle — гравця немає у Wikipedia (переважно молодь і запасні нижчих ліг),
+ * number — номер у складі (великі номери — зазвичай молодь з академії).
+ */
+function genBorn(key, number, noArticle, seasonStart = '2026-08-15') {
+  const r = hash01(key + ':born');
+  const young = (number != null && number >= 30) || (noArticle && r < 0.55);
+  const age = young ? 17 + Math.floor(hash01(key + ':ageY') * 5) // 17–21
+    : 20 + Math.floor(Math.pow(hash01(key + ':age'), 1.4) * 13); // 20–32, частіше молодші
+  const y0 = Number(seasonStart.slice(0, 4));
+  const month = 1 + Math.floor(hash01(key + ':m') * 12);
+  const day = 1 + Math.floor(hash01(key + ':d') * 28);
+  const md = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  // вік на початок сезону має дорівнювати age
+  const year = md <= seasonStart.slice(5) ? y0 - age : y0 - age - 1;
+  return `${year}-${md}`;
+}
+
+/** Зріст за позицією (см): воротарі й центральні захисники вищі, вінгери нижчі. */
+const HEIGHT_MEAN = { GK: 190, CB: 187, FB: 178, DM: 181, CM: 179, AM: 176, W: 175, ST: 183 };
+function genHeight(key, role) {
+  const n = (hash01(key + ':h1') + hash01(key + ':h2') + hash01(key + ':h3') - 1.5) * 2; // приблизно нормальний розподіл
+  return Math.round((HEIGHT_MEAN[role] || 180) + n * 5);
+}
+
+module.exports = { genBorn, genHeight, abilities, attributes, marketValue, hash01, TIER_OF, OUTFIELD, GOALKEEPER, LEAGUE };

@@ -103,6 +103,7 @@
   // Калібрування (tests/match.test.js): середнє співвідношення атаки до оборони і базова реалізація моменту.
   const RATIO_REF = 1;
   const BASE_Q = 0.073;
+  const FINISH_K = 1.18; // калібрування реалізації відносно воротаря
 
   // ваги ролей і варіантів — масивами (рахується дуже часто: підбір складу перебирає всі схеми)
   const W_ENTRIES = new Map();
@@ -312,7 +313,7 @@
       const lu = t.lineup || pickLineup(t.players, formation);
       const onPitch = lu.xi.map((x) => ({ p: x.player, slot: x.slot, cond: x.player.fitness ?? 100, yellow: 0, out: false, mf: matchFactor(x.player) }));
       return {
-        k, club: t.club, formation, onPitch, autoSubs: !t.manual,
+        k, club: t.club, formation, onPitch, autoSubs: !t.manual, boost: t.boost || 1, // boost — збори команди перед матчем
         tactic: { mentality: t.mentality || 'balanced', pressing: t.pressing || 'normal', passing: t.passing || 'mixed' },
         mentality: MENTALITY[t.mentality || 'balanced'] || 0, pressing: PRESSING[t.pressing || 'normal'] || 0, passing: PASSING[t.passing || 'mixed'] || 0,
         bench: lu.bench.slice(), subsLeft: 5, subWindows: 3, units: null,
@@ -343,12 +344,12 @@
 
     function chanceRates(min) {
       // контроль м'яча: пресинг відбирає м'яч частіше, короткі передачі його бережуть
-      const ctrl = (t) => t.units.mid * (1 + 0.04 * t.pressing - 0.035 * t.passing * (t.passing < 0 && WX.shortPenalty ? WX.shortPenalty : 1));
+      const ctrl = (t) => t.units.mid * (1 + 0.055 * t.pressing - 0.045 * t.passing * (t.passing < 0 && WX.shortPenalty ? WX.shortPenalty : 1));
       const mh = ctrl(H) ** 1.5 * homeAdv, ma = ctrl(A) ** 1.5;
       const share = mh / (mh + ma); // частка володіння господарів
       const rate = (t, o, sh) => {
         let r = 23 * (0.24 + 0.52 * sh); // моментів за матч
-        r *= 1 + 0.07 * t.mentality + 0.05 * o.mentality + 0.06 * t.passing; // довгі передачі — більше, але гірших моментів
+        r *= 1 + 0.1 * t.mentality + 0.06 * o.mentality + 0.06 * t.passing; // довгі передачі — більше, але гірших моментів
         // рахунок: хто програє наприкінці — тисне, хто веде — тримає
         const diff = t.stats.goals - o.stats.goals;
         if (min > 60 && diff < 0) r *= 1.25; else if (min > 70 && diff > 0) r *= 0.85;
@@ -391,8 +392,10 @@
       // якість моменту: атака проти оборони; реалізація: удар проти воротаря
       const ratio = t.units.att / (0.75 * o.units.def + 0.25 * o.units.gk) / RATIO_REF;
       let q = BASE_Q * ratio ** 1.15 * WX.q;
-      const finish = (shooter.p.attrs.fin * 0.7 + shooter.p.attrs.dec * 0.3) / 12;
-      q *= Math.min(1.5, Math.max(0.6, finish));
+      // реалізація — відносно воротаря суперника (у лігах будь-якого рівня голів приблизно стільки ж)
+      const gq = gkX ? (gkX.p.attrs.ref || 10) * 0.4 + (gkX.p.attrs.one || 10) * 0.3 + (gkX.p.attrs.pos || 10) * 0.3 : 8;
+      const finish = (shooter.p.attrs.fin * 0.7 + shooter.p.attrs.dec * 0.3) / gq;
+      q *= Math.min(1.5, Math.max(0.6, finish)) * FINISH_K;
       q *= (1 - 0.06 * t.passing * (t.passing > 0 && WX.directPenalty ? 1 / WX.directPenalty : 1)) * (1 + 0.05 * o.pressing); // високий пресинг суперника лишає простір за спиною
 
       if (R.chance(0.013)) { // пенальті (~0,3 за матч)
@@ -431,6 +434,7 @@
       t.stats.xg += q;
       const goal = R.chance(q);
       logShot(t, kind, q, goal);
+      if (assister) t.perf.get(assister.p.id).keyPasses = (t.perf.get(assister.p.id).keyPasses || 0) + 1;
       if (goal) {
         t.stats.goals++; t.stats.onTarget++; sPerf.goals++;
         if (assister) t.perf.get(assister.p.id).assists++;
@@ -439,6 +443,10 @@
       } else {
         const out = R.weighted(['saved', 'wide', 'blocked', 'post'], (k) => ({ saved: 0.4 * (o.units.gk / 12), wide: 0.36, blocked: 0.18, post: 0.06 }[k]));
         if (out === 'saved') { t.stats.onTarget++; if (gkX) o.perf.get(gkX.p.id).saves++; }
+        if (out === 'blocked') { // блок — захисник суперника
+          const bl = R.weighted(o.onPitch.filter((x) => !x.out && x.slot.role !== 'GK'), (x) => ({ CB: 3, DM: 2, FB: 1.5, CM: 1 }[x.slot.role] || 0.3) * x.p.attrs.pos);
+          if (bl) o.perf.get(bl.p.id).blocks = (o.perf.get(bl.p.id).blocks || 0) + 1;
+        }
         say(min, 'chance', t, [lead, ' ', fill(R.pick(usable(T[out], vars)), vars)]);
         // кутовий після сейву чи блоку
         if ((out === 'saved' || out === 'blocked' || out === 'wide') && R.chance(out === 'wide' ? 0.15 : 0.7)) corner(t, o, min);
@@ -620,7 +628,7 @@
       if (e.m % 5 === 0) { compute(H); compute(A); }
       if (R.chance(cr.h)) chance(H, A, e.label);
       if (R.chance(cr.a)) chance(A, H, e.label);
-      for (const t of sides) if (R.chance(1.9 / 94 * (1 + 0.2 * t.pressing))) card(t, e.label);
+      for (const t of sides) if (R.chance(1.9 / 94 * (1 + 0.2 * t.pressing) * (opts.derby ? 1.35 : 1))) card(t, e.label); // у дербі — більше карток
       for (const t of sides) if (R.chance(0.0045 * WX.rate)) freekick(t, sides[1 - t.k], e.label);
       for (const t of sides) if (R.chance(0.003 * (1 + 0.3 * t.pressing))) injury(t, e.label);
       if (R.chance(0.035)) {
@@ -644,6 +652,36 @@
       while (step()); // якщо матч не дограли — догравання
       if (final) return final;
       const ratings = [];
+      const RS = FM.rng(String(opts.seed) + ':stats'); // окреме зерно: статистика не змінює перебіг матчу
+      const poss = [H.stats.poss || 50, 100 - (H.stats.poss || 50)];
+      for (const t of sides) {
+        const o = sides[1 - t.k];
+        // командні обсяги: передачі — від володіння, відбори — від володіння суперника
+        const teamPasses = Math.round(poss[t.k] * (9 + 0.8 * t.passing * -1) * RS.range(0.92, 1.08));
+        const teamDef = (100 - poss[t.k]) * 0.36 * (1 + 0.15 * t.pressing);
+        const W8 = {
+          pass: { GK: 0.5, CB: 1.15, FB: 1, DM: 1.45, CM: 1.5, AM: 1.1, W: 0.85, ST: 0.55 },
+          tack: { GK: 0, CB: 1.2, FB: 1.1, DM: 1.6, CM: 0.95, AM: 0.4, W: 0.45, ST: 0.25 },
+          int: { GK: 0, CB: 1.5, FB: 1, DM: 1.4, CM: 0.8, AM: 0.3, W: 0.3, ST: 0.15 },
+          drib: { GK: 0, CB: 0.15, FB: 0.6, DM: 0.35, CM: 0.6, AM: 1.3, W: 1.7, ST: 0.9 },
+        };
+        const live = t.onPitch.map((x) => ({ x, m: ((x.subbedOff || 93) - (x.subbedOn || 0)) / 93 }));
+        const share = (key, attr) => { const ws = live.map(({ x, m }) => (W8[key][x.slot.role] || 0.5) * ((x.p.attrs[attr] || 10) / 12) * m); const sum = ws.reduce((a, b) => a + b, 0) || 1; return ws.map((w) => w / sum); };
+        const sp = share('pass', 'pas'), st = share('tack', 'tac'), si = share('int', 'pos'), sd = share('drib', 'dri');
+        let tPass = 0, tOk = 0, tTack = 0;
+        live.forEach(({ x }, i) => {
+          const pf = t.perf.get(x.p.id);
+          pf.passes = Math.round(teamPasses * sp[i] * RS.range(0.8, 1.2));
+          const acc = Math.max(0.55, Math.min(0.95, 0.72 + ((x.p.attrs.pas || 10) - 10) * 0.016 + ((x.p.attrs.dec || 10) - 10) * 0.006 - 0.025 * t.passing - 0.03 * o.pressing + RS.range(-0.04, 0.04)));
+          pf.passOk = Math.round(pf.passes * acc);
+          pf.tackles = Math.round(teamDef * 0.55 * st[i] * RS.range(0.6, 1.4));
+          pf.interceptions = Math.round(teamDef * 0.35 * si[i] * RS.range(0.6, 1.4));
+          pf.dribbles = Math.round(poss[t.k] * 0.16 * sd[i] * RS.range(0.5, 1.5));
+          pf.duels = Math.round((pf.tackles + pf.dribbles) * (0.9 + ((x.p.attrs.str || 10) + (x.p.attrs.bra || 10) - 20) * 0.02) + RS.int(3));
+          tPass += pf.passes; tOk += pf.passOk; tTack += pf.tackles;
+        });
+        t.stats.passes = tPass; t.stats.passPct = tPass ? Math.round((tOk / tPass) * 100) : 0; t.stats.tackles = tTack;
+      }
       for (const t of sides) {
         const o = sides[1 - t.k];
         const res = Math.sign(t.stats.goals - o.stats.goals);
@@ -651,12 +689,15 @@
           const pf = t.perf.get(x.p.id);
           const minutes = (x.subbedOff || 93) - (x.subbedOn || 0);
           let r = 6.3 + 0.25 * res + pf.goals * 1.0 + pf.assists * 0.6 + pf.shots * 0.05 - pf.yellow * 0.2 - (pf.red ? 1.5 : 0);
+          r += (pf.keyPasses || 0) * 0.12 + ((pf.tackles || 0) + (pf.interceptions || 0) + (pf.blocks || 0)) * 0.03 + (pf.passes ? (pf.passOk / pf.passes - 0.8) * 0.8 : 0);
           if (x.slot.role === 'GK') r += pf.saves * 0.25 - pf.conceded * 0.35 + (o.stats.goals === 0 ? 0.6 : 0);
           else if (LINE[x.slot.role] === 'def') r += (o.stats.goals === 0 ? 0.5 : -0.15 * o.stats.goals);
           r += (slotValue(x.p, x.slot) - 12) * 0.06 + R.range(-0.35, 0.35);
           if (minutes < 20) r = 6 + (r - 6) * 0.5;
           ratings.push({ team: t.k, id: x.p.id, player: x.p, role: x.slot.role, rating: Math.round(Math.max(3, Math.min(10, r)) * 10) / 10,
-            goals: pf.goals, assists: pf.assists, yellow: pf.yellow, red: pf.red, injury: pf.injury || 0, on: x.subbedOn || null, off: x.subbedOff || null, cond: Math.round(x.cond) });
+            goals: pf.goals, assists: pf.assists, yellow: pf.yellow, red: pf.red, injury: pf.injury || 0, on: x.subbedOn || null, off: x.subbedOff || null, cond: Math.round(x.cond),
+            slot: x.slot, out: !!x.out, st: { min: minutes, shots: pf.shots, keyPasses: pf.keyPasses || 0, passes: pf.passes || 0, passOk: pf.passOk || 0, tackles: pf.tackles || 0,
+              interceptions: pf.interceptions || 0, blocks: pf.blocks || 0, dribbles: pf.dribbles || 0, duels: pf.duels || 0, saves: pf.saves, conceded: pf.conceded } });
         }
       }
       const motm = [...ratings].sort((a, b) => b.rating - a.rating)[0];

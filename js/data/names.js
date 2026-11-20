@@ -63,6 +63,18 @@
       last: [['Йилмаз', 'Yılmaz'], ['Кая', 'Kaya'], ['Демір', 'Demir'], ['Шахін', 'Şahin'], ['Челік', 'Çelik'], ['Йилдиз', 'Yıldız'], ['Айдин', 'Aydın'],
         ['Озтюрк', 'Öztürk'], ['Арслан', 'Arslan'], ['Доган', 'Doğan'], ['Кьоксал', 'Köksal'], ['Акташ', 'Aktaş'], ['Кокчу', 'Kökçü'], ['Гюлер', 'Güler']],
     },
+    SCA: {
+      first: [['Ерлінг', 'Erling'], ['Мартін', 'Martin'], ['Оскар', 'Oskar'], ['Магнус', 'Magnus'], ['Сандер', 'Sander'], ['Еміль', 'Emil'], ['Расмус', 'Rasmus'], ['Йонас', 'Jonas'], ['Віктор', 'Viktor'], ['Андреас', 'Andreas']],
+      last: [['Ганссен', 'Hanssen'], ['Нільсен', 'Nielsen'], ['Ларссон', 'Larsson'], ['Берг', 'Berg'], ['Юганссон', 'Johansson'], ['Гансен', 'Hansen'], ['Лунд', 'Lund'], ['Ольсен', 'Olsen'], ['Дал', 'Dahl'], ['Сторм', 'Storm']],
+    },
+    ASI: {
+      first: [['Кенто', 'Kento'], ['Такумі', 'Takumi'], ['Дайкі', 'Daiki'], ['Мін Дже', 'Min-jae'], ['Джун Хо', 'Jun-ho'], ['Сора', 'Sora'], ['Хіро', 'Hiro'], ['Абдулла', 'Abdulla'], ['Елдор', 'Eldor'], ['Сонг Мін', 'Seong-min']],
+      last: [['Танака', 'Tanaka'], ['Сато', 'Sato'], ['Ямада', 'Yamada'], ['Кім', 'Kim'], ['Пак', 'Park'], ['Лі', 'Lee'], ['Іто', 'Ito'], ['Накамура', 'Nakamura'], ['Шомуродов', 'Shomurodov'], ['Чой', 'Choi']],
+    },
+    GRE: {
+      first: [['Георгіос', 'Georgios'], ['Константінос', 'Konstantinos'], ['Дімітріс', 'Dimitris'], ['Ніколаос', 'Nikolaos'], ['Янніс', 'Giannis'], ['Христос', 'Christos'], ['Панайотіс', 'Panagiotis'], ['Васіліс', 'Vasilis'], ['Тасос', 'Tasos'], ['Андреас', 'Andreas']],
+      last: [['Пападопулос', 'Papadopoulos'], ['Георгіу', 'Georgiou'], ['Ніколау', 'Nikolaou'], ['Константіну', 'Konstantinou'], ['Пападімітріу', 'Papadimitriou'], ['Караяніс', 'Karagiannis'], ['Василіу', 'Vasiliou'], ['Іоанну', 'Ioannou'], ['Мавропанос', 'Mavropanos'], ['Цімікас', 'Tsimikas']],
+    },
     POL: {
       first: [['Якуб', 'Jakub'], ['Кацпер', 'Kacper'], ['Шимон', 'Szymon'], ['Філіп', 'Filip'], ['Міхал', 'Michał'], ['Бартош', 'Bartosz'], ['Матеуш', 'Mateusz'], ['Кароль', 'Karol']],
       last: [['Новак', 'Nowak'], ['Ковальський', 'Kowalski'], ['Вишневський', 'Wiśniewski'], ['Левандовський', 'Lewandowski'], ['Каміньський', 'Kamiński'], ['Зелінський', 'Zieliński'], ['Шиманський', 'Szymański'], ['Возняк', 'Woźniak']],
