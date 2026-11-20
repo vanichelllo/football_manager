@@ -79,7 +79,7 @@
       const pos = t.findIndex((r) => r.id === c.id) + 1;
       const rel = t.length > 1 ? 1 - (pos - 1) / (t.length - 1) : 0.5; // 1 — лідер
       const fixed = c.income0 * 0.7 * k; // k — сезон із 48 тижнів платить за рік стільки ж, скільки старий із 38
-      const tickets = home.has(c.id) ? c.income0 * 0.6 * (0.8 + 0.35 * rel) * (FM.club ? FM.club.ticketFactor(W, c.id, rel) : 1) : 0; // удома — подвійна частка матчдею
+      const tickets = home.has(c.id) ? c.income0 * 0.6 * (0.8 + 0.35 * rel) * (FM.club ? FM.club.ticketFactor(W, c.id, rel) : 1) * (c.id === state.clubId && FM.money ? 1 - FM.money.stShare(state) : 1) : 0; // удома — подвійна частка матчдею; місця абонементників уже оплачено
       const wages = (FM.market.wageBill(W, c.id) / 1000 + (c.id === state.clubId && FM.club ? FM.club.staffBill(state) / 1000 : 0)) * k;
       c.balance = r4(c.balance + fixed + tickets - wages);
       if (c.id === state.clubId) {

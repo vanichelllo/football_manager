@@ -782,6 +782,7 @@
           el('dt', 'Квитки'), el('dd', '+' + FM.market.fmtM(f.tickets)),
           el('dt', 'Призові'), el('dd', f.prize ? '+' + FM.market.fmtM(f.prize) : 'наприкінці сезону'),
           el('dt', 'Спонсор'), el('dd', f.sponsor ? '+' + FM.market.fmtM(f.sponsor) : '—'),
+          el('dt', 'Атрибутика'), el('dd', f.merch ? '+' + FM.market.fmtM(f.merch) : '—'),
           el('dt', 'Зарплати'), el('dd', '−' + FM.market.fmtM(f.wages)),
           el('dt', 'Трансфери'), el('dd', f.transfers ? (f.transfers > 0 ? '+' : '−') + FM.market.fmtM(Math.abs(f.transfers)) : '—'),
           el('dt', 'Фонд зарплат'), el('dd', `${FM.market.wageBill(W, me.id)} з ${me.wageBudget} тис. € на тиждень`),
@@ -1202,9 +1203,33 @@
           el('dt', 'Настрій'), el('dd', [confBar(fans.mood), `${Math.round(fans.mood)} з 100`]),
           el('dt', 'Заповненість стадіону'), el('dd', `≈${att}%`),
         ]), el('div.field', [el('b', 'Ціни квитків'), el('div.tabs', Object.entries(FM.club.PRICES).map(([k, d]) => el('button', { type: 'button', 'aria-pressed': String(fans.price === k), onclick: () => { fans.price = k; saveGame(); render(); } }, d.label)))]),
+          ticketsPanel(),
           el('p.note', 'Високі ціни — більше грошей з квитка, але менше людей і гірший настрій. Перемоги вдома радують уболівальників; якщо вони дуже незадоволені, правління нервує.')]),
       ]),
     ];
+  }
+
+  let stMsg = null;
+  /** Абонементи й відвідуваність: продаж у передсезоння, середня й рекордна кількість глядачів, останні матчі. */
+  function ticketsPanel() {
+    const S = state.season, me = W.club(state.clubId), st = state.st && state.st.year === S.year ? state.st : null;
+    const log = (state.attLog || []).filter((x) => x.s === S.year);
+    const avg = log.length ? Math.round(log.reduce((a, x) => a + x.n, 0) / log.length) : null;
+    const rec = ((FM.awards.aw(state).rec || {})[state.clubId] || {}).attendance;
+    const lg = S.cal && S.cal.leagues[me.league], canSell = !st && (!lg || S.week < lg.start);
+    let pick = 'normal';
+    return el('div.tickets', [
+      el('b', 'Абонементи'),
+      st ? el('p', st.share ? `Продано ${fmt.int(Math.round((me.capacity || 0) * st.share))} (${Math.round(st.share * 100)}% стадіону, ${FM.money.SEASON_TICKETS[st.kind].label.toLowerCase()}).` : 'Цього сезону без абонементів.')
+        : canSell ? el('div.pre-row', [el('div.field', [el('label', { for: 'st-kind' }, 'Ціна абонемента'), el('select', { id: 'st-kind', onchange: (e) => { pick = e.target.value; } },
+          Object.entries(FM.money.SEASON_TICKETS).map(([k, d]) => el('option', { value: k, selected: k === 'normal' || null }, `${d.label}${d.share ? ` · ≈${Math.round(FM.money.seasonTicketShare(W, me.id, k) * 100)}% стадіону` : ''}`)))]),
+          el('button.btn', { type: 'button', onclick: () => { const r = FM.money.sellSeasonTickets(W, state, pick); stMsg = r.text; if (r.ok && r.money) FM.market.news(state, r.text, 'club'); saveGame(); render(); } }, 'Продати абонементи')])
+          : el('p.muted', 'Абонементи продають лише в передсезоння.'),
+      stMsg ? el('p.msg-ok', stMsg) : null,
+      el('dl.facts', [el('dt', 'Середня відвідуваність'), el('dd', avg ? `${fmt.int(avg)} (${Math.round((avg / (me.capacity || 1)) * 100)}%)` : '—'),
+        el('dt', 'Рекорд'), el('dd', rec ? `${fmt.int(rec.v)} — з ${rec.opp}` : '—')]),
+      log.length ? el('ul.plain.att-log', log.slice(-5).reverse().map((x) => el('li', `${clubName(W.club(x.opp))}: ${fmt.int(x.n)} (${x.fill}%)`))) : null,
+    ]);
   }
 
   // ---------------- Екран «Трансфери» ----------------
@@ -2512,6 +2537,16 @@
     }, [['Далі', () => go(state.sacked ? 'sacked' : 'fixtures'), true], ['Таблиця', () => go('table')]]);
   }
 
+  /** Глядачі домашнього матчу: новина, журнал, рекорд відвідуваності. */
+  function attendanceNews(oppId, comp) {
+    const S = state.season, t = FM.season.table(S, W, W.club(state.clubId).league), n0 = t.length;
+    const pos = t.findIndex((r) => r.id === state.clubId) + 1, rel = n0 > 1 ? 1 - (pos - 1) / (n0 - 1) : 0.5;
+    const a = FM.money.attendance(W, state, state.clubId, oppId, rel, FM.rivals.derby(W, state.clubId, oppId), null);
+    state.attLog = (state.attLog || []).concat([{ s: S.year, w: S.week - 1, opp: oppId, n: a.n, fill: Math.round(a.fill * 100), comp }]).slice(-60);
+    const rec = FM.awards.attendance(state, a.n, clubName(W.club(oppId)));
+    FM.market.news(state, `Глядачів на матчі з ${clubName(W.club(oppId))}: ${fmt.int(a.n)} (заповнено ${Math.round(a.fill * 100)}%).${rec.length ? ' ' + rec[0] + '!' : ''}`, 'club');
+  }
+
   /** Новина про кубковий матч вашого клубу + запис у статистику тренера. */
   function cupNews(e) {
     const tail = e.winner ? (e.winner === state.clubId ? ' — ви йдете далі!' : ' — виліт.') : '';
@@ -2519,6 +2554,7 @@
     const home = e.h === state.clubId;
     for (const t of FM.career.match(W, state, home ? e.score : [e.score[1], e.score[0]], home ? e.a : e.h, e.cup)) FM.market.news(state, t);
     for (const t of FM.awards.match(W, state, home ? e.score[0] : e.score[1], home ? e.score[1] : e.score[0], home ? e.a : e.h, e.cup)) FM.market.news(state, t, 'club');
+    if (home && !e.neutral) attendanceNews(e.a, e.cup);
   }
 
   /** Кубкові матчі тижня (посеред тижня, грає помічник за вашою тактикою). */
@@ -2614,6 +2650,10 @@
       for (const t2 of FM.awards.match(W, state, home ? myF.s[0] : myF.s[1], home ? myF.s[1] : myF.s[0], home ? myF.a : myF.h, 'league')) FM.market.news(state, t2, 'club');
     }
     for (const t of FM.awards.week(W, state, nameOf)) FM.market.news(state, t, 'match');
+    // глядачі на домашніх матчах тижня й атрибутика
+    for (const f of myFs.filter((x) => x.h === state.clubId)) attendanceNews(f.a, 'league');
+    const mr = FM.money.merch(W, state);
+    if (mr.star) FM.market.news(state, `Футболки з прізвищем ${nameOf(mr.star)} розлітаються: атрибутика принесла ${M(mr.money)} за тиждень.`, 'club');
     FM.finance.week(W, state, wonAny);
     for (const t of FM.career.weekly(W, state)) FM.market.news(state, t);
     // рутина: вихідні дні піднімають настрій, наставники, доручення асистентові
