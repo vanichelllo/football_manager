@@ -73,7 +73,7 @@ test('скаути: ліга розвідується за кілька тижн
   for (let w = 0; w < 25 && !(state.knownLeagues || {}).eng; w++) { state.season.week = 10 + w; FM.market.weekly(W, state); }
   assert.ok(state.knownLeagues.eng, 'АПЛ розвідана');
   assert.ok(FM.market.scoutAccuracy(state) < 1.2);
-  state.season.week = 3;
+  state.season.week = FM.market.windows(state.season)[0][1];
   FM.market.weekly(W, state);
   assert.ok(state.news.some((n) => /закриття трансферного вікна/.test(n.text)));
 });

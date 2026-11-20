@@ -45,6 +45,7 @@ test('тиждень моралі: перемога піднімає, лідер
   FM.market.init(W, state);
   const star = W.squad(state.clubId).sort((a, b) => b.ca - a.ca)[0];
   let asked = false;
+  state.season.week = Math.min(...FM.season.clubFixtures(state.season, state.clubId).map((f) => f.w));
   for (let w = 0; w < 14; w++) {
     for (const f of FM.season.fixturesOfWeek(state.season, state.season.week)) {
       f.s = f.h === state.clubId ? [2, 0] : f.a === state.clubId ? [0, 2] : [1, 1];

@@ -476,6 +476,8 @@ ul.calendar li.cal.now { background: var(--accent-soft); border-radius: 6px; pad
 .ev-cup { border-left-color: #c9a227; }
 .ev-intl { border-left-color: #2f6fd6; }
 .ev-window, .ev-end { border-left-color: var(--warn); }
+.ev-friendly { border-left-color: #8a6cd1; }
+.ev-pre { border-left-color: var(--line); color: var(--muted); }
 .ev.maybe { opacity: 0.7; font-style: italic; }
 .legend { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.8rem; }
 @media (max-width: 520px) { ul.calendar li.cal { grid-template-columns: 1fr; gap: 0.2rem; } }
@@ -601,3 +603,48 @@ li.act { align-items: center; }
 .plan-act { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.4rem; }
 .plan-act > p, .plan-act > ul { flex-basis: 100%; }
 .plan-list { margin: 0.2rem 0; }
+
+/* Промови, вигуки, звіт у перерві */
+.chip.ok { background: var(--accent); color: var(--accent-fg); }
+.chip.warn { background: #e3b23c; color: #1d1a10; }
+.chip.info { background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); }
+.tabs.shouts { flex-wrap: wrap; }
+.half-report { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin-bottom: 0.8rem; background: var(--panel-2); }
+.half-report .tips { margin: 0.4rem 0 0; }
+.reacts { margin-bottom: 0.6rem; }
+.reacts summary { cursor: pointer; font-weight: 600; }
+.reacts .plist li, .post-talk .plist li { display: flex; justify-content: space-between; gap: 0.5rem; }
+
+/* Розклад тижня, наставництво, доручення */
+.schedule { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.4rem; margin-bottom: 0.8rem; }
+.sd { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; background: var(--panel); }
+.sd select { width: 100%; }
+.sd small { font-size: 0.75rem; line-height: 1.25; }
+.sd-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.3rem; }
+.sd.match { background: var(--accent-soft); border-color: var(--accent); }
+.sd.rest { background: var(--panel-2); color: var(--muted); }
+.cbar .ch.bad { background: var(--warn); }
+.sched-sum { max-width: 40rem; }
+.deleg li { display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; }
+@media (max-width: 760px) {
+  .schedule { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sd small.muted:last-child { display: none; }
+}
+.reqs li, .iv li { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.iv li { flex-direction: column; align-items: flex-start; }
+
+/* Звіт скаута: оцінка A–D */
+.grade { display: inline-grid; place-items: center; min-width: 1.8rem; height: 1.8rem; border-radius: 6px; font-weight: 700; font-family: var(--font-head, inherit); }
+.g-A { background: var(--accent); color: var(--accent-fg); }
+.g-B { background: #5aa469; color: #fff; }
+.g-C { background: #e3b23c; color: #1d1a10; }
+.g-D { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+.scout-rep .grid { gap: 0.6rem; }
+
+/* Аналітика матчу: володіння по відрізках, теплова карта */
+.poss-segs { display: grid; gap: 0.35rem; }
+.ps { display: grid; grid-template-columns: 4.2rem 1fr 3.2rem; align-items: center; gap: 0.5rem; }
+.ps-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--panel-2); }
+.ps-bar span { display: block; height: 100%; }
+.ps-bar span:last-child { opacity: 0.75; }
+.shotmap.heat { margin-top: 0.4rem; }

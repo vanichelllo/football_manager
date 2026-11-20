@@ -40,7 +40,7 @@
     const m = (state.media = state.media || { press: [], posts: [], followers: Math.round(5000 + W.clubLevel(me.id) ** 2 * 3) });
     const heads = [];
     const paper = () => R.pick(PAPERS);
-    const f = FM.season.fixturesOfWeek(S, S.week - 1).find((x) => x.s && (x.h === me.id || x.a === me.id));
+    const f = FM.season.fixturesOfWeek(S, S.week - 1).filter((x) => x.s && (x.h === me.id || x.a === me.id)).pop(); // останній матч тижня
     const t = FM.season.table(S, W, me.league), pos = t.findIndex((r) => r.id === me.id) + 1;
     const v = { club: cname(me), coach: state.manager, pos, league: W.league(me.league).name };
     if (f) {

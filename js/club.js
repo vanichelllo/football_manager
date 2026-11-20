@@ -155,7 +155,7 @@
   /** Тиждень тренерів ШІ: після 12-го туру клуб, що сильно не дотягує до очікувань, може звільнити тренера. */
   function managersWeek(W, state) {
     const S = state.season;
-    if (S.week < 12) return [];
+    if (S.week < FM.cal.at(S, 12)) return [];
     const R = FM.rng(`sack-${S.seed}-${S.week}`);
     const out = [];
     const tables = {};
@@ -167,7 +167,7 @@
       const ranked = W.clubsOf(c.league).map((x) => [x.id, W.clubLevel(x.id)]).sort((a, b) => b[1] - a[1]);
       const expect = ranked.findIndex((x) => x[0] === c.id) + 1;
       const gap = pos - expect; // скільки місць нижче очікуваного
-      if (gap >= 6 && R.chance(0.04 + (gap - 6) * 0.01) && !(c.manager.since === S.year && S.week < 20)) {
+      if (gap >= 6 && R.chance(0.04 + (gap - 6) * 0.01) && !(c.manager.since === S.year && S.week < FM.cal.at(S, 20))) {
         const old = c.manager.name;
         const ex = (state.exPlayers || []).filter((x) => !x.taken);
         const legend = ex.length && R.chance(0.5) ? ex[R.int(ex.length)] : null; // клуби люблять наймати колишніх зірок

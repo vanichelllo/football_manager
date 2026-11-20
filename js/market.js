@@ -59,11 +59,13 @@
     return Math.round(s);
   }
 
-  // Трансферні вікна: літо — 4 перші тижні сезону, зима — тижні 21–24 (січень)
+  // Трансферні вікна. Реальний календар: літо — з початку липня до 1 вересня, зима — січень (до 2 лютого).
+  // Старі збереження (без календаря): 4 перші тижні сезону й тижні 21–24.
   const WINDOWS = [[0, 3], [20, 23]];
-  const windowOpen = (S) => WINDOWS.some(([a, b]) => S.week >= a && S.week <= b);
+  const windows = (S) => (S && S.cal ? S.cal.windows : WINDOWS);
+  const windowOpen = (S) => windows(S).some(([a, b]) => S.week >= a && S.week <= b);
   function nextWindow(S) {
-    for (const [a] of WINDOWS) if (S.week < a) return a;
+    for (const [a] of windows(S)) if (S.week < a) return a;
     return null; // наступне — влітку, на початку нового сезону
   }
 
@@ -254,7 +256,7 @@
 
   /** Розірвати контракт: половина зарплати, що лишилась. Гравець стає вільним агентом. */
   function releaseCost(p, S) {
-    const years = Math.max(0, (p.contract || S.year + 1) - S.year - 1) + (38 - S.week) / 38;
+    const years = Math.max(0, (p.contract || S.year + 1) - S.year - 1) + Math.max(0, FM.season.weeks(S) - S.week) / FM.season.weeks(S);
     return Math.round((p.wage || 0) * 52 * years * 0.5) / 1000; // млн €
   }
   function release(W, state, p) {
@@ -331,7 +333,10 @@
     for (const id of state.scouting || []) state.known[id] = true;
     state.scouting = [];
     const open = windowOpen(S);
-    const deadline = open && WINDOWS.some(([, b]) => S.week === b);
+    const deadline = open && windows(S).some(([, b]) => S.week === b);
+    // довше вікно — менше угод за тиждень (старе вікно тривало 4 тижні)
+    const cur = windows(S).find(([a, b]) => S.week >= a && S.week <= b);
+    const wf = cur ? Math.min(1, 4 / (cur[1] - cur[0] + 1)) : 1;
     const clubs = [...W.clubs.values()];
     if (deadline) news(state, 'День закриття трансферного вікна: клуби поспішають завершити угоди.');
     scoutsWeek(W, state);
@@ -356,7 +361,7 @@
         if (p.loan) continue;
         const big = p.value >= 4 && rankInClub(W, p) < 8;
         const hot = p.interest && p.interest.until > S.year * 100 + S.week && W.club(p.interest.club);
-        let chance = (p.listed ? 0.45 : big ? 0.05 : 0.01) * (deadline ? 1.6 : 1) * (hot ? 4 : 1);
+        let chance = (p.listed ? 0.45 : (big ? 0.05 : 0.01) * wf) * (deadline ? 1.6 : 1) * (hot ? 4 : 1);
         if (p.clause && big) chance = Math.max(chance, 0.04);
         if (!R.chance(chance)) continue;
         const buyers = clubs.filter((c) => c.id !== state.clubId && c.balance > p.value * 0.9 && W.clubLevel(c.id) >= p.ca - 15);
@@ -375,17 +380,17 @@
         news(state, `${b.name} пропонує ${fmtM(fee)} за гравця ${p.name}.`);
       }
       // клуби ШІ виставляють старших не основних гравців — їх дешевше продати
-      if (S.week === 0 || S.week === 20) for (const c of clubs) {
+      if (windows(S).some(([a]) => S.week === a)) for (const c of clubs) {
         if (c.id === state.clubId) continue;
         for (const p of W.squad(c.id)) if ((W.age(p) ?? 24) >= 31 && rankInClub(W, p) >= 8 && !p.loan) p.listed = true;
       }
       // зимова «паніка»: аутсайдери (нижні 4 місця) купують охочіше й переплачують
       const panic = new Set();
-      if (S.week >= 20) for (const l of W.db.leagues) { const t = FM.season.table(S, W, l.id); for (const r of t.slice(-4)) panic.add(r.id); }
+      if (S.week >= windows(S)[1][0]) for (const l of W.db.leagues) { const t = FM.season.table(S, W, l.id); for (const r of t.slice(-4)) panic.add(r.id); }
       // суперники перехоплюють гравців з вашого шортлиста
       for (const id of state.shortlist || []) {
         const p = W.player(id);
-        if (!p || !p.club || p.club === state.clubId || p.loan || !R.chance(deadline ? 0.06 : 0.025)) continue;
+        if (!p || !p.club || p.club === state.clubId || p.loan || !R.chance(deadline ? 0.06 : 0.025 * wf)) continue;
         const rivals = clubs.filter((c) => c.id !== state.clubId && c.id !== p.club && c.balance > p.value * 1.6 && W.clubLevel(c.id) >= p.ca - 8 && W.clubLevel(c.id) <= p.ca + 20);
         if (!rivals.length) continue;
         const c = R.pick(rivals), ask = askingPrice(W, p, S), wd = wageDemand(W, p, c.id);
@@ -397,7 +402,7 @@
       // клуби ШІ латають слабкі позиції: беруть молодших, бережуть бюджет і фонд зарплат
       for (const c of clubs) {
         const scared = panic.has(c.id);
-        if (c.id === state.clubId || !R.chance((deadline ? 0.3 : 0.12) * (scared ? 2.5 : 1)) || c.balance < 0.5) continue;
+        if (c.id === state.clubId || !R.chance((deadline ? 0.3 : 0.12 * wf) * (scared ? 2.5 : 1)) || c.balance < 0.5) continue;
         const weak = weakestRole(W, c.id);
         if (!weak) continue;
         const lvl = W.clubLevel(c.id);
@@ -520,7 +525,7 @@
     return { ok: true, demand };
   }
 
-  FM.market = { valuesWeek, rumoursWeek, WINDOWS, NEWS_CATS, newsCat, unread, rival, agentFee, clauseDiscount, loanable, loanFee, loanIn, loanOffers, returnLoans, scouts, hireScout, scoutWage, scoutAccuracy, ensureKeepers, init, fairWage, wageBill, windowOpen, nextWindow, askingPrice, clubResponse, wageDemand, playerResponse,
+  FM.market = { windows, valuesWeek, rumoursWeek, WINDOWS, NEWS_CATS, newsCat, unread, rival, agentFee, clauseDiscount, loanable, loanFee, loanIn, loanOffers, returnLoans, scouts, hireScout, scoutWage, scoutAccuracy, ensureKeepers, init, fairWage, wageBill, windowOpen, nextWindow, askingPrice, clubResponse, wageDemand, playerResponse,
     complete, release, releaseCost, weekly, endSeason, renewDemand, renew, rankInClub, news, fmtM, WINDOWS };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

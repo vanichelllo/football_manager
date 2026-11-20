@@ -115,7 +115,8 @@ test('7. спонсори й ФФП: виплати, бонус за перем�
   const sp = FM.finance.choose(W, state, 'bonus');
   const b0 = W.club(state.clubId).balance;
   FM.finance.week(W, state, true); FM.finance.week(W, state, false);
-  assert.ok(Math.abs(W.club(state.clubId).balance - b0 - (2 * sp.perWeek + sp.win)) < 1e-6);
+  const k = FM.cal.weekK(state.season); // 48 тижнів платять за сезон стільки ж, скільки старі 38
+  assert.ok(Math.abs(W.club(state.clubId).balance - b0 - (2 * sp.perWeek * k + sp.win)) < 1e-3);
   assert.ok(FM.finance.trophy(W, state, 1) > 0);
   // звичайний сезон без трансферів — у межах
   state.board.fin = { tv: 10, tickets: 4, prize: 1, wages: 12, transfers: 0 };
@@ -126,7 +127,7 @@ test('7. спонсори й ФФП: виплати, бонус за перем�
   assert.ok(!r.ok && r.fine > 0);
   state.season.year++; state.season.week = 2;
   assert.ok(FM.finance.embargoed(state));
-  state.season.week = 20;
+  state.season.week = FM.market.windows(state.season)[1][0];
   assert.ok(!FM.finance.embargoed(state), 'зимове вікно вже відкрите');
 });
 
@@ -134,7 +135,8 @@ test('8. медіа: заголовки після матчу, пости, ти�
   require('../js/media.js');
   const { W, state } = fresh('Shakhtar Donetsk');
   const S = state.season;
-  for (let w = 0; w < 4; w++) { // чотири поразки поспіль
+  const mw = FM.season.clubFixtures(S, state.clubId).map((f) => f.w).sort((a, b) => a - b);
+  for (const w of mw.slice(0, 4)) { // чотири поразки поспіль
     S.week = w;
     for (const f of FM.season.fixturesOfWeek(S, w)) f.s = f.h === state.clubId ? [0, 3] : f.a === state.clubId ? [3, 0] : [1, 1];
     S.week = w + 1;
@@ -178,7 +180,7 @@ test('10–11. 23 ліги; три єврокубки по 36 клубів; Лі
   const all = [...state.cups.ucl.teams, ...state.cups.uel.teams, ...state.cups.uecl.teams];
   assert.strictEqual(new Set(all).size, all.length, 'клуб — лише в одному єврокубку');
   assert.strictEqual(state.cups.uecl.name, 'Ліга конференцій');
-  for (let w = 0; w < 38; w++) { state.season.week = w; FM.cups.playWeek(W, state, {}); }
+  for (let w = 0; w < FM.season.weeks(state.season); w++) { state.season.week = w; FM.cups.playWeek(W, state, {}); }
   assert.ok(state.cups.uecl.winner);
   assert.ok(FM.season.zone('sco', 1, 12) === 'ucl' && FM.season.zone('sco', 3, 12) === 'uel' && FM.season.zone('sco', 5, 12) === 'uecl');
 });
@@ -197,7 +199,7 @@ test('12. ветерани стають тренерами: резерв, кан
   const S = state.season;
   const top = W.clubsOf('eng').sort((x, y) => W.clubLevel(y.id) - W.clubLevel(x.id))[0];
   const sacked = [];
-  for (let w = 0; w < 38; w++) {
+  for (let w = 0; w < FM.season.weeks(S); w++) {
     for (const f of FM.season.fixturesOfWeek(S, w)) if (f.l === 'eng') f.s = f.h === top.id ? [0, 2] : f.a === top.id ? [2, 0] : [1, 1];
     S.week = w + 1;
     sacked.push(...FM.club.managersWeek(W, state).filter((e) => e.club.id === top.id));
@@ -228,7 +230,7 @@ test('18. збірна: відбір у групі з 4 (6 матчів Укра
   S.year = 2027; // сезон 2027/28 — відбір на Євро-2028
   const Q = FM.nations.qualGroup(W, state);
   assert.ok(Q && Q.group.length === 4 && Q.group.includes('UKR'));
-  for (const w of FM.nations.WINDOWS) { S.week = w; FM.nations.weekly(W, state, {}); }
+  for (const w of FM.nations.windows(S)) { S.week = w; FM.nations.weekly(W, state, {}); }
   const tab = FM.nations.qualTable(state);
   assert.ok(tab.every((r) => r.p === 6), 'кожна команда — 6 матчів');
   // турнір з Україною: покроково, до кожного матчу України
@@ -260,7 +262,7 @@ test('збірні: згенеровані гравці, Ліга націй з 
   const S = state.season;
   const NL = FM.nations.nlGroup(W, state);
   assert.ok(NL && NL.group.length === 4 && ['A', 'B', 'C'].includes(NL.tier));
-  for (const w of FM.nations.WINDOWS) { S.week = w; FM.nations.weekly(W, state, {}); }
+  for (const w of FM.nations.windows(S)) { S.week = w; FM.nations.weekly(W, state, {}); }
   assert.ok(FM.nations.groupTableOf(NL, state.intl.played, 'nl').every((r) => r.p === 6));
   const end = FM.nations.nlEnd(W, state);
   assert.ok(end && /Ліга націй/.test(end.text) && state.intl.nlTier);

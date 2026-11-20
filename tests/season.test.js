@@ -21,7 +21,13 @@ test('календар: кожен з кожним двічі (раз удома
     const n = l.size;
     assert.strictEqual(fx.length, n * (n - 1), l.id);
     assert.strictEqual(new Set(fx.map((f) => f.r)).size, 2 * (n - 1), `${l.id}: турів`);
-    assert.ok(Math.max(...fx.map((f) => f.w)) < 38, `${l.id}: вміщається в 38 тижнів`);
+    assert.ok(Math.max(...fx.map((f) => f.w)) < FM.season.weeks(S), `${l.id}: вміщається в сезон`);
+    assert.ok(Math.min(...fx.map((f) => f.w)) >= 2, `${l.id}: спершу передсезоння`);
+    assert.ok(!fx.some((f) => S.cal.intl.includes(f.w)), `${l.id}: у вікна збірних ліга не грає`);
+    // за тиждень клуб грає не більше двох турів, і другий — посеред тижня
+    const per = {};
+    for (const f of fx) for (const c of [f.h, f.a]) { const k = c + '|' + f.w; per[k] = (per[k] || []).concat([f.mid ? 1 : 0]); }
+    for (const [k, v] of Object.entries(per)) assert.ok(v.length === 1 || (v.length === 2 && v.includes(1) && v.includes(0)), `${l.id} ${k}: ${v}`);
     const pairs = new Set(fx.map((f) => f.h + '>' + f.a));
     assert.strictEqual(pairs.size, fx.length, `${l.id}: повторів немає`);
     for (let r = 0; r < 2 * (n - 1); r++) {
@@ -34,7 +40,15 @@ test('календар: кожен з кожним двічі (раз удома
       assert.ok(!/HHHH|AAAA/.test(seq), `${c.nameEn}: ${seq}`);
     }
   }
-  assert.strictEqual(FM.season.weeks(S), 38);
+  const n = FM.season.weeks(S);
+  assert.ok(n >= 44 && n <= 50, `тижнів у сезоні: ${n}`);
+  // реалізм: старт сезону — початок липня; УПЛ на зимовій перерві в січні; АПЛ грає на Різдво; фінал ЛЧ — травень
+  assert.strictEqual(S.start.slice(5, 7), '07');
+  const month = (w) => FM.season.dateOf(w, S).slice(5, 7);
+  assert.ok(!S.fixtures.some((f) => f.l === 'ukr' && month(f.w) === '01'), 'УПЛ у січні не грає');
+  assert.ok(S.fixtures.some((f) => f.l === 'eng' && FM.season.dateOf(f.w, S).slice(5) >= '12-24' && FM.season.dateOf(f.w, S).slice(5) <= '12-31'), 'АПЛ грає на свята');
+  assert.ok(S.fixtures.some((f) => f.l === 'eng2' && f.mid), 'Чемпіоншип грає посеред тижня');
+  assert.strictEqual(month(S.cal.euroKO[4][0]), '05');
 });
 
 test('цілий сезон: таблиця, очки, бомбардири узгоджені; дискваліфікації минають', () => {
@@ -71,7 +85,8 @@ test('цілий сезон: таблиця, очки, бомбардири уз
 
 test('дискваліфікований гравець не потрапляє в склад', () => {
   const S = FM.season.create(W, 'ban');
-  const f = FM.season.fixturesOfWeek(S, 0)[0];
+  S.week = Math.min(...S.fixtures.map((x) => x.w));
+  const f = FM.season.fixturesOfWeek(S, S.week)[0];
   const star = W.squad(f.h).sort((a, b) => b.ca - a.ca)[0];
   S.bans[star.id] = [1, -1];
   const side = FM.season.sideFor(S, W, f.h);
