@@ -171,19 +171,34 @@ function parseNum(s) {
 const firstLine = (s) => plain(String(s || '').split(/<br\s*\/?>/i)[0]);
 
 /** Дата народження з {{birth date and age|1995|3|4}} тощо → 'YYYY-MM-DD'. */
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+const monthNum = (x) => (/^\d{1,2}$/.test(x) ? Number(x) : MONTHS[String(x).trim().slice(0, 3).toLowerCase()] || null);
+const ymd = (y, mo, d) => `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
 function birthDate(s) {
   if (!s) return null;
-  const m = /\{\{\s*birth[ _]date(?:[ _]and[ _]age)?2?\s*\|(?:[^|}]*=[^|}]*\|)*\s*(\d{4})\s*\|\s*(\d{1,2})\s*\|\s*(\d{1,2})/i.exec(s);
-  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
-  const y = /\b(19[6-9]\d|200\d|201\d)\b/.exec(plain(s));
+  // {{Birth date and age|2006|5|16}}, {{Birth date and age|2006|May|16|df=y}}, {{bda|…}}
+  const m = /\{\{\s*(?:birth[ _]date(?:[ _]and[ _]age)?2?|bda|dob)\s*\|(?:[^|}]*=[^|}]*\|)*\s*(\d{4})\s*\|\s*([A-Za-z]+|\d{1,2})\s*\|\s*(\d{1,2})/i.exec(s);
+  if (m && monthNum(m[2])) return ymd(m[1], monthNum(m[2]), m[3]);
+  // звичайним текстом: «16 May 2006» або «May 16, 2006»
+  const t = plain(s);
+  let d = /\b(\d{1,2})\s+([A-Za-z]{3,9})\s+(19[6-9]\d|20[0-2]\d)\b/.exec(t);
+  if (d && monthNum(d[2])) return ymd(d[3], monthNum(d[2]), d[1]);
+  d = /\b([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(19[6-9]\d|20[0-2]\d)\b/.exec(t);
+  if (d && monthNum(d[1])) return ymd(d[3], monthNum(d[1]), d[2]);
+  const y = /\b(19[6-9]\d|20[0-2]\d)\b/.exec(t);
   return y ? `${y[1]}-07-01` : null;
 }
 
 function height(s) {
   if (!s) return null;
-  let m = /\{\{\s*(?:height|convert)\s*\|\s*m\s*=\s*([\d.]+)/i.exec(s) || /\{\{\s*convert\s*\|\s*([\d.]+)\s*\|\s*m\b/i.exec(s);
+  let m = /\{\{\s*(?:height|convert|cvt)\s*\|\s*m\s*=\s*([\d.]+)/i.exec(s) || /\{\{\s*(?:convert|cvt)\s*\|\s*([\d.]+)\s*\|\s*m\b/i.exec(s);
   if (m) return Math.round(Number(m[1]) * 100);
-  m = /\{\{\s*(?:height|convert)\s*\|\s*cm\s*=\s*(\d+)/i.exec(s) || /\{\{\s*convert\s*\|\s*(\d{3})\s*\|\s*cm/i.exec(s);
+  m = /\{\{\s*(?:height|convert|cvt)\s*\|\s*cm\s*=\s*(\d+)/i.exec(s) || /\{\{\s*(?:convert|cvt)\s*\|\s*(\d{3})\s*\|\s*cm/i.exec(s);
+  if (m) return Number(m[1]);
+  // у футах і дюймах: {{height|ft=6|in=2}}, {{convert|6|ft|2|in}}
+  m = /\{\{\s*height\s*\|\s*ft\s*=\s*(\d)\s*(?:\|\s*in\s*=\s*([\d.]+))?/i.exec(s) || /\{\{\s*(?:convert|cvt)\s*\|\s*(\d)\s*\|\s*ft\s*(?:\|\s*([\d.]+)\s*\|\s*in)?/i.exec(s);
+  if (m) return Math.round((Number(m[1]) * 12 + Number(m[2] || 0)) * 2.54);
   if (m) return Number(m[1]);
   m = /(1[.,]\d{2})\s*m/.exec(plain(s));
   if (m) return Math.round(Number(m[1].replace(',', '.')) * 100);
