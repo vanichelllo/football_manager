@@ -68,7 +68,8 @@ test('новий сезон: рік, дата старту, календар; с
   assert.strictEqual(state.season.year, 2027);
   assert.strictEqual(W.today, '2027-08-01');
   assert.strictEqual(new Date(state.season.start + 'T12:00:00Z').getUTCDay(), 6);
-  assert.strictEqual(FM.season.weeks(state.season), 38);
+  assert.ok(FM.season.weeks(state.season) >= 44 && FM.season.weeks(state.season) <= 50);
+  state.season.week = Math.min(...state.season.fixtures.filter((f) => f.l === 'eng').map((f) => f.w));
   FM.season.playWeek(state.season, W, { dev: { myClub: state.clubId } });
   assert.ok(state.season.fixtures.filter((f) => f.s).length > 50);
   const saved = JSON.parse(JSON.stringify(W.export()));

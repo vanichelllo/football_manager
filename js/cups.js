@@ -94,12 +94,15 @@
       const lower = W.db.leagues.filter((x) => x.up === l.id).map((x) => x.id);
       const teams = [...W.clubs.values()].filter((c) => c.league === l.id || lower.includes(c.league))
         .sort((a, b) => W.clubLevel(b.id) - W.clubLevel(a.id)).map((c) => c.id);
-      cups[l.id] = create(l.id, teams, domesticWeeks(roundsFor(teams.length), l.id === 'ukr' ? 27 : 30), R);
+      const nR = roundsFor(teams.length);
+      // реальний календар: останні nR дат кубка країни (фінал — у травні); старий — рівномірно до 27/30 тижня
+      const weeks = S.cal && S.cal.domestic[l.id] ? S.cal.domestic[l.id].slice(-nR).map((w) => [w]) : domesticWeeks(nR, l.id === 'ukr' ? 27 : 30);
+      cups[l.id] = create(l.id, teams, weeks, R);
     }
     const q = euroQualifiers(W, tables);
-    cups.ucl = createEuro('ucl', q.ucl, W, R);
-    cups.uel = createEuro('uel', q.uel, W, R);
-    if (q.uecl.length >= 8) cups.uecl = createEuro('uecl', q.uecl, W, R);
+    cups.ucl = createEuro('ucl', q.ucl, W, R, S.cal);
+    cups.uel = createEuro('uel', q.uel, W, R, S.cal);
+    if (q.uecl.length >= 8) cups.uecl = createEuro('uecl', q.uecl, W, R, S.cal);
     return cups;
   }
 
@@ -165,16 +168,17 @@
     return rounds;
   }
 
-  function createEuro(id, teams, W, R) {
+  function createEuro(id, teams, W, R, cal) {
+    const LW = cal ? cal.euroLeague : EURO_LEAGUE_WEEKS, KW = cal ? cal.euroKO : EURO_KO_WEEKS;
     const rounds = leaguePhase(teams, W, R);
     const fixtures = [];
-    rounds.forEach((games, r) => games.forEach(([h, a]) => fixtures.push({ r, w: EURO_LEAGUE_WEEKS[r], h, a, s: null })));
+    rounds.forEach((games, r) => games.forEach(([h, a]) => fixtures.push({ r, w: LW[r], h, a, s: null })));
     const ko = [
-      { name: 'Стикові матчі', weeks: EURO_KO_WEEKS[0], ties: null, size: 32 },
-      { name: '1/8 фіналу', weeks: EURO_KO_WEEKS[1], ties: null, size: 16 },
-      { name: 'Чвертьфінал', weeks: EURO_KO_WEEKS[2], ties: null, size: 8 },
-      { name: 'Півфінал', weeks: EURO_KO_WEEKS[3], ties: null, size: 4 },
-      { name: 'Фінал', weeks: EURO_KO_WEEKS[4], ties: null, size: 2 },
+      { name: 'Стикові матчі', weeks: KW[0], ties: null, size: 32 },
+      { name: '1/8 фіналу', weeks: KW[1], ties: null, size: 16 },
+      { name: 'Чвертьфінал', weeks: KW[2], ties: null, size: 8 },
+      { name: 'Півфінал', weeks: KW[3], ties: null, size: 4 },
+      { name: 'Фінал', weeks: KW[4], ties: null, size: 2 },
     ];
     return { id, name: NAMES[id], teams: teams.slice(), phase: { fixtures }, rounds: ko, winner: null };
   }

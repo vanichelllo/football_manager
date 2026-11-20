@@ -26,7 +26,7 @@ test('збірні: пули з реальних гравців, Україна 
 test('міжнародне вікно: два матчі України, записи й ігри за збірну', () => {
   const W = FM.createWorld(db);
   const state = { season: FM.season.create(W, 'intl') };
-  state.season.week = FM.nations.WINDOWS[0];
+  state.season.week = FM.nations.windows(state.season)[0];
   const res = FM.nations.weekly(W, state, {});
   assert.strictEqual(res.length, 2);
   assert.strictEqual(state.intl.played.length, 2);

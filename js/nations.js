@@ -4,7 +4,9 @@
   'use strict';
   const FM = (root.FM = root.FM || {});
 
-  const WINDOWS = [6, 13, 27]; // тижні міжнародних вікон
+  const WINDOWS = [6, 13, 27]; // тижні міжнародних вікон (старі збереження без календаря)
+  // реальний календар: вересень, жовтень, листопад (відбір / Ліга націй); березневе вікно — без офіційних матчів
+  const windows = (S) => (S && S.cal ? S.cal.intl.slice(0, 3) : WINDOWS);
   const EUROPE = new Set(['ENG', 'ESP', 'ITA', 'GER', 'FRA', 'UKR', 'POR', 'NED', 'BEL', 'CRO', 'SUI', 'DEN', 'AUT', 'NOR', 'TUR', 'SRB', 'SWE', 'POL',
     'WAL', 'HUN', 'SCO', 'CZE', 'SVK', 'SVN', 'GRE', 'ROU', 'IRL', 'NIR', 'FIN', 'GEO', 'ALB', 'BIH', 'MKD', 'ISL', 'ISR', 'MNE', 'KOS', 'BUL', 'ARM', 'AZE', 'LUX', 'BLR']);
   const COLORS = { UKR: ['#ffd500', '#005bbb'], ENG: ['#ffffff', '#c8102e'], ESP: ['#c60b1e', '#ffc400'], ITA: ['#0066b3', '#ffffff'], GER: ['#ffffff', '#000000'],
@@ -88,7 +90,7 @@
   /** Матчі збірної України цього тижня (якщо міжнародне вікно): [{ id, opp, home }]. */
   function fixtures(state, W) {
     const S = state.season;
-    if (!WINDOWS.includes(S.week) || !pools(W).UKR) return [];
+    if (!windows(S).includes(S.week) || !pools(W).UKR) return [];
     const done = (state.intl = state.intl || {}).played || [];
     const out = [];
     const used = [];
@@ -96,7 +98,7 @@
     // відбір на турнір або Ліга націй: група з 4, у кожне вікно — по два матчі
     const Q = qualGroup(W, state), NL = Q ? null : nlGroup(W, state), G = Q || NL;
     if (G && G.group.length === 4) {
-      const wi = WINDOWS.indexOf(S.week);
+      const wi = windows(S).indexOf(S.week);
       const opp = G.group.filter((c) => c !== 'UKR');
       const plan = [[opp[0], true], [opp[1], false], [opp[2], true], [opp[0], false], [opp[1], true], [opp[2], false]];
       for (let k = 0; k < 2; k++) {
@@ -158,7 +160,7 @@
   function weekly(W, state, opts = {}) {
     invalidate();
     const S = state.season;
-    if (!WINDOWS.includes(S.week)) return [];
+    if (!windows(S).includes(S.week)) return [];
     const res = [];
     const coach = state.intl && state.intl.coach;
     const picks = coach && state.intl.picks && state.intl.picks.length >= 16 ? state.intl.picks : null;
@@ -174,7 +176,7 @@
     // інші матчі кваліфікаційної групи цього вікна
     const Q = qualGroup(W, state) || nlGroup(W, state);
     if (Q && Q.group.length === 4) {
-      const wi = WINDOWS.indexOf(S.week), [, a, b, c] = Q.group;
+      const wi = windows(S).indexOf(S.week), [, a, b, c] = Q.group;
       const plan = [[[b, c], [a, c]], [[c, a], [b, a]], [[a, b], [c, b]]][wi] || [];
       for (const [h, aw] of plan) if (h && aw && !Q.other.some((x) => x[3] === `${S.week}-${h}-${aw}`)) {
         const m = playNations(W, h, aw, `qual-${S.seed}-${S.week}-${h}-${aw}`, {});
@@ -439,7 +441,7 @@
     return summary(T);
   }
 
-  FM.nations = { invalidate, CONFED, NAT_BASE, CONTINENTAL, coachOf, ensurePools, nlGroup, nlEnd, groupTableOf, nlTierByRank, createCustom, createKO, confedOf, qualGroup, qualTable, createTournament, nextMatch, recordTour, groupTable, summary, WINDOWS, EUROPE, canCoach, pools, squad, side, teamClub, strength, record, playNations, tournamentFor,
+  FM.nations = { windows, invalidate, CONFED, NAT_BASE, CONTINENTAL, coachOf, ensurePools, nlGroup, nlEnd, groupTableOf, nlTierByRank, createCustom, createKO, confedOf, qualGroup, qualTable, createTournament, nextMatch, recordTour, groupTable, summary, WINDOWS, EUROPE, canCoach, pools, squad, side, teamClub, strength, record, playNations, tournamentFor,
     fixtures: (state, W) => cached(W, () => fixtures(state, W)),
     weekly: (W, state, opts) => cached(W, () => weekly(W, state, opts)),
     playUntil: (W, T, code, opts) => cached(W, () => playUntil(W, T, code, opts)),

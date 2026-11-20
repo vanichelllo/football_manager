@@ -190,8 +190,9 @@
       addMorale(p, 8); promise({ due: S.week + 6, apps0: (S.ps[p.id] && S.ps[p.id][0]) || 0, need: 3 });
       text = 'Гравець чекатиме більше матчів: щонайменше 3 матчі ліги за 6 тижнів.';
     } else if (kind === 'sign') {
-      addMorale(p, 5); promise({ due: S.week < 22 ? 22 : 37, ca: p.ca - 5 });
-      text = `Гравець чекає підсилення до ${S.week < 22 ? 'кінця зимового вікна' : 'кінця сезону'}.`;
+      const winterEnd = FM.cal.at(S, 22), lastW = FM.season.weeks(S) - 1;
+      addMorale(p, 5); promise({ due: S.week < winterEnd ? winterEnd : lastW, ca: p.ca - 5 });
+      text = `Гравець чекає підсилення до ${S.week < winterEnd ? 'кінця зимового вікна' : 'кінця сезону'}.`;
     } else if (kind === 'contract') {
       addMorale(p, 6); promise({ due: S.week + 8, contract0: p.contract });
       text = 'Гравець чекає нового контракту протягом 8 тижнів.';

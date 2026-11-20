@@ -56,7 +56,7 @@
             else if (share >= EXPECT[st]) m += 0.6;
           }
           const yearsLeft = (p.contract || S.year + 2) - S.year - 1;
-          if (yearsLeft <= 0 && S.week >= 20 && st === 'key') { m -= 1; why.push('контракт закінчується'); }
+          if (yearsLeft <= 0 && S.week >= FM.cal.at(S, 20) && st === 'key') { m -= 1; why.push('контракт закінчується'); }
           if (p.listed && st !== 'backup') { m -= 0.8; why.push('у трансфер-листі'); }
           if (p.lastRating != null) { if (p.lastRating >= 7.5) m += 2; else if (p.lastRating < 6) m -= 1.5; }
         }

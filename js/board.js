@@ -73,13 +73,14 @@
     const home = new Set(fx.map((f) => f.h));
     const posCache = {};
     const b = state.board;
+    const k = FM.cal ? FM.cal.weekK(S) : 1;
     for (const c of W.clubs.values()) {
       const t = posCache[c.league] || (posCache[c.league] = FM.season.table(S, W, c.league));
       const pos = t.findIndex((r) => r.id === c.id) + 1;
       const rel = t.length > 1 ? 1 - (pos - 1) / (t.length - 1) : 0.5; // 1 — лідер
-      const fixed = c.income0 * 0.7;
+      const fixed = c.income0 * 0.7 * k; // k — сезон із 48 тижнів платить за рік стільки ж, скільки старий із 38
       const tickets = home.has(c.id) ? c.income0 * 0.6 * (0.8 + 0.35 * rel) * (FM.club ? FM.club.ticketFactor(W, c.id, rel) : 1) : 0; // удома — подвійна частка матчдею
-      const wages = FM.market.wageBill(W, c.id) / 1000 + (c.id === state.clubId && FM.club ? FM.club.staffBill(state) / 1000 : 0);
+      const wages = (FM.market.wageBill(W, c.id) / 1000 + (c.id === state.clubId && FM.club ? FM.club.staffBill(state) / 1000 : 0)) * k;
       c.balance = r4(c.balance + fixed + tickets - wages);
       if (c.id === state.clubId) {
         b.fin.tv = r4(b.fin.tv + fixed); b.fin.tickets = r4(b.fin.tickets + tickets); b.fin.wages = r4(b.fin.wages + wages);
@@ -91,8 +92,9 @@
       if (p && p.goalBonus && p.club) W.club(p.club).balance = r2(W.club(p.club).balance - p.goalBonus / 1000);
     }
     // довіра
-    const mine = fx.find((f) => f.h === state.clubId || f.a === state.clubId);
-    if (mine && mine.s) {
+    const mineAll = fx.filter((f) => (f.h === state.clubId || f.a === state.clubId) && f.s); // два тури за тиждень — обидва рахуються
+    const mine = mineAll[0];
+    for (const mine of mineAll) {
       const [g1, g2] = mine.h === state.clubId ? mine.s : [mine.s[1], mine.s[0]];
       const opp = mine.h === state.clubId ? mine.a : mine.h;
       const diff = W.clubLevel(opp) - W.clubLevel(state.clubId); // > 0 — суперник сильніший
@@ -100,10 +102,10 @@
       b.conf += res;
     }
     const { pos } = position(W, S, state.clubId);
-    if (S.week >= 6 && mine) b.conf += Math.max(-1.6, Math.min(1.2, (b.target.pos - pos) * 0.25));
+    if (S.week >= FM.cal.at(S, 6) && mine) b.conf += Math.max(-1.6, Math.min(1.2, (b.target.pos - pos) * 0.25));
     if (W.club(state.clubId).balance < 0) b.conf -= 1;
     b.conf = Math.max(0, Math.min(100, Math.round(b.conf * 10) / 10));
-    if (S.week >= 10 && b.conf < 15 && !b.fired) { b.fired = true; return { fired: true, reason: 'Правління втратило довіру через погані результати.' }; }
+    if (S.week >= FM.cal.at(S, 10) && b.conf < 15 && !b.fired) { b.fired = true; return { fired: true, reason: 'Правління втратило довіру через погані результати.' }; }
     return { fired: false };
   }
 

@@ -50,7 +50,7 @@ test('етап ліги: 8 турів, 4 вдома й 4 на виїзді, бе
 
 test('за сезон у кожному кубку — рівно один переможець; пари з двох матчів', () => {
   const all = [];
-  for (let w = 0; w < 38; w++) { state.season.week = w; all.push(...FM.cups.playWeek(W, state, {})); }
+  for (let w = 0; w < FM.season.weeks(state.season); w++) { state.season.week = w; all.push(...FM.cups.playWeek(W, state, {})); }
   for (const cup of Object.values(state.cups)) {
     assert.ok(cup.winner && cup.teams.includes(cup.winner), `${cup.name}: переможця немає`);
     const last = cup.rounds[cup.rounds.length - 1];

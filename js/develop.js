@@ -86,6 +86,7 @@
     const games = {}; // скільки матчів зіграв клуб
     for (const f of S.fixtures) if (f.s) { games[f.h] = (games[f.h] || 0) + 1; games[f.a] = (games[f.a] || 0) + 1; }
     const hurt = [];
+    const k = FM.cal ? FM.cal.weekK(S) : 1; // розвиток і травми на тренуваннях — за сезон стільки ж, скільки в старому календарі
     for (const p of W.players.values()) {
       if (p.retired) continue;
       const age = W.age(p) ?? 24;
@@ -93,16 +94,16 @@
       const inten = INTENSITY[(mine && tr.intensity) || 'normal'];
       const plan = PLANS[(mine && tr.plan) || 'balanced'];
       // травма на тренуванні
-      if (p.club && !p.injury && R.chance(0.006 * inten.injury * plan.injury * (mine && opts.injuryMult ? opts.injuryMult : 1))) { p.injury = Math.min(4, injuryWeeks(R)); hurt.push({ id: p.id, weeks: p.injury }); }
+      if (p.club && !p.injury && R.chance(0.006 * k * inten.injury * plan.injury * (mine && opts.injuryMult ? opts.injuryMult : 1))) { p.injury = Math.min(4, injuryWeeks(R)); hurt.push({ id: p.id, weeks: p.injury }); }
       const clubGames = p.club ? games[p.club] || 0 : 0;
       const apps = (S.ps[p.id] && S.ps[p.id][0]) || 0;
       const share = clubGames ? Math.min(1, apps / clubGames) : 0.4;
       let g = Math.max(0, p.pa - p.ca) * growthRate(age) * (0.55 + 0.9 * share) * inten.growth * plan.growth * (0.8 + ((p.h && p.h.pro) || 10) / 50) // професіоналізм
-        * (mine && opts.growthMult ? opts.growthMult(p) : 1); // тренери й база
+        * (mine && opts.growthMult ? opts.growthMult(p) : 1) * k; // тренери й база
       if (p.injury) g *= 0.3;
       if (!p.club) g *= 0.5; // без клубу розвиток повільніший
-      if (age >= 30) g -= 0.02 + (age - 30) * 0.03;
-      g += (R.next() - 0.5) * 0.04;
+      if (age >= 30) g -= (0.02 + (age - 30) * 0.03) * k;
+      g += (R.next() - 0.5) * 0.04 * k;
       p.dg = Math.round(((p.dg || 0) + g) * 1000) / 1000;
       let guard = 0;
       while (p.dg >= 1 && p.ca < p.pa && guard++ < 5) { shiftAttr(p, R, true, mine ? tr.focus : null, mine && tr.individual ? tr.individual[p.id] : null, age); p.dg -= 1; }

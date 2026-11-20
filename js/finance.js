@@ -29,7 +29,7 @@
   function week(W, state, won) {
     const sp = state.sponsor, c = W.club(state.clubId);
     if (!sp || sp.year !== state.season.year) return 0;
-    const pay = r4(sp.perWeek + (won ? sp.win : 0));
+    const pay = r4(sp.perWeek * (FM.cal ? FM.cal.weekK(state.season) : 1) + (won ? sp.win : 0));
     c.balance = r4(c.balance + pay); sp.earned = r4(sp.earned + pay);
     if (state.board) state.board.fin.sponsor = r4((state.board.fin.sponsor || 0) + pay);
     return pay;
@@ -63,7 +63,7 @@
     return { ok: false, ratio: r, fine, text: `ФФП порушено: витрати — ${Math.round(r * 100)}% доходів (межа ${Math.round(LIMIT * 100)}%). Штраф ${FM.market.fmtM(fine)} і заборона купувати гравців у літнє вікно.` };
   }
   /** Чи діє заборона трансферів (лише літнє вікно сезону після порушення). */
-  const embargoed = (state) => state.embargo === state.season.year && state.season.week < 10;
+  const embargoed = (state) => state.embargo === state.season.year && state.season.week < (FM.market ? FM.market.windows(state.season)[1][0] : 10);
 
   FM.finance = { BRANDS, offers, choose, week, trophy, ratio, LIMIT, WARN, endSeason, embargoed };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;

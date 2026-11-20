@@ -15,7 +15,7 @@ const byName = (W, en) => [...W.clubs.values()].find((c) => c.nameEn === en);
 test('свіжість: після матчу падає, за тиждень відновлюється; ШІ дає відпочити втомленим', () => {
   const W = FM.createWorld(db);
   const S = FM.season.create(W, 'fit');
-  const f = FM.season.fixturesOfWeek(S, 0)[0];
+  const f = FM.season.fixturesOfWeek(S, Math.min(...S.fixtures.map((x) => x.w)))[0];
   const { m } = FM.season.play(S, W, f);
   FM.season.record(S, f, m);
   const played = m.ratings.filter((r) => !r.on && !r.off && r.role !== 'GK').map((r) => r.player);

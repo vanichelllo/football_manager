@@ -56,7 +56,8 @@ test('серія поразок — звільнення; репутація й 
   const { W, state } = career('Arsenal');
   const S = state.season;
   let fired = false;
-  for (let w = 0; w < 14 && !fired; w++) {
+  S.week = Math.min(...FM.season.clubFixtures(S, state.clubId).map((f) => f.w));
+  for (let w = 0; w < 18 && !fired; w++) {
     for (const f of FM.season.fixturesOfWeek(S, S.week)) f.s = f.h === state.clubId ? [0, 3] : f.a === state.clubId ? [3, 0] : [1, 1];
     S.week++;
     fired = FM.board.weekly(W, state).fired;

@@ -25,7 +25,7 @@
   /** Тиждень молодіжної ліги: матч проти «U-21» клубу ліги, голи, статистика гравців. */
   function week(W, state) {
     const S = state.season, sq = squad(W, state).filter((p) => !p.injury);
-    if (sq.length < 7 || S.week >= 38) return null;
+    if (sq.length < 7 || S.week >= FM.season.weeks(S)) return null;
     const R = FM.rng(`u21-${S.seed}-${S.year}-${S.week}`);
     const league = W.clubsOf(W.club(state.clubId).league).filter((c) => c.id !== state.clubId);
     const opp = league[(S.week * 7 + S.year) % league.length];
