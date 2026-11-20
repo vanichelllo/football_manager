@@ -710,3 +710,24 @@ th[aria-sort] { color: var(--fg); }
 .dl-timer { color: #c0392b; }
 .dl-offers li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .dl-feed li.big { font-weight: 700; }
+
+/* 2D-поле трансляції */
+.pitch-panel { margin: 0 0 0.8rem; }
+.mini-pitch.pitch2d { height: auto; aspect-ratio: 105 / 62; max-height: 22rem; margin: 0; border: 2px solid rgba(255, 255, 255, 0.35);
+  background: repeating-linear-gradient(90deg, #2e7d4f 0 9.09%, #2a7449 9.09% 18.18%); }
+.pitch2d .mp-circle { position: absolute; left: 50%; top: 50%; width: 17%; aspect-ratio: 1; border: 2px solid rgba(255, 255, 255, 0.45); border-radius: 50%; transform: translate(-50%, -50%); }
+.pitch2d .mp-box { top: 22%; bottom: 22%; width: 15%; }
+.pitch2d .mp-six { position: absolute; top: 38%; bottom: 38%; width: 5.5%; border: 2px solid rgba(255, 255, 255, 0.45); }
+.pitch2d .mp-six.l { left: -2px; border-left: 0; } .pitch2d .mp-six.r { right: -2px; border-right: 0; }
+.pitch2d .mp-goal { position: absolute; top: 44%; bottom: 44%; width: 1.2%; background: rgba(255, 255, 255, 0.85); }
+.pitch2d .mp-goal.l { left: 0; } .pitch2d .mp-goal.r { right: 0; }
+.pitch2d .dot2 { width: 0.95rem; height: 0.95rem; border-width: 2px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+.pitch2d .dot2.has-ball { outline: 2px solid #fff; outline-offset: 1px; }
+.pitch2d .ball { width: 0.6rem; height: 0.6rem; z-index: 2; }
+@media (prefers-reduced-motion: no-preference) {
+  .pitch2d .dot2 { transition: left 0.5s ease-out, top 0.5s ease-out; }
+  .pitch2d .ball { transition: left 0.38s ease-out, top 0.38s ease-out; }
+}
+.mp-replay { position: absolute; top: 0.4rem; left: 0.5rem; font: 700 0.75rem/1 var(--font-display, inherit); letter-spacing: 0.1em; color: #fff; background: #c0392b; padding: 0.2rem 0.4rem; border-radius: 4px; z-index: 3; }
+.pitch2d.replaying { filter: saturate(0.6); }
+@media (max-width: 760px) { .pitch2d .dot2 { width: 0.7rem; height: 0.7rem; border-width: 1.5px; } }

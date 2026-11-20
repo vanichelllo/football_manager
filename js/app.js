@@ -2060,6 +2060,7 @@
     /** Виділити момент: смуга «Небезпечна атака» → результат; м'яч летить до місця удару. */
     function highlight(e) {
       hlTimers.forEach(clearTimeout); hlTimers = [];
+      hlActive = true; possK = e.team; carrier = null;
       const k = e.team, team = k === 0 ? hs.club : as.club, ours = myK == null || k === myK;
       const atk = k === 0 ? 1 : -1;
       const sx = k === 0 ? e.hl.x : 100 - e.hl.x, sy = (k === 0 ? e.hl.y : 100 - e.hl.y);
@@ -2072,35 +2073,84 @@
         const out = e.hl.out;
         hlBar.className = 'hl-bar ' + (out === 'goal' ? (ours ? 'hl-goal' : 'hl-goal-against') : 'hl-' + out);
         hlBar.replaceChildren(el('b', e.hl.og ? 'Автогол!' : e.hl.special === 'gk' ? '🧤 ГОЛ ВОРОТАРЯ!' : e.hl.special ? '🚀 ГОЛ-ШЕДЕВР!' : HL_OUT[out] || 'Момент'), el('span.muted', ` ${clubName(team)} · ${e.min}′${e.hl.xg != null ? ` · xG ${String(e.hl.xg).replace('.', ',')}` : ''}`));
-        if (out === 'goal') moveBall(k === 0 ? 98 : 2, 50);
+        if (out === 'goal') { moveBall(k === 0 ? 98 : 2, 50); lastGoal = trail.slice(-6); hlBar.append(' ', el('button.btn.tiny-btn', { type: 'button', onclick: () => replay() }, '▶ Повтор')); setTimeout(() => replay(), 900); }
         else if (out === 'wide') moveBall(k === 0 ? 99 : 1, sy < 50 ? 30 : 70);
         else if (out === 'post') moveBall(k === 0 ? 97 : 3, 44);
       }, 1000));
-      hlTimers.push(setTimeout(() => { hlBar.hidden = true; }, e.hl.out === 'goal' ? 4200 : 3000));
+      hlTimers.push(setTimeout(() => { hlBar.hidden = true; hlActive = false; if (e.hl.out === 'goal') { possK = 1 - k; carrier = null; moveBall(50, 50); drawDots(); } }, e.hl.out === 'goal' ? 4200 : 3000));
     }
+    // ---- 2D-поле (як у FM): гравці бігають за м'ячем, м'яч ходить передачами, на голах — повтор ----
     const dots = el('div.mp-dots');
-    const miniPitch = el('div.mini-pitch', { 'aria-hidden': 'true' }, [el('span.mp-half'), el('span.mp-box.l'), el('span.mp-box.r'), dots, ball]);
-    // гравці: позиції зі схеми, обидві команди зсуваються за м'ячем
-    const drawDots = () => {
-      const shift = (ballX - 50) * 0.35;
-      const list = [];
-      M.sides.forEach((t, k) => {
-        const live = t.onPitch.filter((x) => !x.out);
-        const xy = layoutXY(live.map((x) => x.slot));
-        const c = k === 0 ? hs.club : as.club;
-        live.forEach((x, i) => {
-          const depth = 100 - xy[i][1]; // 0 — свої ворота, 100 — чужі
-          let hx = 6 + depth * 0.88; if (k === 1) hx = 100 - hx;
-          const d = el('i.dot2', { title: nameOf(x.p) });
-          d.style.left = Math.max(2, Math.min(98, hx + shift)) + '%'; d.style.top = (k === 0 ? xy[i][0] : 100 - xy[i][0]) + '%';
-          d.style.background = c.colors[0]; d.style.borderColor = c.colors[1] || '#000';
-          list.push(d);
-        });
+    const replayTag = el('span.mp-replay', { hidden: true }, 'ПОВТОР');
+    const miniPitch = el('div.mini-pitch.pitch2d', { 'aria-hidden': 'true' }, [el('span.mp-half'), el('span.mp-circle'), el('span.mp-box.l'), el('span.mp-box.r'),
+      el('span.mp-six.l'), el('span.mp-six.r'), el('span.mp-goal.l'), el('span.mp-goal.r'), dots, ball, replayTag]);
+    const dotEls = new Map();
+    let possK = 0, carrier = null, hlActive = false, replaying = false;
+    const trail = []; let lastGoal = null;
+    const R2 = FM.rng(`2d-${Date.now()}`);
+    /** Позиції гравців команди k: база — схема, блок зсувається за м'ячем, атака/оборона за володінням. */
+    function teamPos(k) {
+      const t = M.sides[k], live = t.onPitch.filter((x) => !x.out);
+      const xy = layoutXY(live.map((x) => x.slot));
+      const shift = (ballX - 50) * 0.38 + (possK === k ? (k === 0 ? 6 : -6) : (k === 0 ? -4 : 4));
+      return live.map((x, i) => {
+        const depth = 100 - xy[i][1];
+        let px = 5 + depth * 0.86; if (k === 1) px = 100 - px;
+        if (x.slot.role !== 'GK') px += shift; else px += shift * 0.12;
+        let py = k === 0 ? xy[i][0] : 100 - xy[i][0];
+        py += (ballY - 50) * (x.slot.role === 'GK' ? 0.1 : 0.22);
+        return { x: Math.max(2, Math.min(98, px)), y: Math.max(5, Math.min(95, py)), p: x.p, gk: x.slot.role === 'GK' };
       });
-      dots.replaceChildren(...list);
-    };
+    }
+    function drawDots() {
+      const seen = new Set();
+      [0, 1].forEach((k) => {
+        const pos = teamPos(k), c = k === 0 ? hs.club : as.club;
+        // захисники без м'яча: двоє найближчих пресингують
+        if (possK !== k) pos.filter((q) => !q.gk).sort((a, b) => Math.hypot(a.x - ballX, a.y - ballY) - Math.hypot(b.x - ballX, b.y - ballY)).slice(0, 2)
+          .forEach((q) => { q.x += (ballX - q.x) * 0.55; q.y += (ballY - q.y) * 0.55; });
+        for (const q of pos) {
+          let d = dotEls.get(q.p.id);
+          if (!d) { d = el('i.dot2', { title: nameOf(q.p) }); d.style.background = c.colors[0]; d.style.borderColor = c.colors[1] || '#000'; dotEls.set(q.p.id, d); dots.append(d); }
+          d.classList.toggle('has-ball', q.p.id === carrier);
+          d.style.left = q.x + '%'; d.style.top = q.y + '%';
+          seen.add(q.p.id);
+        }
+      });
+      for (const [id, d] of dotEls) if (!seen.has(id)) { d.remove(); dotEls.delete(id); }
+    }
     let ballX = 50, ballY = 50, bt = 0;
-    const moveBall = (x, y) => { ballX = x; ballY = y; ball.style.left = x + '%'; ball.style.top = y + '%'; };
+    const moveBall = (x, y) => { ballX = x; ballY = y; ball.style.left = x + '%'; ball.style.top = y + '%'; if (!replaying) { trail.push([x, y]); if (trail.length > 10) trail.shift(); } };
+    /** Хід 2D-гри: передача партнерові вперед або втрата м'яча (за володінням у матчі). */
+    function play2d() {
+      if (hlActive || replaying || finished) return;
+      const sh = M.liveStats()[0].poss / 100;
+      const keep = possK === 0 ? 0.74 + (sh - 0.5) * 0.5 : 0.74 + (0.5 - sh) * 0.5;
+      if (!R2.chance(keep)) { possK = 1 - possK; carrier = null; }
+      const dir = possK === 0 ? 1 : -1;
+      const mates = teamPos(possK).filter((q) => !q.gk || Math.abs(ballX - (possK === 0 ? 5 : 95)) < 25);
+      const cands = mates.filter((q) => q.p.id !== carrier && Math.hypot(q.x - ballX, q.y - ballY) < 42);
+      if (!cands.length) return drawDots();
+      const t = R2.weighted(cands, (q) => Math.max(0.2, 1 + ((q.x - ballX) * dir) / 15));
+      carrier = t.p.id;
+      // м'яч у зоні атаки довго не стоїть: відкат назад, якщо близько до воріт без моменту
+      const tx = (possK === 0 && t.x > 86) || (possK === 1 && t.x < 14) ? t.x - dir * 12 : t.x;
+      moveBall(tx, t.y);
+      drawDots();
+    }
+    /** Повтор голу: м'яч ще раз проходить шлях до воріт. */
+    function replay() {
+      if (!lastGoal || replaying) return;
+      replaying = true; replayTag.hidden = false; miniPitch.classList.add('replaying');
+      const path = lastGoal.slice();
+      let i = 0;
+      const stepR = () => {
+        if (i >= path.length) { setTimeout(() => { replaying = false; replayTag.hidden = true; miniPitch.classList.remove('replaying'); }, 700); return; }
+        const [x, y] = path[i++]; ball.style.left = x + '%'; ball.style.top = y + '%';
+        setTimeout(stepR, 380);
+      };
+      stepR();
+    }
     let shown = 0, paused = false, finished = false, hold = 0, acc = 0, talkAsked = false, talkMsg = null, idle = 0;
     // промова перед матчем: трансляція чекає на тренера (як у FM)
     let preTalk = myK != null && state ? 'ask' : 'done', preRes = null, shoutMsg = null, instrOpen = false;
@@ -2150,14 +2200,15 @@
       const s = M.liveStats();
       if (ticker) ticker.draw();
       const lastEv = M.events[M.events.length - 1];
-      if (lastEv && lastEv !== moveBall.last) {
+      if (lastEv && lastEv !== moveBall.last && !hlActive) {
         moveBall.last = lastEv;
+        if (lastEv.team != null) possK = lastEv.team;
         const atk = lastEv.team === 0 ? 1 : -1;
         if (lastEv.type === 'goal') moveBall(50 + atk * 48, 50);
         else if (lastEv.type === 'chance' || lastEv.type === 'miss') moveBall(50 + atk * (36 + (bt++ % 3) * 3), 30 + ((bt * 37) % 40));
         else if (lastEv.type === 'half' || lastEv.type === 'kickoff' || lastEv.type === 'full') moveBall(50, 50);
-        else moveBall(50 + (s[0].poss - 50) * 0.7 + ((bt++ * 17) % 21) - 10, 25 + ((bt * 29) % 50));
-      } else if (!finished) moveBall(Math.max(8, Math.min(92, ballX + ((bt++ * 13) % 15) - 7 + (s[0].poss - 50) * 0.05)), Math.max(12, Math.min(88, ballY + ((bt * 11) % 13) - 6)));
+        else play2d();
+      }
       drawDots();
       statsBox.replaceChildren(compareBars([
         ['Володіння', s[0].poss, s[1].poss, pct], ['Удари', s[0].shots, s[1].shots], ['У площину', s[0].onTarget, s[1].onTarget], ['xG', s[0].xg, s[1].xg, f2],
@@ -2259,8 +2310,10 @@
       );
     }
 
+    let pc = 0;
     function tick() {
       if (finished) return;
+      if (!paused && hold <= 0 && ++pc % 5 === 0) play2d(); // м'яч ходить передачами між хвилинами
       if (!paused) {
         if (hold > 0) hold -= TICK; // пауза після гола чи моменту — у реальному часі
         else {
@@ -2334,9 +2387,10 @@
       el('div.live-controls', speedBtns),
       ticker ? ticker.box : null,
       hlBar,
+      el('div.pitch-panel', miniPitch),
       el('div.live-grid', [
         el('details.panel.feed-box', { open: true }, [el('summary', [el('span', 'Стрічка подій'), feedPause]), el('div.feed-wrap', feed)]),
-        el('div.live-side', [el('div.panel', [el('h3', 'Статистика наживо'), miniPitch, statsBox]), control]),
+        el('div.live-side', [el('div.panel', [el('h3', 'Статистика наживо'), statsBox]), control]),
       ]),
       after,
     ];
