@@ -542,3 +542,24 @@ table.mini td, table.mini th { padding: 0.25rem 0.4rem; border-bottom: 1px solid
 table.mini tr.me td { font-weight: 700; background: var(--accent-soft); }
 .quick { border-color: var(--accent); }
 .speed select { max-width: 15rem; } .speed { display: inline-flex; align-items: center; gap: 0.3rem; }
+
+/* Ритм FM14: верхня панель з датою й кнопкою «Продовжити» */
+.topbar { position: sticky; top: 0; z-index: 4; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: -0.25rem 0 1rem;
+  padding: 0.55rem 0.8rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); }
+.tb-date { display: grid; line-height: 1.25; min-width: 0; }
+.tb-date b { font-size: 1rem; }
+.tb-note { color: var(--warn); font-weight: 600; }
+.tb-actions { margin-left: auto; display: flex; gap: 0.4rem; align-items: center; }
+.tb-cont { min-width: 10.5rem; font-size: 1rem; }
+.tb-mail, .tb-hol { text-decoration: none; color: var(--fg); }
+.actions-box { border-color: var(--warn); }
+li.act { align-items: center; }
+@media (max-width: 760px) {
+  /* на телефоні — знизу, під великим пальцем */
+  .topbar { position: fixed; top: auto; bottom: 0; left: 0; right: 0; margin: 0; border-radius: 0; border-width: 1px 0 0;
+    padding: 0.5rem max(16px, env(safe-area-inset-right, 0px)) calc(0.5rem + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); z-index: 6; }
+  .tb-hol { display: none; }
+  .tb-cont { min-width: 0; flex: 1; }
+  .tb-actions { flex: 1; }
+  .main { padding-bottom: 7rem; }
+}
