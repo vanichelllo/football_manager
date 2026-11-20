@@ -664,3 +664,18 @@ li.act { align-items: center; }
 th[aria-sort] { color: var(--fg); }
 .dt-empty { padding: 1rem; }
 @media (max-width: 760px) { .dt-q { flex: 1 1 100%; } .dt-cols[open] > div { left: auto; right: 0; } }
+
+/* Трансляція: поради з кнопкою «Застосувати», інструкції під час матчу, панель тренера вище на телефоні */
+.feed-box { padding: 0; }
+.feed-box > summary { cursor: pointer; padding: 0.6rem 1rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; color: var(--muted); }
+.feed-box .feed-wrap { padding-top: 0; }
+.tiny-btn { padding: 0.15rem 0.6rem; font-size: 0.85rem; margin-top: 0.3rem; }
+.instr-live { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.4rem 0.7rem; margin: 0.6rem 0; }
+.instr-live > summary { cursor: pointer; font-weight: 600; }
+.instr-list li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.instr-list select { max-width: 11rem; }
+@media (max-width: 900px) {
+  .live-side { order: -1; }
+  .live-side .control { order: -1; }
+  .feed-box .feed-wrap { max-height: 16rem; }
+}

@@ -608,6 +608,49 @@
       return changed.length > 0;
     }
 
+    /** Індивідуальна інструкція гравцеві на полі посеред матчу (attack / defend / free / none). */
+    function setInstr(k, pid, instr) {
+      const t = sides[k], x = t.onPitch.find((y) => !y.out && y.p.id === pid);
+      if (!x || x.slot.role === 'GK' || !INSTR[instr]) return false;
+      x.slot = { ...x.slot, instr: instr === 'none' ? null : instr };
+      compute(t);
+      if (!done) say(current || 1, 'info', t, [`${t.club.name}: ${name(x.p)} — ${INSTR[instr].label.toLowerCase()}.`]);
+      return true;
+    }
+    /** Персональна опіка посеред матчу: найкращий оборонець стежить за гравцем суперника (pid) або опіку знято (null). */
+    function mark(k, pid) {
+      const t = sides[k], o = sides[1 - k];
+      for (const x of t.onPitch) if (x.slot.instr === 'mark') x.slot = { ...x.slot, instr: null };
+      o.marked = new Set();
+      if (pid) {
+        const target = o.onPitch.find((x) => !x.out && x.p.id === pid);
+        const marker = t.onPitch.filter((x) => !x.out && ['DM', 'CB', 'FB', 'CM'].includes(x.slot.role)).sort((a, b) => ((b.p.attrs.tac || 10) + (b.p.attrs.pos || 10)) - ((a.p.attrs.tac || 10) + (a.p.attrs.pos || 10)))[0];
+        if (!target || !marker) { compute(t); compute(o); return false; }
+        marker.slot = { ...marker.slot, instr: 'mark' };
+        o.marked.add(pid);
+        if (!done) say(current || 1, 'info', t, [`${t.club.name}: ${name(marker.p)} бере в персональну опіку ${name(target.p)}.`]);
+      }
+      compute(t); compute(o);
+      return true;
+    }
+    /** Застосувати пораду асистента (дію з halfReport). */
+    function applyTip(k, act) {
+      const t = sides[k];
+      if (!act) return false;
+      if (act.kind === 'mentality' || act.kind === 'passing' || act.kind === 'pressing') return setTactics(k, { [act.kind]: act.v });
+      if (act.kind === 'shout') { const r = shout(k, act.v); return !!(r && r.ok); }
+      if (act.kind === 'instr') return setInstr(k, act.pid, act.v);
+      if (act.kind === 'mark') return mark(k, act.pid);
+      if (act.kind === 'sub') {
+        const x = t.onPitch.find((y) => !y.out && y.p.id === act.pid);
+        if (!x) return false;
+        const pool = t.bench.filter((b) => (b.roles[0] === 'GK') === (x.slot.role === 'GK'));
+        const best = pool.sort((a, b) => slotValue(b, x.slot) - slotValue(a, x.slot))[0];
+        return best ? !!sub(k, act.pid, best.id) : false;
+      }
+      return false;
+    }
+
     /** Перейти на іншу схему посеред матчу: гравці на полі перерозподіляються по нових позиціях. */
     function setShape(k, formation, tac) {
       const t = sides[k];
@@ -686,25 +729,32 @@
       const xg = (s) => Math.round(s.stats.xg * 100) / 100;
       out.push(['info', `Володіння ${poss}%, удари ${t.stats.shots}:${o.stats.shots}, xG ${String(xg(t)).replace('.', ',')}:${String(xg(o)).replace('.', ',')}.`]);
       const diff = t.stats.goals - o.stats.goals;
-      if (xg(o) > xg(t) + 0.5) out.push(['bad', 'Суперник створює більше моментів. Варто обережніше: ментальність «Обережно» або вигук «Зібратися».']);
+      // третій елемент — дія, яку можна застосувати одним дотиком (кнопка «Застосувати» в трансляції)
+      if (xg(o) > xg(t) + 0.5) out.push(['bad', 'Суперник створює більше моментів. Варто обережніше: ментальність «Обережно» або вигук «Зібратися».', t.tactic.mentality === 'cautious' ? { kind: 'shout', v: 'focus', label: 'Вигук «Зібратися»' } : { kind: 'mentality', v: 'cautious', label: 'Ментальність «обережний»' }]);
       else if (xg(t) > xg(o) + 0.5 && diff <= 0) out.push(['warn', 'Моментів у нас більше, але рахунок цього не показує. Продовжуйте в тому ж дусі — голи прийдуть.']);
-      if (poss < 40) out.push(['warn', 'Суперник володіє м’ячем. Короткі передачі або вигук «Тримати м’яч» допоможуть контролювати гру.']);
+      if (poss < 40) out.push(['warn', 'Суперник володіє м’ячем. Короткі передачі або вигук «Тримати м’яч» допоможуть контролювати гру.', t.tactic.passing === 'short' ? { kind: 'shout', v: 'keep', label: 'Вигук «Тримати м’яч»' } : { kind: 'passing', v: 'short', label: 'Короткі передачі' }]);
       // фланг, через який атакує суперник (удари з половини поля)
       const oppShots = shotLog.filter((x) => x.t === o.k);
       const left = oppShots.filter((x) => (o.k === 0 ? x.y : 100 - x.y) < 42).length, right = oppShots.filter((x) => (o.k === 0 ? x.y : 100 - x.y) > 58).length;
-      if (Math.abs(left - right) >= 2) out.push(['warn', `Небезпека йде через наш ${left > right ? 'правий' : 'лівий'} фланг (${pl(Math.max(left, right), 'удар', 'удари', 'ударів')}). Крайньому захиснику там — інструкція «Більше в обороні».`]);
+      if (Math.abs(left - right) >= 2) {
+        const side = left > right ? 'R' : 'L';
+        const fb = t.onPitch.find((x) => !x.out && (x.slot.role === 'FB' || x.slot.role === 'W') && x.slot.side === side && x.slot.instr !== 'defend');
+        out.push(['warn', `Небезпека йде через наш ${left > right ? 'правий' : 'лівий'} фланг (${pl(Math.max(left, right), 'удар', 'удари', 'ударів')}). Крайньому захиснику там — інструкція «Більше в обороні».`,
+          fb ? { kind: 'instr', pid: fb.p.id, v: 'defend', label: `${name(fb.p)}: більше в оборону` } : null]);
+      }
       const star = [...o.onPitch].filter((x) => !x.out).sort((a, b) => {
         const pa = o.perf.get(a.p.id), pb = o.perf.get(b.p.id);
         return (pb.shots + (pb.keyPasses || 0) + pb.goals * 2) - (pa.shots + (pa.keyPasses || 0) + pa.goals * 2);
       })[0];
-      if (star) { const pf = o.perf.get(star.p.id); if (pf.shots + (pf.keyPasses || 0) + pf.goals >= 2) out.push(['warn', `Найнебезпечніший у суперника — ${name(star.p)} (${pl(pf.shots, 'удар', 'удари', 'ударів')}, ${pl(pf.keyPasses || 0, 'гостра передача', 'гострі передачі', 'гострих передач')}). Варто взяти його в персональну опіку.`]); }
+      if (star) { const pf = o.perf.get(star.p.id); if (pf.shots + (pf.keyPasses || 0) + pf.goals >= 2) out.push(['warn', `Найнебезпечніший у суперника — ${name(star.p)} (${pl(pf.shots, 'удар', 'удари', 'ударів')}, ${pl(pf.keyPasses || 0, 'гостра передача', 'гострі передачі', 'гострих передач')}). Варто взяти його в персональну опіку.`, o.marked.has(star.p.id) ? null : { kind: 'mark', pid: star.p.id, label: `Опіка: ${name(star.p)}` }]); }
       for (const x of t.onPitch.filter((y) => !y.out)) {
-        if (x.yellow) out.push(['warn', `${name(x.p)} уже має жовту — ризик вилучення.`]);
-        else if (x.cond < 70 && x.slot.role !== 'GK') out.push(['warn', `${name(x.p)} втомився (${Math.round(x.cond)}%).`]);
+        const canSub = t.subsLeft > 0 && t.bench.some((b) => (b.roles[0] === 'GK') === (x.slot.role === 'GK'));
+        if (x.yellow) out.push(['warn', `${name(x.p)} уже має жовту — ризик вилучення.`, canSub ? { kind: 'sub', pid: x.p.id, label: `Замінити ${name(x.p)}` } : null]);
+        else if (x.cond < 70 && x.slot.role !== 'GK') out.push(['warn', `${name(x.p)} втомився (${Math.round(x.cond)}%).`, canSub ? { kind: 'sub', pid: x.p.id, label: `Замінити ${name(x.p)}` } : null]);
         const pf = t.perf.get(x.p.id);
         if (x.slot.role === 'ST' && !pf.shots) out.push(['info', `Нападник ${name(x.p)} ще не бив по воротах — йому бракує передач.`]);
       }
-      if (diff < 0) out.push(['bad', 'Програємо: у промові — «Вимагати більшого», можна ризикнути атакувальною ментальністю.']);
+      if (diff < 0) out.push(['bad', 'Програємо: у промові — «Вимагати більшого», можна ризикнути атакувальною ментальністю.', t.tactic.mentality === 'attacking' ? null : { kind: 'mentality', v: 'attacking', label: 'Ментальність «атакувальний»' }]);
       else if (diff > 0) out.push(['ok', 'Ведемо: похваліть команду; ближче до кінця — «Тримати м’яч».']);
       return out.slice(0, 7);
     }
@@ -873,7 +923,7 @@
     }
 
     return {
-      step, result, sub, setTactics, setShape, halftimeTalk, shout, teamTalk, halfReport, liveStats, sides, events, shots: shotLog, weather,
+      step, result, sub, setTactics, setShape, halftimeTalk, shout, teamTalk, halfReport, setInstr, mark, applyTip, liveStats, sides, events, shots: shotLog, weather,
       get halftime() { return idx > 0 && idx < timeline.length && timeline[idx - 1].pi === 0 && timeline[idx].pi === 1; },
       get done() { return done; },
       get minute() { return current; },

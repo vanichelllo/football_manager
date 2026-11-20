@@ -1822,6 +1822,9 @@
     return box;
   }
 
+  /** replaceChildren без «null»: порожні блоки (null/false) пропускаються. */
+  const put = (node, ...kids) => node.replaceChildren(...kids.flat().filter((x) => x != null && x !== false));
+
   function liveView(hs, as, M, myK, onFinish, actions) {
     const scoreEl = el('div.sb-score', '0:0');
     const clock = el('div.sb-clock', '0′');
@@ -1880,7 +1883,8 @@
     const moveBall = (x, y) => { ballX = x; ballY = y; ball.style.left = x + '%'; ball.style.top = y + '%'; };
     let shown = 0, paused = false, finished = false, hold = 0, acc = 0, talkAsked = false, talkMsg = null, idle = 0;
     // промова перед матчем: трансляція чекає на тренера (як у FM)
-    let preTalk = myK != null && state ? 'ask' : 'done', preRes = null, shoutMsg = null;
+    let preTalk = myK != null && state ? 'ask' : 'done', preRes = null, shoutMsg = null, instrOpen = false;
+    const applied = new Set(); // поради асистента, які вже застосували
     if (preTalk === 'ask') paused = true;
     const motK = () => (state ? 0.7 + FM.career.attr(state, 'mot') * 0.03 : 1);
     const REACT_CLS = { inspired: 'ok', focused: 'ok', neutral: 'info', nervous: 'bad', complacent: 'warn' };
@@ -1975,7 +1979,24 @@
         t.setKey = k; flush(); drawControl();
       } }, `${TSET_UK[k]} · ${((state.tacticSets || {})[k] || state.tactics).formation}`)))]) : null;
       const report = M.halftime && !t.talked ? el('div.half-report', [el('b', 'Звіт асистента за перший тайм'),
-        el('ul.tips', M.halfReport(myK).map(([k, txt]) => el('li.tip-' + (k === 'ok' ? 'info' : k), txt)))]) : null;
+        el('ul.tips', M.halfReport(myK).map(([k, txt, act]) => el('li.tip-' + (k === 'ok' ? 'info' : k), [txt,
+          applied.has(txt) ? el('div', el('span.chip.ok', '✓ застосовано'))
+            : act ? el('div', el('button.btn.tiny-btn', { type: 'button', onclick: () => { if (M.applyTip(myK, act)) applied.add(txt); flush(); drawControl(); } }, `Застосувати: ${act.label}`)) : null]))),
+        el('small.muted', 'Поради самі не застосовуються — натисніть «Застосувати» або змініть усе вручну нижче.')]) : null;
+      // індивідуальні інструкції й персональна опіка — прямо під час матчу
+      const opp = M.sides[1 - myK];
+      const oppStars = opp.onPitch.filter((x) => !x.out && ['ST', 'AM', 'W', 'CM'].includes(x.slot.role)).sort((a, b) => FM.slotValue(b.p, b.slot) - FM.slotValue(a.p, a.slot)).slice(0, 6);
+      const markedId = [...opp.marked][0] || '';
+      const instrBox = el('details.instr-live', { open: instrOpen || null }, [
+        el('summary', { onclick: (e) => { instrOpen = !e.currentTarget.parentElement.open; } }, `Інструкції гравцям і опіка${markedId ? ' · опіка: ' + nameOf(W.player(markedId) || { name: '' }) : ''}`),
+        el('div.field', [el('label', { for: 'live-mark' }, 'Персональна опіка'), el('select', { id: 'live-mark', onchange: (e) => { instrOpen = true; M.mark(myK, e.target.value || null); flush(); drawControl(); } },
+          [el('option', { value: '' }, 'Без опіки'), ...oppStars.map((x) => el('option', { value: x.p.id, selected: x.p.id === markedId || null }, `${nameOf(x.p)} (${ROLE_SHORT(x.slot)})`))])]),
+        el('ul.plist.instr-list', live.filter((x) => x.slot.role !== 'GK').map((x) => el('li', [
+          el('span', [el('span.pos.line-' + FM.ROLE_LINE[x.slot.role], ROLE_SHORT(x.slot)), ' ', nameOf(x.p)]),
+          x.slot.instr === 'mark' ? el('small.muted', 'опікає') : el('select.tiny', { 'aria-label': 'Інструкція: ' + nameOf(x.p), onchange: (e) => { instrOpen = true; M.setInstr(myK, x.p.id, e.target.value); flush(); drawControl(); } },
+            Object.entries(FM.INSTR).filter(([k]) => k !== 'mark').map(([k, d]) => el('option', { value: k, selected: (x.slot.instr || 'none') === k || null }, d.label))),
+        ]))),
+      ]);
       const reacts = preRes && M.minuteNum < 15 ? el('details.reacts', [el('summary', `Після промови: ${preRes.text}`),
         el('ul.plist', preRes.players.map((x) => el('li', [el('span', nameOf(x.p)), el('span.chip.' + REACT_CLS[x.r], FM.match.TALK_REACT_UK[x.r])])))]) : null;
       const act = t.shout && t.shout.kind !== 'none' ? t.shout : null;
@@ -1983,12 +2004,13 @@
         type: 'button', title: d.hint, 'aria-pressed': String(!!act && act.kind === k), disabled: M.minuteNum < 1 || null,
         onclick: () => { const r = M.shout(myK, k); shoutMsg = r ? r.text : null; flush(); drawControl(); },
       }, d.label))), el('small.muted', act ? `Діє «${FM.match.SHOUTS[act.kind].label}» — ще ${Math.max(0, act.until - M.minuteNum)} хв.` : shoutMsg || 'Вигук діє 10 хвилин. Наведіть, щоб побачити ефект.')]);
-      control.replaceChildren(
+      put(control,
         el('h3', paused ? 'Пауза — рішення тренера' : 'Рішення тренера'),
         reacts,
         report,
         talk,
         shouts,
+        instrBox,
         setBtns,
         el('div.instr', ['mentality', 'pressing', 'passing'].map((g) => el('div.field', [
           el('b', { mentality: 'Ментальність', pressing: 'Пресинг', passing: 'Передачі' }[g]),
@@ -2059,7 +2081,7 @@
           el('td.muted', [r.goals ? `гол ×${r.goals} ` : '', r.assists ? `пас ×${r.assists} ` : '', r.yellow ? 'ЖК ' : '', r.red ? 'ЧК ' : '', r.on ? `вийшов на ${r.on}′ ` : '', r.off ? `замінений на ${r.off}′` : ''].join('')),
         ]))),
       ]))]);
-      after.replaceChildren(
+      put(after,
         el('div.panel', [el('h3', 'Статистика'), compareBars([
           ['Володіння', sh.poss, sa.poss, pct], ['Удари', sh.shots, sa.shots], ['У площину воріт', sh.onTarget, sa.onTarget],
           ['Очікувані голи (xG)', sh.xg, sa.xg, f2], ['Голи зі стандартів', sh.spGoals || 0, sa.spGoals || 0], ['Кутові', sh.corners || 0, sa.corners || 0],
@@ -2084,7 +2106,7 @@
       el('div.live-controls', speedBtns),
       hlBar,
       el('div.live-grid', [
-        el('div.panel.feed-wrap', feed),
+        el('details.panel.feed-box', { open: true }, [el('summary', 'Стрічка подій'), el('div.feed-wrap', feed)]),
         el('div.live-side', [el('div.panel', [el('h3', 'Статистика наживо'), miniPitch, statsBox]), control]),
       ]),
       after,
