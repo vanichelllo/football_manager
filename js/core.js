@@ -5,17 +5,30 @@
 
   const SAVE_KEY = 'golovnyi-trener:v1';
 
+  // Збереження в браузері: стиснуте (gzip + base64), бо з 16 лігами сирий JSON — кілька мегабайтів,
+  // а localStorage вміщає близько п’яти. Без стиснення в браузері — звичайний JSON.
+  let saveSeq = 0;
   FM.store = {
-    load() {
+    async load() {
       try {
         const raw = root.localStorage.getItem(SAVE_KEY);
-        return raw ? JSON.parse(raw) : null;
+        if (!raw) return null;
+        return raw.startsWith('{') ? JSON.parse(raw) : await FM.saveio.decode(raw);
       } catch (_) { return null; }
     },
-    save(state) {
-      try { root.localStorage.setItem(SAVE_KEY, JSON.stringify(state)); return true; } catch (_) { return false; }
+    /** Повертає Promise<bool>. Пізніший виклик перекриває ранній, навіть якщо той ще стискається. */
+    async save(state) {
+      const my = ++saveSeq;
+      try {
+        const json = JSON.stringify(state); // знімок одразу, поки стан не змінився
+        const text = typeof CompressionStream === 'function' ? await FM.saveio.encodeJson(json) : json;
+        if (my !== saveSeq) return true;
+        root.localStorage.setItem(SAVE_KEY, text);
+        return true;
+      } catch (_) { return false; }
     },
     clear() {
+      saveSeq++;
       try { root.localStorage.removeItem(SAVE_KEY); } catch (_) { /* приватне вікно */ }
     },
   };
@@ -53,8 +66,9 @@
     return new Uint8Array(await res.arrayBuffer());
   }
   FM.saveio = {
-    async encode(obj) {
-      const bytes = new TextEncoder().encode(JSON.stringify(obj));
+    encode(obj) { return FM.saveio.encodeJson(JSON.stringify(obj)); },
+    async encodeJson(json) {
+      const bytes = new TextEncoder().encode(json);
       if (typeof CompressionStream === 'function') return 'GT1.' + b64.from(await pipe(bytes, new CompressionStream('gzip')));
       return 'GT0.' + b64.from(bytes);
     },

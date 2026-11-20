@@ -40,10 +40,22 @@
   }
 
   /** Фонд зарплат клубу: свої гравці + частка за орендованих + доплата за відданих в оренду. */
+  // Хто в оренді: індекс замість перебору всієї бази (скидається при кожній зміні оренди)
+  const loanIdx = new WeakMap();
+  const loanReset = (W) => loanIdx.delete(W);
+  function loanedOut(W, clubId) {
+    let m = loanIdx.get(W);
+    if (!m) {
+      m = new Map();
+      for (const p of W.players.values()) if (p.loan) (m.get(p.loan.from) || m.set(p.loan.from, []).get(p.loan.from)).push(p);
+      loanIdx.set(W, m);
+    }
+    return m.get(clubId) || [];
+  }
   function wageBill(W, clubId) {
     let s = 0;
     for (const id of W.club(clubId).players) { const p = W.player(id); s += (p.wage || 0) * (p.loan ? p.loan.share : 1); }
-    for (const p of W.players.values()) if (p.loan && p.loan.from === clubId) s += (p.wage || 0) * (1 - p.loan.share);
+    for (const p of loanedOut(W, clubId)) if (p.loan && p.loan.from === clubId) s += (p.wage || 0) * (1 - p.loan.share);
     return Math.round(s);
   }
 
@@ -58,7 +70,9 @@
   /** Наскільки гравець важливий для свого клубу: місце за рівнем у складі (0 — найкращий). */
   function rankInClub(W, p) {
     if (!p.club) return 99;
-    return W.squad(p.club).sort((a, b) => b.ca - a.ca).findIndex((x) => x.id === p.id);
+    let r = 0;
+    for (const id of W.club(p.club).players) { const q = W.player(id); if (q !== p && (q.ca > p.ca || (q.ca === p.ca && id < p.id))) r++; }
+    return r;
   }
 
   /** Скільки клуб хоче за гравця, млн €. */
@@ -163,7 +177,7 @@
       }
       W.club(from).balance = Math.round((W.club(from).balance + toSeller) * 100) / 100;
     }
-    delete p.sellOn; delete p.loan; delete p.clause; delete p.goalBonus;
+    delete p.sellOn; delete p.loan; delete p.clause; delete p.goalBonus; loanReset(W);
     if (extra.sellOn && from) p.sellOn = { club: from, pct: extra.sellOn };
     if (extra.clause) p.clause = extra.clause;
     if (extra.goalBonus) p.goalBonus = extra.goalBonus;
@@ -191,6 +205,7 @@
     W.club(toClub).balance = Math.round((W.club(toClub).balance - fee) * 100) / 100;
     W.club(p.club).balance = Math.round((W.club(p.club).balance + fee) * 100) / 100;
     p.loan = { from: p.club, to: toClub, share, until: state.season.year };
+    loanReset(W);
     W.move(p.id, toClub);
     delete p.listed;
     state.transfers = (state.transfers || []).concat([{ s: state.season.year, w: state.season.week, p: p.id, from: p.loan.from, to: toClub, fee, loan: true }]).slice(-300);
@@ -208,6 +223,7 @@
     return out;
   }
   function returnLoans(W, state) {
+    loanReset(W);
     const back = [];
     for (const p of W.players.values()) {
       if (!p.loan || p.loan.until > state.season.year) continue;

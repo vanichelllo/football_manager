@@ -9,6 +9,7 @@
     CM: 'Центральний півзахисник', AM: 'Атакувальний півзахисник', W: 'Вінгер', ST: 'Нападник',
   };
   const ROLE_ORDER = ['GK', 'CB', 'FB', 'DM', 'CM', 'AM', 'W', 'ST'];
+  const ROLE_RANK = Object.fromEntries(ROLE_ORDER.map((r, i) => [r, i]));
   const ROLE_LINE = { GK: 'gk', CB: 'def', FB: 'def', DM: 'mid', CM: 'mid', AM: 'mid', W: 'att', ST: 'att' };
 
   const ATTRS = {
@@ -109,7 +110,7 @@
         return clubs.get(clubId).players.map((id) => players.get(id)).sort(w.bySquadOrder);
       },
       bySquadOrder(a, b) {
-        return ROLE_ORDER.indexOf(a.roles[0]) - ROLE_ORDER.indexOf(b.roles[0]) || b.ca - a.ca;
+        return ROLE_RANK[a.roles[0]] - ROLE_RANK[b.roles[0]] || b.ca - a.ca;
       },
       age(p) {
         if (!p.born) return null;
@@ -120,7 +121,7 @@
       },
       /** Сила клубу — середній CA найкращих 16 гравців. */
       clubLevel(clubId) {
-        const top = w.squad(clubId).map((p) => p.ca).sort((a, b) => b - a).slice(0, 16);
+        const top = clubs.get(clubId).players.map((id) => players.get(id).ca).sort((a, b) => b - a).slice(0, 16);
         return top.length ? top.reduce((s, x) => s + x, 0) / top.length : 0;
       },
       /** Перевести гравця в інший клуб (null — вільний агент / завершив кар'єру). */
@@ -158,7 +159,10 @@
           const patch = {};
           for (const k of new Set([...Object.keys(p), ...Object.keys(b)])) {
             if (k === 'id') continue;
-            if (JSON.stringify(p[k]) !== JSON.stringify(b[k])) patch[k] = p[k] === undefined ? null : p[k];
+            const x = p[k], y = b[k];
+            if (x === y) continue;
+            if (x && y && typeof x === 'object' && typeof y === 'object' && JSON.stringify(x) === JSON.stringify(y)) continue;
+            patch[k] = x === undefined ? null : x;
           }
           if (Object.keys(patch).length) out.p[p.id] = patch;
         }

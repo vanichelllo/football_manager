@@ -1,5 +1,5 @@
 // Інтерфейс: початок кар'єри, огляд клубу, склад, картка гравця, ліги, налаштування.
-(function () {
+(async function () {
   'use strict';
   const { el, fmt, store } = FM;
   const app = document.getElementById('app');
@@ -12,7 +12,7 @@
     return;
   }
 
-  let state = store.load();
+  let state = await store.load();
   // Світ кар'єри: реальна база + зміни цієї кар'єри (розвиток, трансфери, редагування)
   let W = FM.createWorld(window.FM_DB, state && state.world);
   if (state && !W.club(state.clubId)) { state = null; W = FM.createWorld(window.FM_DB); } // база змінилась — клубу вже немає
@@ -34,7 +34,7 @@
   /** Зберегти кар'єру разом зі змінами світу. */
   function saveGame() {
     state.world = W.export();
-    if (!store.save(state)) console.warn('Не вдалося зберегти гру в браузері');
+    store.save(state).then((ok) => { if (!ok) console.warn('Не вдалося зберегти гру в браузері'); });
   }
   /** Почати з чистого аркуша: свіжий світ з реальної бази. */
   function resetCareer() {

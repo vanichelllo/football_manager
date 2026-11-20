@@ -104,10 +104,22 @@
   const RATIO_REF = 1;
   const BASE_Q = 0.073;
 
+  // ваги ролей і варіантів — масивами (рахується дуже часто: підбір складу перебирає всі схеми)
+  const W_ENTRIES = new Map();
+  const wEntries = (role, variant) => {
+    const k = role + '|' + (variant || '');
+    let e = W_ENTRIES.get(k);
+    if (!e) {
+      const v = variant && VARIANTS[role] && VARIANTS[role][variant];
+      e = Object.entries((v && v.w) || WEIGHTS[role]);
+      W_ENTRIES.set(k, e);
+    }
+    return e;
+  };
   function roleRating(p, role, variant) {
-    const v = variant && VARIANTS[role] && VARIANTS[role][variant];
+    const at = p.attrs, e = wEntries(role, variant);
     let s = 0;
-    for (const [a, w] of Object.entries((v && v.w) || WEIGHTS[role])) s += (p.attrs[a] ?? 5) * w;
+    for (let i = 0; i < e.length; i++) s += (at[e[i][0]] ?? 5) * e[i][1];
     return s;
   }
 
@@ -140,20 +152,23 @@
   }
 
   /** Найкращий склад під схему: жадібно, починаючи з найдефіцитніших позицій. */
-  function pickLineup(players, formation = '4-3-3', unavailable = new Set()) {
+  function pickLineup(players, formation = '4-3-3', unavailable = new Set(), memo = null) {
     const slots = FORMATIONS[formation];
     const pool = players.filter((p) => !unavailable.has(p.id));
-    const order = slots.map((s, i) => i).sort((i, j) => {
-      const scarcity = (s) => pool.filter((p) => p.roles[0] === s.role).length;
-      return scarcity(slots[i]) - scarcity(slots[j]);
-    });
+    const have = {};
+    for (const p of pool) have[p.roles[0]] = (have[p.roles[0]] || 0) + 1;
+    const order = slots.map((s, i) => i).sort((i, j) => (have[slots[i].role] || 0) - (have[slots[j].role] || 0));
     const xi = new Array(slots.length);
     const used = new Set();
     for (const i of order) {
       let best = null, bv = -1;
+      const sl = slots[i];
+      let mm = null;
+      if (memo) { const sig = sl.role + '|' + (sl.variant || '') + '|' + (sl.side || ''); mm = memo.get(sig) || memo.set(sig, new Map()).get(sig); }
       for (const p of pool) {
         if (used.has(p.id)) continue;
-        const v = slotValue(p, slots[i]);
+        let v = mm ? mm.get(p.id) : undefined;
+        if (v === undefined) { v = slotValue(p, sl); if (mm) mm.set(p.id, v); }
         if (v > bv) { bv = v; best = p; }
       }
       if (!best) { // доступних менше одинадцяти — виходить хтось, хто ще не відновився (найменше лишилося лікуватися)
@@ -201,8 +216,9 @@
   /** Схема, у якій склад найсильніший (для суперників і автопідбору). */
   function bestFormation(players) {
     let best = '4-3-3', bv = -1;
+    const memo = new Map();
     for (const f of Object.keys(FORMATIONS)) {
-      const v = pickLineup(players, f).xi.reduce((s, x) => s + slotValue(x.player, x.slot), 0) * (FORMATION_BIAS[f] || 1);
+      const v = pickLineup(players, f, undefined, memo).xi.reduce((s, x) => s + slotValue(x.player, x.slot), 0) * (FORMATION_BIAS[f] || 1);
       if (v > bv) { bv = v; best = f; }
     }
     return best;
