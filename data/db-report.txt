@@ -470,7 +470,6 @@ Energie Cottbus: без статті — Jannis Zaydan
 Energie Cottbus: без статті — Aaron Reschke
 Energie Cottbus: без статті — Joey Taubeneck
 Darmstadt 98: без статті — Benedikt Börner
-Darmstadt 98: без дати народження — Max Pfister
 Darmstadt 98: без статті — Milian Herbst
 Darmstadt 98: без статті — Manolo Merx
 Dynamo Dresden: без статті — Kaan İnanoğlu
@@ -504,7 +503,6 @@ Hannover 96: без статті — Merlin Sinanović
 1. FC Kaiserslautern: без статті — Kelven Frees
 1. FC Kaiserslautern: без статті — Yannick Onohiol
 1. FC Kaiserslautern: без статті — Enis Kamga
-1. FC Kaiserslautern: без дати народження — David Schramm
 1. FC Kaiserslautern: без статті — Erik Müller
 1. FC Kaiserslautern: без статті — Owen Gibs
 1. FC Kaiserslautern: без статті — Kian Scheer
@@ -943,7 +941,6 @@ Estoril Praia: без статті — Luís Gomes
 Estrela da Amadora: без статті — Vuk Pavićević
 Estrela da Amadora: без статті — David Grilo
 Estrela da Amadora: без статті — Yang Si-Woo
-Estrela da Amadora: без дати народження — Rafa Soares
 Estrela da Amadora: без статті — Emerson Vanga
 Estrela da Amadora: без статті — Henrique Poniewas
 Estrela da Amadora: без статті — Alisson Souza
@@ -968,8 +965,6 @@ Nacional: без статті — Njoya Abdel
 Nacional: без статті — Kevyn
 Nacional: без статті — Deivison
 Nacional: без статті — Pablo Ruan
-Porto: без дати народження — João Costa
-Porto: без дати народження — João Afonso
 Rio Ave: без статті — Tobías Medina
 Rio Ave: без статті — Caike
 Rio Ave: без статті — Antoine Wenck
@@ -1236,7 +1231,6 @@ Wieczysta Kraków: без статті — Duje Dujmović
 Wieczysta Kraków: без статті — Patryk Stechnij
 Wieczysta Kraków: без статті — Tobiasz Mras
 Wisła Kraków: без статті — Rafał Mikulec
-Wisła Kraków: без дати народження — James Igbekeme
 Wisła Kraków: без статті — Maxence Maisonneuve
 Wisła Kraków: без статті — Patryk Letkiewicz
 Wisła Kraków: без статті — Karol Tokarczyk

@@ -47,6 +47,8 @@
   }
   const seasonLabel = () => { const y = state ? state.season.year : 2026; return `${y}/${String(y + 1).slice(2)}`; };
 
+  /** Позначка «орієнтовно» для даних, яких немає у Wikipedia (їх згенеровано). */
+  const genMark = (p, k) => ((p.gen || []).includes(k) ? el('small.muted', { title: 'У Wikipedia цих даних немає — значення згенеровано' }, ' · орієнтовно') : null);
   const ageTxt = (p) => (W.age(p) != null ? `${W.age(p)} р.` : 'вік невідомий');
   const nameOf = (p) => (state && state.names === 'en' ? p.nameEn : p.name);
   const clubName = (c) => (state && state.names === 'en' ? c.nameEn : c.name);
@@ -342,9 +344,9 @@
       ]),
       el('div.grid', [
         el('div.panel', [el('h3', 'Особисте'), el('dl.facts', [
-          el('dt', 'Дата народження'), el('dd', p.born ? `${fmt.date(p.born)} (${W.age(p)} р.)` : '—'),
-          el('dt', 'Країна'), el('dd', FM.countries.name(p.nat)),
-          el('dt', 'Зріст'), el('dd', p.height ? `${p.height} см` : '—'),
+          el('dt', 'Дата народження'), el('dd', p.born ? [`${fmt.date(p.born)} (${W.age(p)} р.)`, genMark(p, 'born')] : '—'),
+          el('dt', 'Країна'), el('dd', [FM.countries.name(p.nat), genMark(p, 'nat')]),
+          el('dt', 'Зріст'), el('dd', p.height ? [`${p.height} см`, genMark(p, 'height')] : '—'),
           el('dt', 'Збірна'), el('dd', p.caps ? `${p.caps} матчів, ${p.intlGoals || 0} голів` : 'не грав'),
           el('dt', 'Кар’єра в лігах'), el('dd', p.leagueApps != null ? `${p.leagueApps} матчів, ${p.leagueGoals || 0} голів` : '—'),
           ...(p.onLoanFrom ? [el('dt', 'Оренда'), el('dd', 'з клубу ' + p.onLoanFrom)] : []),
@@ -2201,13 +2203,16 @@
     };
     const save = () => {
       ensureAttrs();
+      // поле, яке людина змінила, — вже не згенероване
+      const gen0 = p.gen || [];
+      const gen = gen0.filter((k) => !((k === 'born' && d.born && d.born !== p.born) || (k === 'height' && d.height !== '' && Number(d.height) !== p.height) || (k === 'nat' && d.nat !== p.nat)));
       const keep = new Set(FM.ATTR_GROUPS[d.roles[0] === 'GK' ? 'gk' : 'outfield'].flatMap(([, ks]) => ks));
       const attrs = {};
       for (const k of keep) attrs[k] = clampInt(d.attrs[k], 1, 20);
       Object.assign(p, {
         name: d.name.trim() || p.name, nameEn: d.nameEn.trim() || p.nameEn, number: d.number === '' ? null : clampInt(d.number, 1, 99),
         born: d.born || p.born, nat: d.nat, height: d.height === '' ? null : clampInt(d.height, 150, 210),
-        roles: [...new Set(d.roles)], side: d.side || null, attrs, edited: true,
+        roles: [...new Set(d.roles)], side: d.side || null, attrs, edited: true, gen: gen.length ? gen : undefined,
       });
       p.ca = FM.caFromAttrs(p);
       p.pa = Math.max(p.ca, clampInt(d.pa, 1, 200));

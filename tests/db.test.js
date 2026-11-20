@@ -51,10 +51,18 @@ test('гранди сильніші за середняків своєї ліг�
   assert.ok(leagueAvg('ukr') < leagueAvg('fra'));
 });
 
-test('дата народження: у вищих лігах — у 90%+ гравців, загалом — у 80%+ (решта без статті в Wikipedia, переважно нижчі ліги й молодь)', () => {
-  const withBirth = db.players.filter((p) => p.born).length;
-  assert.ok(withBirth / db.players.length > 0.8, `${withBirth} з ${db.players.length}`);
+test('дата, зріст і країна є в усіх; справжні — у 80%+ гравців (у вищих лігах 90%+), решту згенеровано й позначено', () => {
+  assert.ok(db.players.every((p) => p.born && p.height && p.nat));
+  const real = (p, k) => !(p.gen || []).includes(k);
+  assert.ok(db.players.filter((p) => real(p, 'born')).length / db.players.length > 0.8);
   const top = new Set(db.clubs.filter((c) => ['eng', 'esp', 'ita', 'ger', 'fra'].includes(c.league)).map((c) => c.id));
   const tp = db.players.filter((p) => top.has(p.club));
-  assert.ok(tp.filter((p) => p.born).length / tp.length > 0.9);
+  assert.ok(tp.filter((p) => real(p, 'born')).length / tp.length > 0.9);
+  // згенероване — правдоподібне: вік 16–33, зріст 160–205, і лише там, де у Wikipedia даних немає
+  for (const p of db.players.filter((x) => x.gen)) {
+    const age = 2026 - Number(p.born.slice(0, 4));
+    if (p.gen.includes('born')) assert.ok(age >= 16 && age <= 34, `${p.nameEn}: ${p.born}`);
+    if (p.gen.includes('height')) assert.ok(p.height >= 160 && p.height <= 205, `${p.nameEn}: ${p.height}`);
+  }
+  assert.ok(db.players.filter((p) => (p.gen || []).includes('born') && p.wiki).length < 20, 'зі статтею дата майже завжди справжня');
 });

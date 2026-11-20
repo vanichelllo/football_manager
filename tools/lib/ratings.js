@@ -135,4 +135,32 @@ function marketValue(ca, age, league, pa = ca) {
   return Math.round(clamp(v, 0.05, 200) * 20) / 20; // крок 50 тис.
 }
 
-module.exports = { abilities, attributes, marketValue, hash01, TIER_OF, OUTFIELD, GOALKEEPER, LEAGUE };
+// ---------------- Згенеровані дані, коли справжніх немає ----------------
+// Детерміновано від ключа гравця: після перебудови бази ті самі значення.
+
+/**
+ * Дата народження. noArticle — гравця немає у Wikipedia (переважно молодь і запасні нижчих ліг),
+ * number — номер у складі (великі номери — зазвичай молодь з академії).
+ */
+function genBorn(key, number, noArticle, seasonStart = '2026-08-15') {
+  const r = hash01(key + ':born');
+  const young = (number != null && number >= 30) || (noArticle && r < 0.55);
+  const age = young ? 17 + Math.floor(hash01(key + ':ageY') * 5) // 17–21
+    : 20 + Math.floor(Math.pow(hash01(key + ':age'), 1.4) * 13); // 20–32, частіше молодші
+  const y0 = Number(seasonStart.slice(0, 4));
+  const month = 1 + Math.floor(hash01(key + ':m') * 12);
+  const day = 1 + Math.floor(hash01(key + ':d') * 28);
+  const md = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  // вік на початок сезону має дорівнювати age
+  const year = md <= seasonStart.slice(5) ? y0 - age : y0 - age - 1;
+  return `${year}-${md}`;
+}
+
+/** Зріст за позицією (см): воротарі й центральні захисники вищі, вінгери нижчі. */
+const HEIGHT_MEAN = { GK: 190, CB: 187, FB: 178, DM: 181, CM: 179, AM: 176, W: 175, ST: 183 };
+function genHeight(key, role) {
+  const n = (hash01(key + ':h1') + hash01(key + ':h2') + hash01(key + ':h3') - 1.5) * 2; // приблизно нормальний розподіл
+  return Math.round((HEIGHT_MEAN[role] || 180) + n * 5);
+}
+
+module.exports = { genBorn, genHeight, abilities, attributes, marketValue, hash01, TIER_OF, OUTFIELD, GOALKEEPER, LEAGUE };
