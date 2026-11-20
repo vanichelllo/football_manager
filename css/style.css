@@ -744,3 +744,9 @@ th[aria-sort] { color: var(--fg); }
 .paper-photo { background: #ece4cf; padding: 1.2rem 0.8rem; text-align: center; border-radius: 4px; font-style: italic; }
 .paper-quote { font-style: italic; }
 .paper li.mine { font-weight: 700; background: none; }
+.feud { border: 1px solid #c0392b; border-radius: var(--radius); padding: 0.6rem 0.8rem; margin: 0.8rem 0; background: color-mix(in srgb, #c0392b 6%, var(--panel)); }
+.planner { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; }
+@media (max-width: 900px) { .planner { grid-template-columns: minmax(0, 1fr); } }
+.plan-line { margin-bottom: 0.7rem; }
+.plan-line-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); margin-bottom: 0.3rem; }
+.plan-line li { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; font-size: 0.9rem; }

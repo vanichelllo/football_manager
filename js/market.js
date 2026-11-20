@@ -211,6 +211,7 @@
     p.wage = wage;
     p.contract = state.season.year + years;
     p.boughtSeason = state.season.year; p.boughtWeek = state.season.week;
+    if (buyerId === state.clubId && from !== state.clubId && FM.dressing && FM.dressing.onArrive) { const t = FM.dressing.onArrive(W, state, p); if (t) news(state, t, 'players'); }
     delete p.listed; delete p.free;
     p.value = FM.marketValue(p.ca, W.age(p) ?? 24, buyer.league, p.pa);
     state.transfers = (state.transfers || []).concat([{ s: state.season.year, w: state.season.week, p: p.id, from: from || null, to: buyerId, fee }]).slice(-300);

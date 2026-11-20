@@ -79,9 +79,41 @@
   const matchBoost = (state) => (state.meeting && state.meeting.for === state.season.week && state.meeting.at === weekKey(state.season) ? state.meeting.boost : 1);
 
   /** Продали гравця людини: якщо він лідер — його група (і трохи вся команда) засмучена. */
+  /**
+   * Найкращі друзі в команді: пари співвітчизників чи гравців однієї мови, близьких за віком.
+   * Детерміновано (без випадковості між сеансами). Повертає [[a, b], …].
+   */
+  function friends(W, clubId) {
+    const sq = W.squad(clubId).filter((p) => !p.loan);
+    const h = (s) => { let x = 7; for (const ch of s) x = (x * 31 + ch.charCodeAt(0)) % 1000003; return x / 1000003; };
+    const cands = [];
+    for (let i = 0; i < sq.length; i++) for (let j = i + 1; j < sq.length; j++) {
+      const a = sq[i], b = sq[j];
+      const same = a.nat === b.nat ? 2 : LANG[a.nat] && LANG[a.nat] === LANG[b.nat] ? 1 : 0;
+      const gap = Math.abs((W.age(a) ?? 25) - (W.age(b) ?? 25));
+      if (!same || gap > 5) continue;
+      cands.push([same + (5 - gap) * 0.3 + h(a.id + b.id) * 0.5, a, b]);
+    }
+    cands.sort((x, y) => y[0] - x[0]);
+    const used = new Set(), out = [];
+    for (const [, a, b] of cands) if (!used.has(a.id) && !used.has(b.id)) { used.add(a.id); used.add(b.id); out.push([a, b]); }
+    return out;
+  }
+  const friendOf = (W, clubId, pid) => { for (const [a, b] of friends(W, clubId)) { if (a.id === pid) return b; if (b.id === pid) return a; } return null; };
+  /** Новачок: співвітчизники в команді допомагають адаптуватися. */
+  function onArrive(W, state, p) {
+    const mates = W.squad(state.clubId).filter((x) => x !== p && (x.nat === p.nat || (LANG[p.nat] && LANG[x.nat] === LANG[p.nat])));
+    if (mates.length >= 2) { p.morale = clamp(FM.morale.get(p) + 6, 0, 100); return `${p.name} швидко освоюється: у команді ${mates.length} гравців, які говорять його мовою.`; }
+    if (!mates.length && !LANG[p.nat]) { p.morale = clamp(FM.morale.get(p) - 4, 0, 100); return `${p.name} поки почувається самотньо: у команді немає жодного співвітчизника.`; }
+    return null;
+  }
+
   function onSale(W, state, p) {
+    const fr = friendOf(W, state.clubId, p.id);
+    let friendTxt = '';
+    if (fr) { fr.morale = clamp(FM.morale.get(fr) - 10, 0, 100); friendTxt = ` ${fr.name} сумує за найкращим другом.`; }
     const inf = influence(W, p);
-    if (inf < 55) return null;
+    if (inf < 55) return friendTxt ? friendTxt.trim() : null;
     const gs = groups(W, state.clubId);
     const hit = new Set();
     for (const g of gs) if (g.players.length && LANG[p.nat] && g.id === 'lang:' + LANG[p.nat]) for (const x of g.players) hit.add(x.id);
@@ -89,9 +121,9 @@
       const x = W.player(id);
       x.morale = clamp(FM.morale.get(x) - (hit.has(id) ? 8 : 3), 0, 100);
     }
-    return `Роздягальня засмучена: пішов лідер ${p.name}.${hit.size ? ' Найбільше переживають його друзі.' : ''}`;
+    return `Роздягальня засмучена: пішов лідер ${p.name}.${hit.size ? ' Найбільше переживають його друзі.' : ''}${friendTxt}`;
   }
 
-  FM.dressing = { LANG, MEET, influence, groups, leaders, recent, canMeet, meet, matchBoost, onSale };
+  FM.dressing = { friends, friendOf, onArrive, LANG, MEET, influence, groups, leaders, recent, canMeet, meet, matchBoost, onSale };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);
