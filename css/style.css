@@ -630,3 +630,5 @@ li.act { align-items: center; }
   .schedule { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sd small.muted:last-child { display: none; }
 }
+.reqs li, .iv li { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.iv li { flex-direction: column; align-items: flex-start; }

@@ -101,9 +101,9 @@
     if (!state) return renderStart();
     if (!state.cups) { ensureCups(); saveGame(); } // старе збереження без кубків
     let view = location.hash.slice(1) || 'inbox'; // як у FM: головний екран — пошта
-    if (state.sacked && !['sacked', 'options'].includes(view.split('-')[0])) view = 'sacked';
+    if (state.sacked && !['sacked', 'options', 'interview'].includes(view.split('-')[0])) view = 'sacked';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, search: screenSearch, charts: screenCharts, calendar: screenCalendar, compare: screenCompare, holiday: screenHoliday, plan: screenPlan, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, search: screenSearch, charts: screenCharts, calendar: screenCalendar, compare: screenCompare, holiday: screenHoliday, plan: screenPlan, interview: screenInterview, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
     planTouch(name);
     const body = (screens[name] || screenOverview)(arg);
     app.replaceChildren(shell(name, body));
@@ -621,11 +621,36 @@
     return el('div.confbar', { role: 'meter', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(v), 'aria-label': 'Довіра правління' },
       el('i', { style: { width: v + '%' }, class: v < 30 ? 'low' : v < 55 ? 'mid' : 'high' }));
   }
+  // ---------------- Співбесіда (як у FM): відповіді задають ціль і обіцянки ----------------
+  let interview = null;
+  function startInterview(id, done) { interview = { id, done, a: {} }; go('interview'); }
+  function screenInterview() {
+    if (!interview) return screenOverview();
+    const c = W.club(interview.id), iv = interview;
+    const t = FM.board.target(W, c.id);
+    const ready = FM.boardroom.INTERVIEW.every((q) => iv.a[q.k]);
+    return [
+      el('header', [el('div', { style: { display: 'flex', gap: '0.9rem', alignItems: 'center' } }, [badge(c, true), el('div', [el('h1', `Співбесіда: ${clubName(c)}`), el('div.muted', `${W.league(c.league).name} · правління чекає: ${FM.board.TARGETS[t.kind].label.toLowerCase()}`)])])]),
+      ...FM.boardroom.INTERVIEW.map((q) => el('div.panel', [el('h3', q.q), el('ul.plist.iv', q.a.map(([k, text, eff]) => el('li', [
+        el('label.check', [el('input', { type: 'radio', name: 'iv-' + q.k, checked: iv.a[q.k] === k || null, onchange: () => { iv.a[q.k] = k; render(); } }), ' ', el('b', text)]),
+        el('small.muted', eff)])))])),
+      el('div.actions', [
+        el('button.btn.primary', { type: 'button', disabled: !ready || null, onclick: () => {
+          interview = null; iv.done();
+          const notes = FM.boardroom.applyInterview(W, state, iv.a);
+          FM.market.news(state, `Співбесіда в ${clubName(c)} пройшла успішно. ${notes.join(' ')}`, 'club');
+          saveGame();
+        } }, 'Підписати контракт'),
+        el('button.btn', { type: 'button', onclick: () => { interview = null; history.back(); } }, 'Відмовитися'),
+      ]),
+    ];
+  }
+
   function offerList(ids, onTake) {
     return el('ul.plist', ids.map((id) => {
       const c = W.club(id);
       return el('li', [el('span.club-cell', [badge(c), el('span', [clubName(c), el('small.muted', ` ${W.league(c.league).name}`)])]),
-        el('span', [starsEl(W.clubLevel(id), 'Рівень клубу'), ' ', el('button.btn', { type: 'button', onclick: () => onTake(id) }, 'Очолити')])]);
+        el('span', [starsEl(W.clubLevel(id), 'Рівень клубу'), ' ', el('button.btn', { type: 'button', onclick: () => startInterview(id, () => onTake(id)) }, 'На співбесіду')])]);
     }));
   }
   function screenBoard() {
@@ -655,6 +680,8 @@
         ]), el('p.note', 'Дохід клубу розрахований так, щоб за стартових зарплат сезон був трохи в плюсі. Дорогі контракти з’їдають прибуток; від’ємний баланс знижує довіру.')]),
       ]),
       sponsorPanel(),
+      requestsPanel(),
+      affiliatePanel(),
       visionPanel(),
       (() => {
         const maxLvl = Math.min(60 + b.rep * 1.05, FM.career.maxLevel(state));
@@ -665,6 +692,43 @@
       offers.length ? el('div.panel', [el('h3', 'Пропозиції роботи'), el('p.muted', 'Вами цікавляться клуби. Перехід — одразу, з поточного тижня.'),
         offerList(offers, (id) => { FM.board.takeJob(W, state, id); state.jobOffers = []; pre = null; tableLeague = null; saveGame(); go('overview'); })]) : null,
     ];
+  }
+
+  let reqMsg = null, affCands = null;
+  /** Прохання до правління: одне кожного виду на сезон. */
+  function requestsPanel() {
+    const b = state.board;
+    return el('div.panel', [el('h3', 'Прохання до правління'),
+      b.contract ? el('p.muted', `Ваш контракт — до літа ${b.contract}.`) : null,
+      el('ul.plist.reqs', Object.entries(FM.boardroom.REQUESTS).map(([k, d]) => el('li', [
+        el('span', [el('b', d.label), el('small.muted', ' ' + d.hint)]),
+        el('button.btn', { type: 'button', disabled: (FM.boardroom.asked(state, k) && k !== 'affiliate') || null, onclick: () => {
+          const r = FM.boardroom.request(W, state, k);
+          reqMsg = [r.ok, r.text]; affCands = r.cands || null;
+          if (r.ok && k !== 'affiliate') FM.market.news(state, `Правління: ${r.text}`, 'club');
+          saveGame(); render();
+        } }, FM.boardroom.asked(state, k) && k !== 'affiliate' ? 'Уже просили' : 'Попросити')]))),
+      reqMsg ? el('p.' + (reqMsg[0] ? 'msg-ok' : 'msg-bad'), reqMsg[1]) : null,
+      affCands ? el('ul.plist', affCands.map((c) => el('li', [el('span.club-cell', [badge(c), el('span', [clubName(c), el('small.muted', ` ${W.league(c.league).name}`)])]),
+        el('button.btn', { type: 'button', onclick: () => { const r = FM.boardroom.request(W, state, 'affiliate', c.id); reqMsg = [r.ok, r.text]; affCands = null; if (r.ok) FM.market.news(state, r.text, 'club'); saveGame(); render(); } }, 'Обрати')]))) : null,
+      el('p.note', 'Покращення бази, академії й стадіону — на екрані «Клуб».'),
+    ]);
+  }
+  /** Фарм-клуби: оренда молоді з гарантованою практикою. */
+  function affiliatePanel() {
+    const aff = (state.affiliates || []).filter((id) => W.club(id));
+    if (!aff.length) return null;
+    const sq = W.squad(state.clubId).filter((p) => (W.age(p) ?? 30) <= 23 && !p.loan).sort((a, b) => b.pa - a.pa);
+    const sel = el('select', { id: 'aff-p', 'aria-label': 'Гравець' }, sq.map((p) => el('option', { value: p.id }, `${nameOf(p)} (${W.age(p)}, ${FM.positions(p)})`)));
+    const csel = el('select', { id: 'aff-c', 'aria-label': 'Фарм-клуб' }, aff.map((id) => el('option', { value: id }, clubName(W.club(id)))));
+    const there = [...W.players.values()].filter((p) => p.loan && p.loan.aff && p.loan.from === state.clubId);
+    return el('div.panel', [el('h3', 'Фарм-клуби'),
+      el('ul.plist', aff.map((id) => el('li', [el('span.club-cell', [badge(W.club(id)), el('span', [clubName(W.club(id)), el('small.muted', ` ${W.league(W.club(id).league).name}`)])]), starsEl(W.clubLevel(id), 'Рівень')]))),
+      there.length ? el('p', ['В оренді у партнерів: ', ...there.flatMap((p, i) => [i ? ', ' : '', el('a', { href: '#player-' + p.id }, nameOf(p))])]) : null,
+      sq.length ? el('div.pre-row', [el('div.field', [el('label', { for: 'aff-p' }, 'Гравець до 23'), sel]), el('div.field', [el('label', { for: 'aff-c' }, 'Куди'), csel]),
+        el('button.btn', { type: 'button', onclick: () => { const r = FM.boardroom.sendToAffiliate(W, state, sel.value, csel.value); reqMsg = [r.ok, r.text]; if (r.ok) FM.market.news(state, r.text, 'transfers'); saveGame(); render(); } }, 'Віддати в оренду')]) : null,
+      el('p.note', 'У фарм-клубі гравець гарантовано грає й розвивається як гравець основи; партнер платить половину зарплати. Повертається наприкінці сезону. Оренда — у відкрите трансферне вікно.'),
+    ]);
   }
 
   function sponsorPanel() {
@@ -2333,6 +2397,12 @@
     if (lastPlan && lastPlan.morale) for (const p of W.squad(state.clubId)) p.morale = Math.min(100, FM.morale.get(p) + lastPlan.morale);
     for (const t of FM.routine.mentorWeek(W, state)) FM.market.news(state, t, 'players');
     for (const t of FM.routine.delegateWeek(W, state)) FM.market.news(state, t);
+    for (const t of FM.boardroom.promisesWeek(W, state)) FM.market.news(state, t, 'club');
+    // міжнародне вікно, що минуло: хто їздив у збірні
+    if (S.cal && S.cal.intl.includes(S.week - 1)) {
+      const cu = FM.boardroom.callups(W, state, S.week - 1);
+      if (cu.length) FM.market.news(state, `Повернулися зі збірних: ${cu.map((x) => `${nameOf(x.p)} (${FM.countries.name(x.p.nat)})`).join(', ')}. Гравці втомлені після перельотів.${cu.some((x) => x.hurt) ? ' Травмувалися: ' + cu.filter((x) => x.hurt).map((x) => `${nameOf(x.p)} — ${x.hurt} тиж.`).join(', ') + '.' : ''}`, 'players');
+    }
     // історія для графіків: баланс і рівень ваших гравців
     state.balHist = (state.balHist || []).concat([[S.year, S.week, Math.round(W.club(state.clubId).balance * 100) / 100]]).slice(-150);
     state.caLog = state.caLog || {};
