@@ -129,6 +129,9 @@
   function record(S, f, m) {
     f.s = m.score.slice();
     if (m.ownGoals && (m.ownGoals[0] || m.ownGoals[1])) f.og = m.ownGoals.slice(); // автоголи — не в статистиці гравців
+    // хвилини голів: [команда, хвилина] — для рахунків інших матчів під час трансляції
+    const gm = (m.events || []).filter((e) => e.type === 'goal').map((e) => [e.team, Math.min(120, parseInt(String(e.min), 10) + (String(e.min).includes('+') ? Number(String(e.min).split('+')[1]) : 0))]);
+    if (gm.length) f.gm = gm;
     if (FM.morale) FM.morale.recordRatings(m);
     f.sc = []; // [команда, автор]
     for (const r of m.ratings) {

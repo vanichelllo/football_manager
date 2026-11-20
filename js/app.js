@@ -1273,6 +1273,60 @@
     ]);
   }
 
+  // ---------------- День дедлайну (як у FM) ----------------
+  /**
+   * Останній тиждень вікна: таймер до закриття, стрічка угод вікна, «панічні пропозиції» —
+   * клуби в останню мить продають гравців зі знижкою 20–35%.
+   */
+  let dlMsg = null;
+  function deadlinePanel() {
+    const S = state.season, me = W.club(state.clubId);
+    const win = FM.market.windows(S).find(([a, b]) => S.week >= a && S.week <= b);
+    if (!win || S.week !== win[1]) return null;
+    const dlDay = S.cal ? 1 : 5, day = curDay();
+    const left = day <= dlDay ? (dlDay - day) * 24 + (24 - 8) : 0;
+    const key = `${S.year}-${S.week}`;
+    if (!state.dl || state.dl.key !== key) {
+      // панічні пропозиції: корисні вам гравці, яких клуби готові віддати дешевше
+      const R = FM.rng(`dl-${S.seed}-${key}`), side = mySide(), xiAvg = side.lineup.xi.reduce((a, x) => a + x.player.ca, 0) / 11;
+      const budget = FM.budget.available(W, state);
+      const cands = [...W.players.values()].filter((p) => p.club && p.club !== state.clubId && !p.loan && !p.retired && !p.virtual && p.ca >= xiAvg * 0.93 && (W.age(p) ?? 30) <= 31
+        && W.club(p.club).players.length > 20 && FM.market.askingPrice(W, p, S) <= Math.max(1, budget * 1.6));
+      const list = [];
+      for (let i = 0; i < 40 && list.length < 3 && cands.length; i++) {
+        const p = cands.splice(R.int(cands.length), 1)[0];
+        if (FM.market.wageDemand(W, p, state.clubId) == null) continue;
+        list.push({ pid: p.id, price: Math.round(FM.market.askingPrice(W, p, S) * (0.65 + R.next() * 0.15) * 20) / 20 });
+      }
+      state.dl = { key, list };
+    }
+    const deals = (state.transfers || []).filter((t) => t.s === S.year && t.w >= win[0] && t.w <= win[1] && t.fee > 0).slice(-12).reverse();
+    return el('div.panel.deadline', [
+      el('div.plan-card-head', [el('h3', '⏰ День дедлайну'), el('b.dl-timer', left > 0 ? `до закриття ${left} год` : 'вікно закривається опівночі!')]),
+      el('p.muted', 'Останні години трансферного вікна: клуби поспішають, ціни падають, рішення — швидкі.'),
+      state.dl.list.length ? el('ul.plist.dl-offers', state.dl.list.map((x) => {
+        const p = W.player(x.pid);
+        if (!p || p.club === state.clubId || x.done) return el('li', [el('span.muted', p ? `${nameOf(p)} — угоду закрито` : '—')]);
+        const wage = FM.market.wageDemand(W, p, state.clubId);
+        return el('li', [el('span', [el('b', '🔥 '), el('a', { href: '#player-' + p.id }, nameOf(p)), el('small.muted', ` ${FM.positions(p)}, ${W.age(p)} р., ${clubName(W.club(p.club))} · ціна ${M(FM.market.askingPrice(W, p, S))} → `), el('b', M(x.price))]),
+          el('button.btn.primary', { type: 'button', onclick: () => {
+            if (!FM.budget.canSpend(W, state, x.price)) { dlMsg = `Не вистачає трансферного бюджету (${M(FM.budget.available(W, state))}).`; return render(); }
+            if (FM.market.wageBill(W, me.id) + wage > me.wageBudget) { dlMsg = `Гравець хоче ${wage} тис. €/тиж. — фонд зарплат не дозволяє. Перекиньте гроші в зарплати («Правління» → «Бюджети»).`; return render(); }
+            if (buyBlocked()) { dlMsg = buyBlocked(); return render(); }
+            const from = clubName(W.club(p.club));
+            FM.market.complete(W, state, p, me.id, x.price, wage, 3);
+            state.board.fin.transfers = Math.round((state.board.fin.transfers - x.price) * 100) / 100;
+            x.done = true; state.known = state.known || {}; state.known[p.id] = true;
+            FM.market.news(state, `Угода в останню мить! ${nameOf(p)} переходить з ${from} за ${M(x.price)}.`, 'transfers');
+            dlMsg = `${nameOf(p)} — ваш гравець! Зарплата ${wage} тис. €/тиж.`; saveGame(); render();
+          } }, `Купити за ${M(x.price)}`)]);
+      })) : el('p.muted', 'Панічних пропозицій для вас немає.'),
+      dlMsg ? el('p.msg-ok', dlMsg) : null,
+      el('b', 'Стрічка угод вікна'),
+      deals.length ? el('ul.plain.dl-feed', deals.map((t) => { const p = W.player(t.p); return el('li' + (t.fee >= 20 ? '.big' : ''), `${t.fee >= 20 ? '💥 ' : ''}${p ? p.name : '?'}: ${t.from && W.club(t.from) ? W.club(t.from).name : 'вільний'} → ${W.club(t.to) ? W.club(t.to).name : ''}, ${M(t.fee)}`); })) : el('p.muted', 'Поки тихо.'),
+    ]);
+  }
+
   // ---------------- Екран «Трансфери» ----------------
   let tf = { role: '', maxAge: 35, maxPrice: 0, league: 'all', nat: 'all', minCa: 0, minAge: 15, listed: false, expiring: false, known: false };
   function screenTransfers() {
@@ -1303,6 +1357,7 @@
 
     return [
       el('header', [el('h1', 'Трансфери'), el('span.muted', open ? 'Трансферне вікно відкрите' : `Вікно закрите · ${nw != null ? `відкриється на ${nw + 1}-му тижні` : 'наступне — влітку'}`)]),
+      deadlinePanel(),
       el('div.grid', [
         el('div.panel', [el('h3', 'Фінанси'), el('dl.facts', [
           el('dt', 'Трансферний бюджет'), el('dd', el('b', M(FM.budget.available(W, state)))),
@@ -1808,8 +1863,8 @@
     }, [['Зіграти ще раз', () => startFriendly(), true], ['Інший суперник', () => render()]]);
   }
 
-  function showLive(active, hs, as, M, myK, onFinish, actions) {
-    app.replaceChildren(shell(active, liveView(hs, as, M, myK, onFinish, actions)));
+  function showLive(active, hs, as, M, myK, onFinish, actions, extra) {
+    app.replaceChildren(shell(active, liveView(hs, as, M, myK, onFinish, actions, extra)));
     window.scrollTo(0, 0);
   }
 
@@ -1956,7 +2011,41 @@
   /** replaceChildren без «null»: порожні блоки (null/false) пропускаються. */
   const put = (node, ...kids) => node.replaceChildren(...kids.flat().filter((x) => x != null && x !== false));
 
-  function liveView(hs, as, M, myK, onFinish, actions) {
+  /**
+   * Рахунки інших матчів туру по ходу вашого (вони вже зіграні — показуємо голи до поточної хвилини)
+   * і таблиця наживо: яке ви зараз місце.
+   */
+  function liveTicker(f, M, myK) {
+    const S = state.season, L = f.l, round = f.r;
+    const others = S.fixtures.filter((x) => x.l === L && x.r === round && x.id !== f.id && x.s);
+    const at = (x, min) => { const s = [0, 0]; for (const [k, m] of x.gm || []) if (m <= min) s[k]++; if (!x.gm && min >= 93) return x.s.slice(); return s; };
+    const table = (min, myScore) => {
+      const rows = new Map(W.clubsOf(L).map((c) => [c.id, { id: c.id, pts: 0, gd: 0, gf: 0 }]));
+      const add = (h, a, sc) => { const H = rows.get(h), A = rows.get(a); if (!H || !A) return; H.gf += sc[0]; A.gf += sc[1]; H.gd += sc[0] - sc[1]; A.gd += sc[1] - sc[0];
+        if (sc[0] > sc[1]) H.pts += 3; else if (sc[0] < sc[1]) A.pts += 3; else { H.pts++; A.pts++; } };
+      for (const x of S.fixtures) if (x.l === L && x.s && x.r !== round) add(x.h, x.a, x.s);
+      for (const x of others) add(x.h, x.a, at(x, min));
+      add(f.h, f.a, myScore);
+      const t = [...rows.values()].sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
+      return t.findIndex((r) => r.id === state.clubId) + 1;
+    };
+    const before = (() => { const t = FM.season.table({ ...S, fixtures: S.fixtures.filter((x) => x.r !== round || x.l !== L) }, W, L); return t.findIndex((r) => r.id === state.clubId) + 1; })();
+    const box = el('div.live-ticker', { 'aria-live': 'off' });
+    const draw = () => {
+      const min = M.minuteNum || 0, sc = M.liveStats().map((x) => x.goals);
+      const pos = table(min, sc);
+      box.replaceChildren(
+        el('span.lt-pos', [el('b', `Зараз ви ${pos}-і`), pos !== before ? el('span.' + (pos < before ? 'up' : 'down'), ` ${pos < before ? '▲' : '▼'}${Math.abs(pos - before)}`) : null]),
+        el('span.lt-games', others.map((x) => { const s2 = at(x, min); const chg = (x.gm || []).some(([, m]) => m <= min && m > min - 3);
+          return el('span.lt-g' + (chg ? '.flash' : ''), `${clubName(W.club(x.h))} ${s2[0]}:${s2[1]} ${clubName(W.club(x.a))}`); })),
+      );
+    };
+    draw();
+    return { box, draw };
+  }
+
+  function liveView(hs, as, M, myK, onFinish, actions, extra) {
+    const ticker = extra && extra.fixture && state ? liveTicker(extra.fixture, M, myK) : null;
     const scoreEl = el('div.sb-score', '0:0');
     const clock = el('div.sb-clock', '0′');
     const feed = el('ol.feed', { 'aria-live': 'polite' });
@@ -2059,6 +2148,7 @@
         if (liveSpeed === 'key' && ['chance', 'miss', 'red', 'injury', 'penalty'].includes(e.type)) hold = Math.max(hold, 2500); // ключовий момент — пауза, щоб прочитати
       }
       const s = M.liveStats();
+      if (ticker) ticker.draw();
       const lastEv = M.events[M.events.length - 1];
       if (lastEv && lastEv !== moveBall.last) {
         moveBall.last = lastEv;
@@ -2242,6 +2332,7 @@
         el('div.sb-team.away', [badge(as.club, true), el('b', clubName(as.club))]),
       ]),
       el('div.live-controls', speedBtns),
+      ticker ? ticker.box : null,
       hlBar,
       el('div.live-grid', [
         el('details.panel.feed-box', { open: true }, [el('summary', [el('span', 'Стрічка подій'), feedPause]), el('div.feed-wrap', feed)]),
@@ -2608,7 +2699,7 @@
     const { hs, as, opts } = FM.season.prepare(S, W, f, NAMES, USER());
     const myK = f.h === state.clubId ? 0 : 1;
     opts[myK === 0 ? 'home' : 'away'].manual = true;
-    showLive('fixtures', hs, as, FM.match.create(opts), myK, after, [['Далі', () => go('fixtures'), true], ['Таблиця', () => go('table')]]);
+    showLive('fixtures', hs, as, FM.match.create(opts), myK, after, [['Далі', () => go('fixtures'), true], ['Таблиця', () => go('table')]], { fixture: f });
   }
 
   function playMyMatch(live) {
@@ -2649,7 +2740,7 @@
       boardWeek();
       state.day = 0;
       saveGame();
-    }, [['Далі', () => go(state.sacked ? 'sacked' : 'fixtures'), true], ['Таблиця', () => go('table')]]);
+    }, [['Далі', () => go(state.sacked ? 'sacked' : 'fixtures'), true], ['Таблиця', () => go('table')]], { fixture: f });
   }
 
   /** Глядачі домашнього матчу: новина, журнал, рекорд відвідуваності. */

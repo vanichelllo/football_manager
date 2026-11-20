@@ -697,3 +697,16 @@ th[aria-sort] { color: var(--fg); }
 .bud-slider { display: flex; align-items: center; gap: 0.5rem; }
 .bud-slider input { flex: 1; }
 .bud-loan { display: inline-flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+
+/* Рахунки інших матчів наживо */
+.live-ticker { display: flex; gap: 0.8rem; align-items: center; overflow-x: auto; white-space: nowrap; margin: 0 0 0.8rem; padding: 0.4rem 0.7rem;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); font-size: 0.85rem; scrollbar-width: thin; }
+.lt-pos { flex: 0 0 auto; }
+.lt-pos .up { color: var(--accent); font-weight: 700; } .lt-pos .down { color: #c0392b; font-weight: 700; }
+.lt-games { display: inline-flex; gap: 0.8rem; }
+.lt-g { color: var(--muted); }
+.lt-g.flash { color: var(--fg); font-weight: 700; }
+.deadline { border-color: #c0392b; }
+.dl-timer { color: #c0392b; }
+.dl-offers li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.dl-feed li.big { font-weight: 700; }
