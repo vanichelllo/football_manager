@@ -281,9 +281,49 @@
    * Тиждень ринку: пропозиції за гравців людини, трансфери ШІ, підписання вільних агентів.
    * Викликати після закриття туру.
    */
+  // ---------------- Динамічні ціни й чутки ----------------
+  /** Ціни щотижня: форма, травми, повернення до норми. Для ваших гравців і шортлиста — новини про великі зміни. */
+  function valuesWeek(W, state) {
+    const S = state.season;
+    const watch = new Set([...(state.shortlist || []), ...W.club(state.clubId).players]);
+    for (const p of W.players.values()) {
+      if (!p.club || p.retired) continue;
+      const f = p.form && p.form.length ? p.form.reduce((a, b) => a + b, 0) / p.form.length : 6.6;
+      let target = Math.max(0.75, Math.min(1.45, 1 + (f - 6.6) * 0.28));
+      if ((p.injury || 0) >= 4) target *= 0.85;
+      const h = (p.hype ?? 1) + (target - (p.hype ?? 1)) * 0.15;
+      p.hype = Math.round(h * 1000) / 1000;
+      const base = FM.marketValue(p.ca, W.age(p) ?? 24, W.club(p.club).league, p.pa);
+      p.value = Math.max(0.05, Math.round(base * p.hype * 20) / 20);
+      if (watch.has(p.id) && p.value >= 1) {
+        const ref = p.valueSeen || p.value;
+        const ch = p.value / ref - 1;
+        if (Math.abs(ch) >= 0.25) {
+          news(state, `${p.club === state.clubId ? 'Ваш гравець' : 'Шортлист'}: ціна ${p.name} ${ch > 0 ? 'зросла' : 'впала'} до ${fmtM(p.value)} (${ch > 0 ? '+' : ''}${Math.round(ch * 100)}%).`, 'transfers');
+          p.valueSeen = p.value;
+        } else if (!p.valueSeen) p.valueSeen = p.value;
+      }
+    }
+  }
+  /** Чутки: сильніші клуби помічають ваших гравців у формі — у вікно від них частіше пропозиції. */
+  function rumoursWeek(W, state, R) {
+    const S = state.season, lvl = W.clubLevel(state.clubId);
+    for (const p of W.squad(state.clubId)) {
+      const f = p.form && p.form.length >= 3 ? p.form.reduce((a, b) => a + b, 0) / p.form.length : 0;
+      if (f < 7.2 || p.loan || (p.interest && p.interest.until > S.year * 100 + S.week) || !R.chance(0.08)) continue;
+      const cands = [...W.clubs.values()].filter((c) => c.id !== state.clubId && W.clubLevel(c.id) > lvl + 5 && c.balance > p.value);
+      if (!cands.length) continue;
+      const c = R.pick(cands);
+      p.interest = { club: c.id, until: S.year * 100 + S.week + 12 };
+      news(state, `Чутки: ${c.name} стежить за грою ${p.name}. Скаути клубу були на вашому матчі.`, 'transfers');
+    }
+  }
+
   function weekly(W, state) {
     const S = state.season;
     const R = FM.rng(`market-${S.seed}-${S.week}`);
+    valuesWeek(W, state);
+    rumoursWeek(W, state, R);
     state.offers = (state.offers || []).filter((o) => S.week - o.w <= 2 && W.player(o.pid) && W.player(o.pid).club === state.clubId);
     // скаутські звіти: те, що замовили минулого тижня, — тепер відомо точно
     state.known = state.known || {};
@@ -314,12 +354,13 @@
       for (const p of W.squad(state.clubId)) {
         if (p.loan) continue;
         const big = p.value >= 4 && rankInClub(W, p) < 8;
-        let chance = (p.listed ? 0.45 : big ? 0.05 : 0.01) * (deadline ? 1.6 : 1);
+        const hot = p.interest && p.interest.until > S.year * 100 + S.week && W.club(p.interest.club);
+        let chance = (p.listed ? 0.45 : big ? 0.05 : 0.01) * (deadline ? 1.6 : 1) * (hot ? 4 : 1);
         if (p.clause && big) chance = Math.max(chance, 0.04);
         if (!R.chance(chance)) continue;
         const buyers = clubs.filter((c) => c.id !== state.clubId && c.balance > p.value * 0.9 && W.clubLevel(c.id) >= p.ca - 15);
-        if (!buyers.length) continue;
-        const b = R.pick(buyers);
+        if (!buyers.length && !hot) continue;
+        const b = hot && W.club(p.interest.club).balance > p.value * 0.9 ? W.club(p.interest.club) : R.pick(buyers.length ? buyers : [W.club(p.interest.club)]);
         let fee = Math.round(p.value * (p.listed ? R.range(0.75, 1.05) : R.range(1.1, 1.45)) * 20) / 20;
         const byClause = p.clause && b.balance >= p.clause && p.clause <= p.value * 1.6;
         if (byClause) fee = p.clause;
@@ -337,9 +378,25 @@
         if (c.id === state.clubId) continue;
         for (const p of W.squad(c.id)) if ((W.age(p) ?? 24) >= 31 && rankInClub(W, p) >= 8 && !p.loan) p.listed = true;
       }
+      // зимова «паніка»: аутсайдери (нижні 4 місця) купують охочіше й переплачують
+      const panic = new Set();
+      if (S.week >= 20) for (const l of W.db.leagues) { const t = FM.season.table(S, W, l.id); for (const r of t.slice(-4)) panic.add(r.id); }
+      // суперники перехоплюють гравців з вашого шортлиста
+      for (const id of state.shortlist || []) {
+        const p = W.player(id);
+        if (!p || !p.club || p.club === state.clubId || p.loan || !R.chance(deadline ? 0.06 : 0.025)) continue;
+        const rivals = clubs.filter((c) => c.id !== state.clubId && c.id !== p.club && c.balance > p.value * 1.6 && W.clubLevel(c.id) >= p.ca - 8 && W.clubLevel(c.id) <= p.ca + 20);
+        if (!rivals.length) continue;
+        const c = R.pick(rivals), ask = askingPrice(W, p, S), wd = wageDemand(W, p, c.id);
+        if (wd == null || clubResponse(W, p, ask, c.id, S).ok !== true) continue;
+        const from = W.club(p.club);
+        complete(W, state, p, c.id, ask, wd, 3 + R.int(2));
+        news(state, `Вас випередили: ${p.name} з вашого шортлиста переходить з ${from.name} до ${c.name} за ${fmtM(ask)}.`, 'transfers');
+      }
       // клуби ШІ латають слабкі позиції: беруть молодших, бережуть бюджет і фонд зарплат
       for (const c of clubs) {
-        if (c.id === state.clubId || !R.chance(deadline ? 0.3 : 0.12) || c.balance < 0.5) continue;
+        const scared = panic.has(c.id);
+        if (c.id === state.clubId || !R.chance((deadline ? 0.3 : 0.12) * (scared ? 2.5 : 1)) || c.balance < 0.5) continue;
         const weak = weakestRole(W, c.id);
         if (!weak) continue;
         const lvl = W.clubLevel(c.id);
@@ -350,16 +407,18 @@
         const score = (p, ask) => p.ca + (p.pa - p.ca) * 0.3 - Math.max(0, (W.age(p) ?? 24) - 27) * 2 - ask * 0.5;
         for (const p of cands) {
           const ask = askingPrice(W, p, S);
-          if (ask > c.balance * 0.5 || clubResponse(W, p, ask, c.id, S).ok !== true) continue;
+          if (ask > c.balance * (scared ? 0.8 : 0.5) || clubResponse(W, p, ask, c.id, S).ok !== true) continue;
           const wd = wageDemand(W, p, c.id);
           if (wd == null || wd > room + (W.squad(c.id).filter((x) => x.roles[0] === weak.role).length > 3 ? 0 : room * 0.2)) continue;
           if (!best || score(p, ask) > score(best.p, best.ask)) best = { p, ask };
         }
         if (best) {
-          const wage = wageDemand(W, best.p, c.id);
+          const wage = Math.round(wageDemand(W, best.p, c.id) * (scared ? 1.15 : 1));
           const from = W.club(best.p.club);
-          complete(W, state, best.p, c.id, best.ask, wage, 2 + R.int(3));
-          if (best.ask >= 20 || c.league === W.club(state.clubId).league || from.league === W.club(state.clubId).league) {
+          const fee = Math.round(best.ask * (scared ? 1.15 : 1) * 20) / 20; // у паніці переплачують
+          complete(W, state, best.p, c.id, fee, wage, 2 + R.int(3));
+          if (scared && c.league === W.club(state.clubId).league) news(state, `Паніка: ${c.name}, що бореться за виживання, переплачує за ${best.p.name} — ${fmtM(fee)}.`, 'transfers');
+          else if (best.ask >= 20 || c.league === W.club(state.clubId).league || from.league === W.club(state.clubId).league) {
             news(state, `Трансфер: ${best.p.name} — з ${from.name} до ${c.name} за ${fmtM(best.ask)}.`);
           }
         }
@@ -460,7 +519,7 @@
     return { ok: true, demand };
   }
 
-  FM.market = { WINDOWS, NEWS_CATS, newsCat, unread, rival, agentFee, clauseDiscount, loanable, loanFee, loanIn, loanOffers, returnLoans, scouts, hireScout, scoutWage, scoutAccuracy, ensureKeepers, init, fairWage, wageBill, windowOpen, nextWindow, askingPrice, clubResponse, wageDemand, playerResponse,
+  FM.market = { valuesWeek, rumoursWeek, WINDOWS, NEWS_CATS, newsCat, unread, rival, agentFee, clauseDiscount, loanable, loanFee, loanIn, loanOffers, returnLoans, scouts, hireScout, scoutWage, scoutAccuracy, ensureKeepers, init, fairWage, wageBill, windowOpen, nextWindow, askingPrice, clubResponse, wageDemand, playerResponse,
     complete, release, releaseCost, weekly, endSeason, renewDemand, renew, rankInClub, news, fmtM, WINDOWS };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -354,7 +354,8 @@
         el('div.panel', [el('h3', 'Оцінка'), el('dl.facts', [
           el('dt', 'Рівень'), el('dd', [starsEl(seenCA(p), 'Рівень'), known(p) ? '' : el('small.muted', ' оцінка скаутів')]),
           el('dt', 'Потенціал'), el('dd', starsEl(seenPA(p), 'Потенціал')),
-          el('dt', 'Ціна'), el('dd', fmt.money(p.value)),
+          el('dt', 'Ціна'), el('dd', [fmt.money(p.value), p.hype > 1.05 ? el('small.trend.up', { title: 'Форма піднімає ціну' }, ` ▲ ${Math.round((p.hype - 1) * 100)}%`) : p.hype < 0.95 ? el('small.trend.down', { title: 'Погана форма або травма знижують ціну' }, ` ▼ ${Math.round((1 - p.hype) * 100)}%`) : null,
+            p.interest && p.club === state.clubId && p.interest.until > state.season.year * 100 + state.season.week && W.club(p.interest.club) ? el('small.muted', ` · цікавиться ${clubName(W.club(p.interest.club))}`) : null]),
           ...(p.club && p.contract ? [el('dt', 'Контракт'), el('dd', `до літа ${p.contract}, ${p.wage} тис. € на тиждень`)] : []),
           ...(p.listed ? [el('dt', 'Трансфер'), el('dd', 'виставлений на продаж')] : []),
           ...(p.club === state.clubId ? [el('dt', 'Настрій'), el('dd', `${FM.morale.label(p)}${p.mr ? ` (${p.mr})` : ''}${p.wantsOut ? ' · просить продажу' : ''}`),
