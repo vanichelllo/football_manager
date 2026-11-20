@@ -632,3 +632,11 @@ li.act { align-items: center; }
 }
 .reqs li, .iv li { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .iv li { flex-direction: column; align-items: flex-start; }
+
+/* Звіт скаута: оцінка A–D */
+.grade { display: inline-grid; place-items: center; min-width: 1.8rem; height: 1.8rem; border-radius: 6px; font-weight: 700; font-family: var(--font-head, inherit); }
+.g-A { background: var(--accent); color: var(--accent-fg); }
+.g-B { background: #5aa469; color: #fff; }
+.g-C { background: #e3b23c; color: #1d1a10; }
+.g-D { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+.scout-rep .grid { gap: 0.6rem; }
