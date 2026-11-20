@@ -603,3 +603,14 @@ li.act { align-items: center; }
 .plan-act { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.4rem; }
 .plan-act > p, .plan-act > ul { flex-basis: 100%; }
 .plan-list { margin: 0.2rem 0; }
+
+/* Промови, вигуки, звіт у перерві */
+.chip.ok { background: var(--accent); color: var(--accent-fg); }
+.chip.warn { background: #e3b23c; color: #1d1a10; }
+.chip.info { background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); }
+.tabs.shouts { flex-wrap: wrap; }
+.half-report { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin-bottom: 0.8rem; background: var(--panel-2); }
+.half-report .tips { margin: 0.4rem 0 0; }
+.reacts { margin-bottom: 0.6rem; }
+.reacts summary { cursor: pointer; font-weight: 600; }
+.reacts .plist li, .post-talk .plist li { display: flex; justify-content: space-between; gap: 0.5rem; }

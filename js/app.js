@@ -1184,7 +1184,7 @@
     const players = availablePlayers(state.clubId);
     const lineup = FM.lineupFromIds(players, t.formation, t.ids, t);
     return { club: W.club(state.clubId), players, formation: t.formation, lineup, units: FM.lineupUnits(lineup),
-      mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers, familiarity: Math.min(1, (familiarity()[t.formation] || 0) / 100) };
+      mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers, setp: t.setp, familiarity: Math.min(1, (familiarity()[t.formation] || 0) / 100) };
   }
 
   const shortName = (p) => { const n = nameOf(p).split(' '); return n.length > 1 ? n.slice(1).join(' ') : n[0]; };
@@ -1291,7 +1291,16 @@
       el('div.panel', [el('h3', 'Стандарти й капітан'), el('div.filters', [
         takerSel('captain', 'Капітан', xiPlayers), takerSel('pen', 'Пенальті', xiPlayers),
         takerSel('fk', 'Штрафні', xiPlayers), takerSel('corner', 'Кутові', xiPlayers),
-      ]), el('p.note', 'Якщо призначеного немає на полі, б’є найкращий за атрибутами. Ролі й інструкції змінюють, хто частіше б’є, віддає й наскільки гравець допомагає в атаці чи обороні.')]),
+      ]), (() => {
+        t.setp = t.setp || {};
+        const opt = (key, label, opts, def, help) => el('div.field', [el('label', { for: 'sp-' + key }, label), el('select', { id: 'sp-' + key, onchange: (e) => { t.setp[key] = e.target.value === 'true' ? true : e.target.value === 'false' ? false : e.target.value; save(); } },
+          opts.map(([v, l]) => el('option', { value: String(v), selected: String(t.setp[key] ?? def) === String(v) || null }, l))), el('small.muted', help)]);
+        return el('div.filters', [
+          opt('corner', 'Кутові', [['far', 'На дальню штангу'], ['near', 'На ближню штангу'], ['short', 'Розіграш коротко']], 'far', 'Ближня — частіше удар, дальня — до найкращого в повітрі, коротко — рідше, але без контратак.'),
+          opt('cbUp', 'Центральні захисники', [[true, 'Ідуть у штрафний'], [false, 'Лишаються позаду']], true, 'У штрафному вони небезпечні головою, але суперник може втекти в контратаку.'),
+          opt('fk', 'Штрафні', [['shoot', 'Бити по воротах'], ['cross', 'Навіс у штрафний']], 'shoot', 'Удар — для майстра стандартів, навіс — коли є високі гравці.'),
+        ]);
+      })(), el('p.note', 'Якщо призначеного немає на полі, б’є найкращий за атрибутами. Ролі й інструкції змінюють, хто частіше б’є, віддає й наскільки гравець допомагає в атаці чи обороні.')]),
       el('div.panel', [
         el('h3', 'Командні інструкції'),
         el('div.instr', ['mentality', 'pressing', 'passing'].map((g) => el('div.field', [
@@ -1433,7 +1442,7 @@
 
   function engineSide(side, manual) {
     return { club: { ...side.club, name: clubName(side.club) }, players: side.players, formation: side.formation, lineup: side.lineup,
-      mentality: side.mentality, pressing: side.pressing, passing: side.passing, takers: side.takers, familiarity: side.familiarity, manual };
+      mentality: side.mentality, pressing: side.pressing, passing: side.passing, takers: side.takers, setp: side.setp, familiarity: side.familiarity, manual };
   }
 
   function startFriendly() {
@@ -1533,6 +1542,21 @@
    * Трансляція з керуванням. M — покроковий матч (FM.match.create), myK — 0/1 (наша команда) або null.
    * onFinish(результат) викликається рівно один раз — і коли дограли, і коли пішли з екрана посеред матчу.
    */
+  /** Розмова з командою після матчу: мораль кожного, хто грав. */
+  function postTalkPanel(m, myK) {
+    const box = el('div.panel.post-talk');
+    const diff = m.score[myK] - m.score[1 - myK];
+    const draw = (res) => box.replaceChildren(el('h3', 'Розмова з командою після матчу'),
+      res ? el('ul.plist', res.map((x) => el('li', [el('span', nameOf(x.p)), el('span.chip.' + (x.d >= 1 ? 'ok' : x.d <= -1 ? 'bad' : 'info'), `${x.r}${x.d ? ` (${x.d > 0 ? '+' : ''}${String(x.d).replace('.', ',')})` : ''}`)])))
+        : el('div', [el('p.muted', diff > 0 ? 'Перемога. Що скажете гравцям?' : diff < 0 ? 'Поразка. Що скажете гравцям?' : 'Нічия. Що скажете гравцям?'),
+          el('div.talk-opts', Object.entries(FM.morale.POST_TALKS).map(([k, d]) => el('button.btn', { type: 'button', title: d.hint, onclick: () => {
+            const res = FM.morale.postTalk(k, diff, m.ratings.filter((r) => r.team === myK && r.player.club === state.clubId), FM.rng(`post-${Date.now()}`));
+            saveGame(); draw(res);
+          } }, d.label)))]));
+    draw(null);
+    return box;
+  }
+
   function liveView(hs, as, M, myK, onFinish, actions) {
     const scoreEl = el('div.sb-score', '0:0');
     const clock = el('div.sb-clock', '0′');
@@ -1590,13 +1614,18 @@
     let ballX = 50, ballY = 50, bt = 0;
     const moveBall = (x, y) => { ballX = x; ballY = y; ball.style.left = x + '%'; ball.style.top = y + '%'; };
     let shown = 0, paused = false, finished = false, hold = 0, acc = 0, talkAsked = false, talkMsg = null, idle = 0;
+    // промова перед матчем: трансляція чекає на тренера (як у FM)
+    let preTalk = myK != null && state ? 'ask' : 'done', preRes = null, shoutMsg = null;
+    if (preTalk === 'ask') paused = true;
+    const motK = () => (state ? 0.7 + FM.career.attr(state, 'mot') * 0.03 : 1);
+    const REACT_CLS = { inspired: 'ok', focused: 'ok', neutral: 'info', nervous: 'bad', complacent: 'warn' };
     const TICK = 100;
     const msPerMin = () => (liveSpeed === 'key' ? 320 : liveSpeed);
     const pct = (v) => v + '%';
     const f2 = (v) => String(v).replace('.', ',');
 
     const drawSpeed = () => speedBtns.replaceChildren(
-      el('button', { type: 'button', disabled: finished || null, 'aria-pressed': String(paused), onclick: () => { paused = !paused; drawSpeed(); drawControl(); } }, paused ? 'Продовжити' : 'Пауза'),
+      el('button', { type: 'button', disabled: finished || null, 'aria-pressed': String(paused), onclick: () => { if (preTalk === 'ask') preTalk = 'done'; paused = !paused; drawSpeed(); drawControl(); } }, paused ? 'Продовжити' : 'Пауза'),
       el('label.speed', [el('span.muted', 'Швидкість '), el('select', { 'aria-label': 'Швидкість трансляції', disabled: finished || null, onchange: (e) => { setSpeed(e.target.value === 'key' ? 'key' : Number(e.target.value)); paused = false; drawSpeed(); } },
         SPEEDS.map(([v, label, hint]) => el('option', { value: String(v), selected: String(liveSpeed) === String(v) || null }, `${label} (${hint})`)))]),
       el('label.speed', [el('span.muted', 'Моменти '), el('select', { 'aria-label': 'Виділення моментів', disabled: finished || null, onchange: (e) => { setHl(e.target.value); drawSpeed(); } },
@@ -1644,6 +1673,16 @@
       if (myK == null || finished) { control.hidden = true; return; }
       control.hidden = false;
       const t = M.sides[myK];
+      if (preTalk === 'ask') {
+        control.replaceChildren(el('h3', 'Промова перед матчем'),
+          el('p.muted', 'Кожен гравець відреагує по-своєму: за характером, вагою матчу й тим, хто фаворит.'),
+          el('div.talk-opts', Object.entries(FM.match.TEAM_TALKS).map(([k, d]) => el('button.btn', { type: 'button', title: d.hint, onclick: () => {
+            preRes = M.teamTalk(myK, k, motK()); preTalk = 'done'; paused = false; flush(); drawSpeed(); drawControl();
+          } }, d.label))),
+          el('small.muted', 'Наведіть на варіант, щоб побачити, коли він доречний.'),
+          el('div.actions', [el('button.btn.link', { type: 'button', onclick: () => { preTalk = 'done'; paused = false; drawSpeed(); drawControl(); } }, 'Без промови')]));
+        return;
+      }
       const live = t.onPitch.filter((x) => !x.out);
       // з поля: спершу найвтомленіші польові, воротар — в кінці; на поле: найкращі для позиції того, хто йде
       const outOrder = [...live].sort((a, b) => (a.slot.role === 'GK') - (b.slot.role === 'GK') || (a.cond - a.yellow * 10) - (b.cond - b.yellow * 10));
@@ -1660,7 +1699,7 @@
       const talk = M.halftime && !t.talked ? el('div.talk', [
         el('b', 'Промова в перерві'),
         el('div.talk-opts', Object.entries(FM.morale.TALKS).map(([k, d]) => el('button.btn', { type: 'button', title: d.hint, onclick: () => {
-          const e = M.halftimeTalk(myK, k, state ? 0.7 + FM.career.attr(state, 'mot') * 0.03 : 1); talkMsg = e ? e.text : null; flush(); paused = false; drawSpeed(); drawControl();
+          const e = M.halftimeTalk(myK, k, motK()); talkMsg = e ? e.text : null; flush(); paused = false; drawSpeed(); drawControl();
         } }, d.label))),
         el('small.muted', 'Наведіть на варіант, щоб побачити, коли він доречний.'),
       ]) : talkMsg ? el('p.msg-ok', talkMsg) : null;
@@ -1670,9 +1709,21 @@
         M.setShape(myK, ts.formation, { ...ts, familiarity: Math.min(1, (familiarity()[ts.formation] || 0) / 100) });
         t.setKey = k; flush(); drawControl();
       } }, `${TSET_UK[k]} · ${((state.tacticSets || {})[k] || state.tactics).formation}`)))]) : null;
+      const report = M.halftime && !t.talked ? el('div.half-report', [el('b', 'Звіт асистента за перший тайм'),
+        el('ul.tips', M.halfReport(myK).map(([k, txt]) => el('li.tip-' + (k === 'ok' ? 'info' : k), txt)))]) : null;
+      const reacts = preRes && M.minuteNum < 15 ? el('details.reacts', [el('summary', `Після промови: ${preRes.text}`),
+        el('ul.plist', preRes.players.map((x) => el('li', [el('span', nameOf(x.p)), el('span.chip.' + REACT_CLS[x.r], FM.match.TALK_REACT_UK[x.r])])))]) : null;
+      const act = t.shout && t.shout.kind !== 'none' ? t.shout : null;
+      const shouts = el('div.field', [el('b', 'Вигуки з бровки'), el('div.tabs.shouts', Object.entries(FM.match.SHOUTS).filter(([k]) => k !== 'none').map(([k, d]) => el('button', {
+        type: 'button', title: d.hint, 'aria-pressed': String(!!act && act.kind === k), disabled: M.minuteNum < 1 || null,
+        onclick: () => { const r = M.shout(myK, k); shoutMsg = r ? r.text : null; flush(); drawControl(); },
+      }, d.label))), el('small.muted', act ? `Діє «${FM.match.SHOUTS[act.kind].label}» — ще ${Math.max(0, act.until - M.minuteNum)} хв.` : shoutMsg || 'Вигук діє 10 хвилин. Наведіть, щоб побачити ефект.')]);
       control.replaceChildren(
         el('h3', paused ? 'Пауза — рішення тренера' : 'Рішення тренера'),
+        reacts,
+        report,
         talk,
+        shouts,
         setBtns,
         el('div.instr', ['mentality', 'pressing', 'passing'].map((g) => el('div.field', [
           el('b', { mentality: 'Ментальність', pressing: 'Пресинг', passing: 'Передачі' }[g]),
@@ -1746,8 +1797,10 @@
       after.replaceChildren(
         el('div.panel', [el('h3', 'Статистика'), compareBars([
           ['Володіння', sh.poss, sa.poss, pct], ['Удари', sh.shots, sa.shots], ['У площину воріт', sh.onTarget, sa.onTarget],
-          ['Очікувані голи (xG)', sh.xg, sa.xg, f2], ['Жовті картки', sh.yellow, sa.yellow], ['Червоні картки', sh.red, sa.red],
+          ['Очікувані голи (xG)', sh.xg, sa.xg, f2], ['Голи зі стандартів', sh.spGoals || 0, sa.spGoals || 0], ['Кутові', sh.corners || 0, sa.corners || 0],
+          ['Жовті картки', sh.yellow, sa.yellow], ['Червоні картки', sh.red, sa.red],
         ]), el('p', ['Найкращий гравець матчу: ', el('b', nameOf(m.motm.player)), ` (${clubName(m.motm.team === 0 ? hs.club : as.club)}, ${f2(m.motm.rating)})`])]),
+        myK != null && state ? postTalkPanel(m, myK) : null,
         matchSummary(m, hs, as),
         el('div.grid', [ratingTable(0, hs.club), ratingTable(1, as.club)]),
         el('div.actions', actions.map(([label, fn, primary]) => el('button.btn' + (primary ? '.primary' : ''), { type: 'button', onclick: fn }, label))),

@@ -101,6 +101,33 @@
     return { boost: boost + luck, morale: mor, text };
   }
 
+  // ---------------- Розмова після матчу ----------------
+  const POST_TALKS = {
+    praise: { label: 'Похвалити', hint: 'Після перемоги чи гідної гри. Після розгромної поразки — гравці не зрозуміють.' },
+    fair: { label: 'Справедливий результат', hint: 'Нейтрально: нікого не образить.' },
+    disappointed: { label: 'Я розчарований', hint: 'Після поразки підстьобне тих, хто зіграв погано; після перемоги — образить.' },
+    nothing: { label: 'Без слів', hint: 'Нічого не змінить.' },
+  };
+  /**
+   * Розмова після матчу: зміна моралі кожного гравця, що грав. diff — різниця голів для вашої команди,
+   * ratings — [{ player, rating }]. Повертає [{ p, d, r }] — гравець, зміна, реакція.
+   */
+  function postTalk(kind, diff, ratings, R) {
+    const out = [];
+    for (const x of ratings) {
+      const p = x.player, good = x.rating >= 7, bad = x.rating < 6.3, pro = (p.h && p.h.pro) || 11;
+      let d = 0;
+      if (kind === 'praise') d = diff > 0 ? 3 + (good ? 2 : 0) : diff === 0 ? (good ? 3 : 1) : diff <= -3 ? -2 : good ? 2 : -1;
+      else if (kind === 'disappointed') d = diff > 0 ? -3 : bad ? (pro >= 13 ? 2 : -2) : good ? -3 : diff < 0 ? 1 : -1;
+      else if (kind === 'fair') d = diff < 0 && good ? 1 : 0.5;
+      d += R ? R.range(-0.8, 0.8) : 0;
+      d = Math.round(d * 10) / 10;
+      if (kind !== 'nothing') p.morale = Math.max(0, Math.min(100, get(p) + d));
+      out.push({ p, d: kind === 'nothing' ? 0 : d, r: kind === 'nothing' ? 'байдуже' : d >= 2 ? 'задоволений' : d <= -2 ? 'ображений' : d > 0.6 ? 'сприйняв добре' : d < -0.6 ? 'невдоволений' : 'спокійно' });
+    }
+    return out;
+  }
+
   // ---------------- Прес-конференція ----------------
   const PRESS = [
     { q: 'Журналісти питають: чи вважаєте ви свою команду фаворитом цього матчу?', a: [
@@ -136,6 +163,6 @@
     return ids.reduce((s, id) => s + get(W.player(id)), 0) / Math.max(1, ids.length);
   };
 
-  FM.morale = { get, factor, label, status, STATUS, weekly, recordRatings, TALKS, talkEffect, PRESS, pressQuestion, answerPress, teamMorale };
+  FM.morale = { POST_TALKS, postTalk, get, factor, label, status, STATUS, weekly, recordRatings, TALKS, talkEffect, PRESS, pressQuestion, answerPress, teamMorale };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);
