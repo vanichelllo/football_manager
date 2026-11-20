@@ -86,6 +86,17 @@ async function main() {
   const prevFinal = await wiki.qidsForTitles(prevTitles);
   for (const t of prevTitles) rankByFinal[prevFinal[t] || t] = prevRank[t];
 
+  // резервні команди («Колос-2») часто ведуть на статтю основного клубу — їх у грі немає
+  const seenArt = new Map();
+  for (const c of clubs.slice()) {
+    const art = clubArticles[c.title];
+    if (!art) continue;
+    if (seenArt.has(art.title)) {
+      report.push(`${c.name}: стаття веде на ${art.title} (той самий клуб, що й ${seenArt.get(art.title)}) — пропущено`);
+      clubs.splice(clubs.indexOf(c), 1);
+      const l = LEAGUES.find((x) => x.id === c.leagueId); l.size--;
+    } else seenArt.set(art.title, c.name);
+  }
   const playerRefs = [];
   for (const c of clubs) {
     const art = clubArticles[c.title];
@@ -169,6 +180,9 @@ function cleanUk(label) {
   return s;
 }
 
+const CITY_UK = { 'Borussia Dortmund': 'Дортмунд', 'Borussia Mönchengladbach': 'Менхенгладбах', 'Eintracht Frankfurt': 'Франкфурт',
+  'Eintracht Braunschweig': 'Брауншвейг', 'Dynamo Dresden': 'Дрезден', 'Wisła Kraków': 'Краків', 'Wisła Płock': 'Плоцьк' };
+
 function build(clubs, playerArticles, ukLabel) {
   const leagues = LEAGUES.map((l) => ({ id: l.id, name: l.name, country: l.country, size: l.size, tier: l.tier || 1, up: l.up || null }));
   const outClubs = [];
@@ -176,6 +190,19 @@ function build(clubs, playerArticles, ukLabel) {
   let pid = 0;
   const unknownNat = new Set();
 
+  // гравець — лише в одному клубі: орендований — там, де грає («on loan from»), інакше — у першому за списком
+  const home = new Map();
+  for (const [ci, c] of clubs.entries()) for (const sq of c.squad) {
+    const k = (sq.title && (playerArticles[sq.title] || {}).title) || sq.title;
+    if (!k) continue;
+    const prev = home.get(k);
+    if (!prev || (sq.onLoanFrom && !prev.loan)) home.set(k, { ci, loan: !!sq.onLoanFrom });
+  }
+  for (const [ci, c] of clubs.entries()) {
+    const before = c.squad.length;
+    c.squad = c.squad.filter((sq) => { const k = (sq.title && (playerArticles[sq.title] || {}).title) || sq.title; return !k || home.get(k).ci === ci; });
+    if (c.squad.length < before) report.push(`${c.name}: ${before - c.squad.length} гравців указано й в іншому клубі — лишено там`);
+  }
   for (const [ci, c] of clubs.entries()) {
     const clubId = 'c' + ci;
     const club = {
@@ -222,6 +249,16 @@ function build(clubs, playerArticles, ukLabel) {
     outClubs.push(club);
   }
   if (unknownNat.size) report.push('Невідомі країни: ' + [...unknownNat].join(', '));
+  // однакові короткі назви різних клубів («Боруссія», «Вісла») — додаємо місто
+  const byName = {};
+  for (const c of outClubs) (byName[c.name] = byName[c.name] || []).push(c);
+  for (const list of Object.values(byName)) {
+    if (list.length < 2) continue;
+    for (const c of list) {
+      if (c.nameEn === 'Dynamo Kyiv') continue; // «Динамо» без уточнення — київське
+      c.name = CITY_UK[c.nameEn] ? `${c.name} ${CITY_UK[c.nameEn]}` : `${c.name} (${c.nameEn})`;
+    }
+  }
   return { version: 1, season: '2026/27', seasonStart: SEASON_START, snapshot: new Date().toISOString().slice(0, 10),
     source: 'Wikipedia (CC BY-SA 4.0), Wikidata (CC0); атрибути — власна формула (tools/lib/ratings.js)',
     leagues, clubs: outClubs, players };

@@ -1,3 +1,9 @@
+Kolos-2 Kovalivka: стаття веде на FC Kolos Kovalivka (той самий клуб, що й Kolos Kovalivka) — пропущено
+Polissya-2 Zhytomyr: стаття веде на FC Polissya Zhytomyr (той самий клуб, що й Polissya Zhytomyr) — пропущено
+Polissya Zhytomyr: 1 гравців указано й в іншому клубі — лишено там
+Celta Fortuna: 1 гравців указано й в іншому клубі — лишено там
+Heerenveen: 1 гравців указано й в іншому клубі — лишено там
+Wieczysta Kraków: 1 гравців указано й в іншому клубі — лишено там
 Brentford: без дати народження — Jannik Schuster
 Coventry City: без дати народження — Sidiki Cherif
 Fulham: без статті — Alex Borto
@@ -860,17 +866,6 @@ Inhulets Petrove: без статті — Yevhen Yanovich
 Inhulets Petrove: без статті — Oleksandr Yevtushenko
 Inhulets Petrove: без статті — Timofiy Molokopeyev
 Inhulets Petrove: без статті — Yaroslav Ryazantsev
-Kolos-2 Kovalivka: без статті — Zurab Rukhadze
-Kolos-2 Kovalivka: без статті — Artem Husol
-Kolos-2 Kovalivka: без статті — Oleksiy Bezruchuk
-Kolos-2 Kovalivka: без статті — Vitaliy Katrych
-Kolos-2 Kovalivka: без статті — Oleksandr Savchuk
-Kolos-2 Kovalivka: без статті — Vladyslav Shershen
-Kolos-2 Kovalivka: без статті — Daniil Denysenko
-Kolos-2 Kovalivka: без статті — Valentyn Morhun
-Kolos-2 Kovalivka: без статті — Elias Telles
-Kolos-2 Kovalivka: без статті — Yehor Popravka
-Kolos-2 Kovalivka: без статті — Irgi Kasalla
 Kulykiv-Bilka: без статті — Roman Dankovych
 Kulykiv-Bilka: без статті — Ivan Havrushko
 Kulykiv-Bilka: без статті — Tymofii Kalynchuk
@@ -953,9 +948,6 @@ Oleksandriya: без статті — Danylo Harazha
 Oleksandriya: без статті — Jhonnatan Silva
 Oleksandriya: без статті — Dmytriy Kremchanin
 Oleksandriya: без статті — Danyil Vlasyuk
-Polissya-2 Zhytomyr: без статті — Borel Tomandzoto
-Polissya-2 Zhytomyr: без статті — Yaroslav Karaman
-Polissya-2 Zhytomyr: без статті — Nazar Makarenko
 Poltava: без статті — Mykyta Minchev
 Poltava: без статті — Vadym Pidlepych
 Poltava: без статті — Andriy Savenkov

@@ -16,7 +16,7 @@ const byName = (en) => db.clubs.find((c) => c.nameEn === en);
 
 test('шістнадцять ліг і правильна кількість клубів; другі дивізіони прив’язані до вищих', () => {
   const sizes = Object.fromEntries(db.leagues.map((l) => [l.id, db.clubs.filter((c) => c.league === l.id).length]));
-  assert.deepStrictEqual(sizes, { eng: 20, esp: 20, ita: 20, ger: 18, fra: 18, ukr: 16, eng2: 24, esp2: 22, ita2: 20, ger2: 18, fra2: 18, ukr2: 16, por: 18, ned: 18, tur: 18, pol: 18 });
+  assert.deepStrictEqual(sizes, { eng: 20, esp: 20, ita: 20, ger: 18, fra: 18, ukr: 16, eng2: 24, esp2: 22, ita2: 20, ger2: 18, fra2: 18, ukr2: 14, por: 18, ned: 18, tur: 18, pol: 18 });
   for (const l of db.leagues) assert.strictEqual(l.size, sizes[l.id]);
   for (const l of db.leagues.filter((x) => x.tier === 2)) assert.ok(db.leagues.some((x) => x.id === l.up && x.tier === 1), l.id);
 });

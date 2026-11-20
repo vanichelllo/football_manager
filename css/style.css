@@ -100,6 +100,7 @@ a { color: var(--accent); }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem; min-width: 0; }
 .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
 .panel > h3 { margin-bottom: 0.6rem; }
+.panel > * + h3 { margin-top: 1.2rem; }
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin: 0; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; }
