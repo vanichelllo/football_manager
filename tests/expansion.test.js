@@ -106,3 +106,26 @@ test('6. агенти: жадібний — дорожчі зарплата й �
   for (let w = 0; w < 200 && !news.length; w++) { state.season.week = w % 38; state.season.year = 2026 + Math.floor(w / 38); mine.contract = state.season.year + 1; news = FM.agents.week(W, state); }
   assert.ok(news.length && mine.interest);
 });
+
+test('7. спонсори й ФФП: виплати, бонус за перемогу й трофей; порушення — штраф і заборона', () => {
+  require('../js/finance.js');
+  const { W, state } = fresh('Shakhtar Donetsk');
+  const offers = FM.finance.offers(W, state);
+  assert.strictEqual(offers.length, 3);
+  const sp = FM.finance.choose(W, state, 'bonus');
+  const b0 = W.club(state.clubId).balance;
+  FM.finance.week(W, state, true); FM.finance.week(W, state, false);
+  assert.ok(Math.abs(W.club(state.clubId).balance - b0 - (2 * sp.perWeek + sp.win)) < 1e-6);
+  assert.ok(FM.finance.trophy(W, state, 1) > 0);
+  // звичайний сезон без трансферів — у межах
+  state.board.fin = { tv: 10, tickets: 4, prize: 1, wages: 12, transfers: 0 };
+  assert.ok(FM.finance.endSeason(W, state).ok);
+  // великі витрати — порушення
+  state.board.fin = { tv: 10, tickets: 4, prize: 1, wages: 15, transfers: -12 };
+  const r = FM.finance.endSeason(W, state);
+  assert.ok(!r.ok && r.fine > 0);
+  state.season.year++; state.season.week = 2;
+  assert.ok(FM.finance.embargoed(state));
+  state.season.week = 20;
+  assert.ok(!FM.finance.embargoed(state), 'зимове вікно вже відкрите');
+});

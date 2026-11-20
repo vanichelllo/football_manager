@@ -486,6 +486,7 @@
           const swap = document.getElementById('bid-swap').value || null;
           const sellOn = document.getElementById('bid-sellon').checked;
           if (fee > me.balance) { deal.msg = `Не вистачає грошей: баланс ${M(me.balance)}.`; deal.ok = false; return render(); }
+          if (FM.finance.embargoed(state)) { deal.msg = 'Заборона трансферів (фінансовий фейр-плей): у це вікно купувати гравців не можна.'; deal.ok = false; return render(); }
           const swapVal = swap ? W.player(swap).value * 0.85 : 0; // гравець в обмін рахується як 85% його ціни
           const r = FM.market.clubResponse(W, p, fee + swapVal, me.id, S, { sellOn });
           deal.swap = swap; deal.sellOn = sellOn;
@@ -501,6 +502,7 @@
             const gap = W.clubLevel(p.club) - W.clubLevel(me.id);
             if (gap > 15 + 10 * share) { deal.msg = 'Клуб не хоче віддавати гравця в настільки слабкий клуб.'; deal.ok = false; return render(); }
             if (FM.market.loanFee(p) > me.balance) { deal.msg = 'Не вистачає грошей на оренду.'; deal.ok = false; return render(); }
+            if (FM.finance.embargoed(state)) { deal.msg = 'Заборона трансферів (фінансовий фейр-плей).'; deal.ok = false; return render(); }
             if (share < 0.75 && W.clubLevel(p.club) > W.clubLevel(me.id)) { deal.msg = 'Сильніший клуб хоче, щоб ви платили щонайменше 75% зарплати.'; deal.ok = false; return render(); }
             FM.market.loanIn(W, state, p, me.id, share);
             FM.market.news(state, `${nameOf(p)} — в оренді у вас до кінця сезону.`);
@@ -618,11 +620,13 @@
           el('dt', 'Телеправа й спонсори'), el('dd', '+' + FM.market.fmtM(f.tv)),
           el('dt', 'Квитки'), el('dd', '+' + FM.market.fmtM(f.tickets)),
           el('dt', 'Призові'), el('dd', f.prize ? '+' + FM.market.fmtM(f.prize) : 'наприкінці сезону'),
+          el('dt', 'Спонсор'), el('dd', f.sponsor ? '+' + FM.market.fmtM(f.sponsor) : '—'),
           el('dt', 'Зарплати'), el('dd', '−' + FM.market.fmtM(f.wages)),
           el('dt', 'Трансфери'), el('dd', f.transfers ? (f.transfers > 0 ? '+' : '−') + FM.market.fmtM(Math.abs(f.transfers)) : '—'),
           el('dt', 'Фонд зарплат'), el('dd', `${FM.market.wageBill(W, me.id)} з ${me.wageBudget} тис. € на тиждень`),
         ]), el('p.note', 'Дохід клубу розрахований так, щоб за стартових зарплат сезон був трохи в плюсі. Дорогі контракти з’їдають прибуток; від’ємний баланс знижує довіру.')]),
       ]),
+      sponsorPanel(),
       visionPanel(),
       (() => {
         const maxLvl = Math.min(60 + b.rep * 1.05, FM.career.maxLevel(state));
@@ -633,6 +637,19 @@
       offers.length ? el('div.panel', [el('h3', 'Пропозиції роботи'), el('p.muted', 'Вами цікавляться клуби. Перехід — одразу, з поточного тижня.'),
         offerList(offers, (id) => { FM.board.takeJob(W, state, id); state.jobOffers = []; pre = null; tableLeague = null; saveGame(); go('overview'); })]) : null,
     ];
+  }
+
+  function sponsorPanel() {
+    const sp = state.sponsor && state.sponsor.year === state.season.year ? state.sponsor : null;
+    const r = FM.finance.ratio(state), pct = Math.round(r * 100);
+    const ffp = el('div', [el('b', `Фінансовий фейр-плей: витрати — ${pct}% доходів`), el('div.confbar', { role: 'meter', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 120, 'aria-label': 'Частка витрат' },
+      el('i', { style: { width: Math.min(100, pct / 1.2) + '%' }, class: r > FM.finance.LIMIT ? 'low' : r > FM.finance.WARN ? 'mid' : 'high' })),
+      el('small.muted', `Межа — ${Math.round(FM.finance.LIMIT * 100)}%: зарплати плюс третина чистих витрат на трансфери проти всіх доходів сезону. Порушення — штраф і заборона купівлі в наступне літнє вікно.${FM.finance.embargoed(state) ? ' ЗАРАЗ ДІЄ ЗАБОРОНА ТРАНСФЕРІВ.' : ''}`)]);
+    return el('div.panel', [el('h3', 'Спонсор'), sp
+      ? el('p', [el('b', sp.name), ` (${sp.label.toLowerCase()}): ${FM.market.fmtM(sp.perWeek)} на тиждень${sp.win ? `, ${FM.market.fmtM(sp.win)} за перемогу` : ''}${sp.trophy ? `, ${FM.market.fmtM(sp.trophy)} за трофей` : ''}. Уже виплачено: ${FM.market.fmtM(sp.earned)}.`])
+      : el('div', [el('p.muted', 'Оберіть спонсора на цей сезон:'), el('ul.plist', FM.finance.offers(W, state).map((o) => el('li', [el('span', [el('b', o.name), el('small.muted', ` ${o.label}: ${FM.market.fmtM(o.perWeek)}/тиж.${o.win ? `, +${FM.market.fmtM(o.win)} за перемогу` : ''}${o.trophy ? `, +${FM.market.fmtM(o.trophy)} за трофей` : ''} · ${o.hint}`)]),
+        el('button.btn', { type: 'button', onclick: () => { const x = FM.finance.choose(W, state, o.id); FM.market.news(state, `Новий спонсор: ${x.name}.`, 'club'); saveGame(); render(); } }, 'Підписати')])))]),
+      ffp]);
   }
 
   function visionPanel() {
@@ -754,7 +771,7 @@
       list.length ? el('ul.plist', list.map((p) => el('li', [
         el('span', [el('a', { href: '#player-' + p.id }, nameOf(p)), el('small.muted', ` ${FM.positions(p)}, ${W.age(p)} р., ${FM.countries.name(p.nat)} · ${FM.worldScout.REGIONS[p.talent.region].label} · ще ${Math.max(0, p.talent.until - now)} тиж.`)]),
         el('span.offer-btns', [starsEl(p.ca, 'Рівень'), starsEl(p.pa, 'Потенціал'), el('button.btn', { type: 'button', onclick: () => {
-          const r = FM.worldScout.sign(W, state, p.id); talentMsg = r.ok ? `${p.name} — ваш гравець! Зарплата ${r.wage} тис. €/тиж., контракт на 5 років.` : r.reason; saveGame(); render();
+          const r = FM.finance.embargoed(state) ? { ok: false, reason: 'Заборона трансферів (фінансовий фейр-плей).' } : FM.worldScout.sign(W, state, p.id); talentMsg = r.ok ? `${p.name} — ваш гравець! Зарплата ${r.wage} тис. €/тиж., контракт на 5 років.` : r.reason; saveGame(); render();
         } }, `Підписати за ${FM.market.fmtM(p.talent.fee)}`)]),
       ]))) : el('p.muted', 'Звітів поки немає.'),
       talentMsg ? el('p.msg-ok', talentMsg) : null]);
@@ -768,7 +785,7 @@
       const x = staff[role];
       const list = staffPick === role ? FM.club.candidates(state, role) : null;
       return el('li.staff-row', [
-        el('div', [el('b', d.label), el('div.muted', `${x.name} · рівень ${x.level} · ${FM.club.staffWage(role, x.level)} тис. €/тиж.`), el('small.muted', d.hint)]),
+        el('div', [el('b', d.label), el('div.muted', `${x.name} · рівень ${x.level} · ${String(FM.club.staffWage(role, x.level, state)).replace(".", ",")} тис. €/тиж.`), el('small.muted', d.hint)]),
         el('button.btn', { type: 'button', onclick: () => { staffPick = staffPick === role ? null : role; render(); } }, staffPick === role ? 'Сховати' : 'Шукати заміну'),
         list ? el('ul.plist.cands', list.map((c) => el('li', [el('span', `${c.name} · рівень ${c.level} · ${c.wage} тис. €/тиж.`),
           el('button.btn', { type: 'button', onclick: () => { staff[role] = { name: c.name, level: c.level }; staffPick = null; officeMsg = `${d.label}: тепер ${c.name}.`; saveGame(); render(); } }, 'Найняти')]))) : null,
@@ -776,7 +793,7 @@
     });
     const att = Math.round(FM.club.attendance(W, me.id, 0.5) * 100);
     return [
-      el('header', [el('h1', 'Клуб'), el('span.muted', `Персонал коштує ${FM.club.staffBill(state)} тис. € на тиждень`)]),
+      el('header', [el('h1', 'Клуб'), el('span.muted', `Персонал коштує ${String(Math.round(FM.club.staffBill(state) * 10) / 10).replace(".", ",")} тис. € на тиждень`)]),
       officeMsg ? el('p.msg-ok', officeMsg) : null,
       el('div.panel', [el('h3', 'Персонал'), el('ul.staff', rows)]),
       el('div.grid', [
@@ -1709,6 +1726,7 @@
     }
     const myF = FM.season.fixturesOfWeek(S, S.week - 1).find((f) => f.s && (f.h === state.clubId || f.a === state.clubId));
     if (myF) { const home = myF.h === state.clubId; for (const t of FM.career.match(W, state, home ? myF.s : [myF.s[1], myF.s[0]], home ? myF.a : myF.h, 'league')) FM.market.news(state, t); }
+    FM.finance.week(W, state, !!(myF && (myF.h === state.clubId ? myF.s[0] > myF.s[1] : myF.s[1] > myF.s[0])));
     for (const t of FM.career.weekly(W, state)) FM.market.news(state, t);
     for (const t of FM.worldScout.week(W, state)) FM.market.news(state, t, 'transfers');
     for (const t of FM.agents.week(W, state)) FM.market.news(state, t, 'players');
@@ -1763,6 +1781,8 @@
     const cupWinners = Object.fromEntries(Object.values(state.cups || {}).map((c) => [c.id, c.winner]));
     const tables = Object.fromEntries(W.db.leagues.map((l) => [l.id, FM.season.table(S, W, l.id).map((r) => r.id)]));
     const verdict = FM.board.endSeason(W, state);
+    const ffp = FM.finance.endSeason(W, state); // фінансовий фейр-плей — за фінансами цього сезону
+    FM.market.news(state, ffp.text, 'club');
     if (trophies.length) { state.board.rep = Math.min(100, state.board.rep + 5 * trophies.length); state.board.conf = Math.min(100, state.board.conf + 10); }
     state.youthBonus = (FM.club.lvl(state, 'youth') - 10) + (FM.club.facilities(W, state.clubId).youth - 10) * 0.8;
     const contracts = FM.market.endSeason(W, state);
@@ -1812,6 +1832,9 @@
     state.cups = FM.cups.createAll(W, state.season, tables);
     FM.cups.payParticipation(W, state);
     coachMsg = null;
+    state.lastReport.ffp = ffp.text;
+    const spBonus = FM.finance.trophy(W, state, hist.trophies.length);
+    if (spBonus) FM.market.news(state, `Спонсор ${state.sponsor.name} виплатив бонус за трофеї: ${FM.market.fmtM(spBonus)}.`, 'club');
     state.lastReport.verdict = verdict.verdict;
     state.lastReport.prize = verdict.prize;
     if (verdict.fired) state.sacked = { reason: verdict.verdict, offers: FM.board.jobOffers(W, state, 3, 'end') };
@@ -1838,6 +1861,7 @@
         el('p.muted', `Україна: ${R.tour.ukr || 'не кваліфікувалася'}.`)]) : null,
       R.verdict ? el('div.panel', [el('h3', 'Оцінка правління'), el('p', R.verdict), R.prize ? el('p.muted', `Призові за місце й кубки: ${FM.market.fmtM(R.prize)}`) : null,
         (state.jobOffers || []).length ? el('p', ['Вами цікавляться інші клуби — див. ', el('a', { href: '#board' }, 'Правління'), '.']) : null]) : null,
+      R.ffp ? el('div.panel', [el('h3', 'Фінансовий фейр-плей'), el('p', R.ffp)]) : null,
       R.vision && R.vision.length ? el('div.panel', [el('h3', 'Бачення правління'), el('ul.plain', R.vision.map((t) => el('li', t)))]) : null,
       R.ach && R.ach.length ? el('div.panel', [el('h3', 'Нові досягнення'), el('ul.plain', R.ach.map((t) => el('li', t.replace(/^Досягнення: /, ''))))]) : null,
       R.awards ? el('div.panel', [el('h3', `Нагороди сезону: ${W.league(R.league).name}`), el('dl.facts', [

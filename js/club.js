@@ -18,7 +18,8 @@
   const FIRST = ['Андрій', 'Сергій', 'Олег', 'Віктор', 'Юрій', 'Ігор', 'Марко', 'Луїс', 'Карлос', 'Ганс', 'Жан', 'Томас', 'Паоло', 'Мігель', 'Петер', 'Даніель'];
   const LAST = ['Коваль', 'Шевчук', 'Мельник', 'Гонсалес', 'Россі', 'Мюллер', 'Дюбуа', 'Сміт', 'Фернандес', 'Шмідт', 'Мартен', 'Бруно', 'Ковальчук', 'Ван Дейк', 'Ткаченко', 'Новак'];
   const randName = (R) => `${R.pick(FIRST)} ${R.pick(LAST)}`;
-  const staffWage = (role, level) => Math.round(ROLES[role].wage * level);
+  // зарплати персоналу залежать від багатства клубу (state.staffK): у топ-клубі — повні, у скромному — частка
+  const staffWage = (role, level, state) => Math.max(0.2, Math.round(ROLES[role].wage * level * ((state && state.staffK) || 1) * 10) / 10);
 
   function initStaff(W, state) {
     if (state.staff) return state.staff;
@@ -32,9 +33,9 @@
   /** Кандидати на посаду: три людини різного рівня й ціни. */
   function candidates(state, role) {
     const R = FM.rng(`cand-${state.season.seed}-${state.season.week}-${role}`);
-    return [0, 1, 2].map(() => { const level = clampL(5 + R.int(16)); return { name: randName(R), level, wage: staffWage(role, level) }; }).sort((a, b) => b.level - a.level);
+    return [0, 1, 2].map(() => { const level = clampL(5 + R.int(16)); return { name: randName(R), level, wage: staffWage(role, level, state) }; }).sort((a, b) => b.level - a.level);
   }
-  const staffBill = (state) => Object.entries(state.staff || {}).reduce((s, [r, x]) => s + staffWage(r, x.level), 0);
+  const staffBill = (state) => Object.entries(state.staff || {}).reduce((s, [r, x]) => s + staffWage(r, x.level, state), 0);
 
   /** Множник розвитку гравця вашого клубу: тренер за лінією й тренувальна база. */
   function growthMult(state, W, p) {
@@ -161,6 +162,8 @@
   }
 
   function init(W, state) {
+    const inc = W.club(state.clubId).income0 || 1;
+    state.staffK = Math.round(Math.max(0.02, Math.min(1, inc / 2)) * 100) / 100;
     initStaff(W, state);
     facilities(W, state.clubId);
     fans(W, state.clubId);
