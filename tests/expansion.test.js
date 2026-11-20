@@ -88,3 +88,21 @@ test('5. U-21: переведення, матчі молодіжної ліги,
   FM.youth.promote(state, kids[0].id);
   assert.ok(!FM.youth.set(state).has(kids[0].id));
 });
+
+test('6. агенти: жадібний — дорожчі зарплата й комісія; напористий пропонує клієнта', () => {
+  require('../js/agents.js');
+  const { W, state } = fresh('Arsenal');
+  const p = W.squad(byName(W, 'Brighton & Hove Albion').id)[5];
+  p.agent = FM.agents.AGENTS.findIndex((a) => a.greed <= 0.95);
+  const cheap = FM.market.wageDemand(W, p, state.clubId), cheapFee = FM.market.agentFee(10, cheap, p);
+  p.agent = 0; // суперагент
+  assert.ok(FM.market.wageDemand(W, p, state.clubId) > cheap);
+  assert.ok(FM.market.agentFee(10, cheap, p) > cheapFee);
+  // напористий агент вашого гравця з коротким контрактом і в формі (клуб середній — є кому пропонувати)
+  state.clubId = byName(W, 'Brentford').id;
+  const mine = W.squad(state.clubId)[4];
+  mine.agent = 0; mine.contract = state.season.year + 1; mine.form = [7.5, 7.6, 7.4];
+  let news = [];
+  for (let w = 0; w < 200 && !news.length; w++) { state.season.week = w % 38; state.season.year = 2026 + Math.floor(w / 38); mine.contract = state.season.year + 1; news = FM.agents.week(W, state); }
+  assert.ok(news.length && mine.interest);
+});

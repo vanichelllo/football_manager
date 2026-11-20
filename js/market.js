@@ -114,7 +114,7 @@
     let k = p.club ? 1.15 : 1; // за перехід — надбавка
     if (gap > 8) k *= 1 + (gap - 8) * 0.03;
     if (gap < -10) k *= 0.95; // у сильніший клуб — охочіше
-    return Math.round(base * k * (FM.career ? FM.career.negFor(buyerId) : 1));
+    return Math.round(base * k * (FM.career ? FM.career.negFor(buyerId) : 1) * (FM.agents ? FM.agents.greed(p) : 1));
   }
 
   /** Суперник у боротьбі за гравця (детерміновано на тиждень): { club, wage } або null. */
@@ -131,7 +131,7 @@
     return d == null ? null : { club: c.id, wage: Math.round(d * R.range(1, 1.18)) };
   }
   /** Комісія агента: 5% суми (або 4 тижневі зарплати для вільного агента), млн €. */
-  const agentFee = (fee, wage) => Math.round(Math.max(fee * 0.05, (wage * 4) / 1000) * 100) / 100;
+  const agentFee = (fee, wage, p) => Math.round(Math.max(fee * 0.05, (wage * 4) / 1000) * (p && FM.agents ? FM.agents.feeMult(p) : 1) * 100) / 100; // жадібний агент бере більше
 
   /** Наскільки пункти контракту знижують вимоги: відступні — −10%, бонус за голи — до −8%. */
   function clauseDiscount(p, clauses) {
@@ -509,7 +509,7 @@
 
   /** Продовжити контракт свого гравця. */
   function renewDemand(W, p) {
-    return Math.round(Math.max(p.wage || 0, fairWage(p.value, W.club(p.club).league)) * 1.1);
+    return Math.round(Math.max(p.wage || 0, fairWage(p.value, W.club(p.club).league)) * 1.1 * (FM.agents ? FM.agents.greed(p) : 1));
   }
   function renew(W, state, p, wage, years) {
     const demand = renewDemand(W, p);

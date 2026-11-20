@@ -355,6 +355,7 @@
         el('div.panel', [el('h3', 'Оцінка'), el('dl.facts', [
           el('dt', 'Рівень'), el('dd', [starsEl(seenCA(p), 'Рівень'), known(p) ? '' : el('small.muted', ' оцінка скаутів')]),
           el('dt', 'Потенціал'), el('dd', starsEl(seenPA(p), 'Потенціал')),
+          ...(p.club && !p.retired ? [el('dt', 'Агент'), el('dd', (() => { const a = FM.agents.of(p); return [a.name, el('small.muted', ` · ${FM.agents.label(a)}${a.super ? ' · суперагент' : ''}`)]; })())] : []),
           el('dt', 'Ціна'), el('dd', [fmt.money(p.value), p.hype > 1.05 ? el('small.trend.up', { title: 'Форма піднімає ціну' }, ` ▲ ${Math.round((p.hype - 1) * 100)}%`) : p.hype < 0.95 ? el('small.trend.down', { title: 'Погана форма або травма знижують ціну' }, ` ▼ ${Math.round((1 - p.hype) * 100)}%`) : null,
             p.interest && p.club === state.clubId && p.interest.until > state.season.year * 100 + state.season.week && W.club(p.interest.club) ? el('small.muted', ` · цікавиться ${clubName(W.club(p.interest.club))}`) : null]),
           ...(p.club && p.contract ? [el('dt', 'Контракт'), el('dd', `до літа ${p.contract}, ${p.wage} тис. € на тиждень`)] : []),
@@ -509,7 +510,7 @@
     } else {
       const raw = FM.market.wageDemand(W, p, me.id);
       if (raw == null) { blocks.push(el('p.msg-bad', 'Гравець не хоче переходити в значно слабший клуб.')); return el('div.panel', blocks); }
-      const agent = FM.market.agentFee(deal.fee, raw);
+      const agent = FM.market.agentFee(deal.fee, raw, p);
       blocks.push(el('p.muted', `Гравець зараз отримує ${p.wage || '—'} тис. € на тиждень${known(p) ? `, розраховує приблизно на ${raw}` : ''}. Комісія агента — ${M(agent)}.${rv ? ` ${clubName(W.club(rv.club))} пропонує йому ${rv.wage} тис.` : ''}`));
       blocks.push(el('div.pre-row', [
         numField('bid-wage', 'Зарплата, тис. € на тиждень', deal.wage || (rv ? Math.max(raw, rv.wage) : raw), 1, 1, 2000),
@@ -524,7 +525,7 @@
           Object.assign(deal, { wage, years, clause, goalBonus });
           const r = FM.market.playerResponse(W, p, me.id, wage, years, { rival: rv, clauses: { clause, goalBonus } });
           if (!r.ok) { deal.msg = r.reason; deal.ok = false; return render(); }
-          const ag = FM.market.agentFee(deal.fee, wage);
+          const ag = FM.market.agentFee(deal.fee, wage, p);
           if (deal.fee + ag > me.balance) { deal.msg = `Не вистачає грошей: баланс ${M(me.balance)}, з агентом — ${M(deal.fee + ag)}.`; deal.ok = false; return render(); }
           const bill = FM.market.wageBill(W, me.id) - (deal.swap ? W.player(deal.swap).wage || 0 : 0);
           if (bill + wage > me.wageBudget) { deal.msg = `Правління не погоджує: фонд зарплат ${me.wageBudget} тис. €/тиж., уже витрачено ${bill}. Продайте когось або запропонуйте менше.`; deal.ok = false; return render(); }
@@ -1710,6 +1711,7 @@
     if (myF) { const home = myF.h === state.clubId; for (const t of FM.career.match(W, state, home ? myF.s : [myF.s[1], myF.s[0]], home ? myF.a : myF.h, 'league')) FM.market.news(state, t); }
     for (const t of FM.career.weekly(W, state)) FM.market.news(state, t);
     for (const t of FM.worldScout.week(W, state)) FM.market.news(state, t, 'transfers');
+    for (const t of FM.agents.week(W, state)) FM.market.news(state, t, 'players');
     const yr = FM.youth.week(W, state);
     if (yr && (yr.score[0] - yr.score[1] >= 3 || yr.score[1] - yr.score[0] >= 3)) FM.market.news(state, `U-21: ${yr.score[0] > yr.score[1] ? 'розгром' : 'важка поразка'} — ${yr.score.join(':')} проти U-21 ${clubName(W.club(yr.opp))}.`, 'club');
     familiarityWeek(FM.season.fixturesOfWeek(S, S.week - 1).some((f) => f.h === state.clubId || f.a === state.clubId));
