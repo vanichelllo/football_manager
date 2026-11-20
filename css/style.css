@@ -640,3 +640,11 @@ li.act { align-items: center; }
 .g-C { background: #e3b23c; color: #1d1a10; }
 .g-D { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
 .scout-rep .grid { gap: 0.6rem; }
+
+/* Аналітика матчу: володіння по відрізках, теплова карта */
+.poss-segs { display: grid; gap: 0.35rem; }
+.ps { display: grid; grid-template-columns: 4.2rem 1fr 3.2rem; align-items: center; gap: 0.5rem; }
+.ps-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--panel-2); }
+.ps-bar span { display: block; height: 100%; }
+.ps-bar span:last-child { opacity: 0.75; }
+.shotmap.heat { margin-top: 0.4rem; }

@@ -103,7 +103,7 @@
     let view = location.hash.slice(1) || 'inbox'; // як у FM: головний екран — пошта
     if (state.sacked && !['sacked', 'options', 'interview'].includes(view.split('-')[0])) view = 'sacked';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, search: screenSearch, charts: screenCharts, calendar: screenCalendar, compare: screenCompare, holiday: screenHoliday, plan: screenPlan, interview: screenInterview, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, search: screenSearch, charts: screenCharts, calendar: screenCalendar, compare: screenCompare, holiday: screenHoliday, plan: screenPlan, medical: screenMedical, interview: screenInterview, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
     planTouch(name);
     const body = (screens[name] || screenOverview)(arg);
     app.replaceChildren(shell(name, body));
@@ -121,7 +121,7 @@
         el('nav.nav', { 'aria-label': 'Меню' }, [
           planNav() ? item('plan', planNav()) : null, item('overview', 'Огляд'), item('inbox', (() => { const n = FM.market.unread(state); return n ? ['Повідомлення ', el('span.count', { 'aria-label': `${n} непрочитаних` }, String(n))] : 'Повідомлення'; })()), item('squad', 'Склад'), item('dressing', 'Роздягальня'), item('u21', 'Молодь U-21'), item('leagues', 'Ліги й клуби'),
           item('fixtures', 'Сезон'), item('calendar', 'Календар'), item('table', 'Таблиця'), item('charts', 'Графіки'), item('cups', 'Кубки'), item('match', 'Товариський'),
-          item('tactics', 'Тактика'), item('training', 'Тренування'), item('transfers', 'Трансфери'), item('search', 'Пошук'), item('office', 'Клуб'), item('board', 'Правління'), item('media', 'Медіа'), item('coach', 'Тренер'), item('nations', 'Збірна'), item('history', 'Історія'), item('help', 'Довідка'),
+          item('tactics', 'Тактика'), item('training', 'Тренування'), item('medical', 'Медцентр'), item('transfers', 'Трансфери'), item('search', 'Пошук'), item('office', 'Клуб'), item('board', 'Правління'), item('media', 'Медіа'), item('coach', 'Тренер'), item('nations', 'Збірна'), item('history', 'Історія'), item('help', 'Довідка'),
           item('options', 'Налаштування'),
         ]),
         el('div.foot', [`Тренер: ${state.manager}`, el('br'), `Сезон ${seasonLabel()}`]),
@@ -1272,7 +1272,7 @@
     t.roles = t.roles || {}; t.variants = t.variants || {}; t.instr = t.instr || {}; t.takers = t.takers || {};
     return t;
   }
-  const USER = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity(), reserve: FM.youth.set(state),
+  const USER = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity(), reserve: new Set([...FM.youth.set(state), ...FM.medical.rested(state)]), // U-21 і ті, хто відпочиває
     boost: FM.dressing.matchBoost(state) * FM.routine.prepBoost(weekSchedule(), (curEvent() || { day: 6 }).day) }); // збори + підготовка напередодні
 
   function mySide() {
@@ -1613,25 +1613,59 @@
         });
       }),
     ]);
+    // теплова карта: де команда діяла — позиції гравців за схемою, зсув за володінням, вага — дії гравця; удари — гарячіше
+    const heat = (k) => {
+      const GX = 12, GY = 8, g = Array.from({ length: GX * GY }, () => 0);
+      const add = (x, y, w) => { for (let i = 0; i < GX; i++) for (let j = 0; j < GY; j++) { const dx = (i + 0.5) * (100 / GX) - x, dy = (j + 0.5) * (64 / GY) - y; g[j * GX + i] += w * Math.exp(-(dx * dx + dy * dy) / 140); } };
+      const rs = m.ratings.filter((r) => r.team === k && r.slot && r.st && r.st.min > 0);
+      const xy = layoutXY(rs.map((r) => r.slot));
+      const push = (m.stats[k].poss - 50) * 0.25;
+      rs.forEach((r, i) => {
+        const depth = 100 - xy[i][1];
+        let x = 6 + depth * 0.85 + push; if (k === 1) x = 100 - x;
+        const y = (k === 0 ? xy[i][0] : 100 - xy[i][0]) * 0.64;
+        const act = (r.st.passes + r.st.tackles * 3 + r.st.dribbles * 2 + r.st.interceptions * 2) * (r.st.min / 93);
+        add(Math.max(3, Math.min(97, x)), y, act);
+        add(Math.max(3, Math.min(97, x + (k === 0 ? 8 : -8))), y, act * 0.4); // рух уперед з м'ячем
+      });
+      for (const sh of m.shots.filter((x) => x.t === k)) add(k === 0 ? sh.x : 100 - sh.x, (k === 0 ? sh.y : 100 - sh.y) * 0.64, 10);
+      const max = Math.max(...g) || 1;
+      return svg('svg', { viewBox: '0 0 100 64', class: 'shotmap heat', role: 'img', 'aria-label': 'Теплова карта ' + clubName(k === 0 ? hs.club : as.club) }, [
+        svg('rect', { x: 0.5, y: 0.5, width: 99, height: 63, rx: 1, class: 'sm-pitch' }),
+        ...g.map((v, n) => svg('rect', { x: (n % GX) * (100 / GX), y: Math.floor(n / GX) * (64 / GY), width: 100 / GX, height: 64 / GY, style: `fill:${col(k)};fill-opacity:${(0.05 + (v / max) * 0.7).toFixed(2)}` })),
+        svg('line', { x1: 50, y1: 0.5, x2: 50, y2: 63.5, class: 'sm-line' }),
+        svg('rect', { x: 0.5, y: 17, width: 14, height: 30, class: 'sm-line' }), svg('rect', { x: 85.5, y: 17, width: 14, height: 30, class: 'sm-line' }),
+      ]);
+    };
+    const heatBox = el('div');
+    const heatTabs = el('div.tabs');
+    const showHeat = (k) => { heatBox.replaceChildren(heat(k)); heatTabs.replaceChildren(...[0, 1].map((i) => el('button', { type: 'button', 'aria-pressed': String(i === k), onclick: () => showHeat(i) }, clubName(i === 0 ? hs.club : as.club)))); };
+    showHeat(0);
+    // володіння по 15 хвилин
+    const segs = (m.possSeg || []).map((v, i) => [`${i * 15}–${i === 5 ? '90+' : (i + 1) * 15}′`, v]);
+    const possBars = segs.length ? el('div.poss-segs', segs.map(([label, v]) => v == null ? null : el('div.ps', { title: `${label}: ${v}% — ${100 - v}%` }, [
+      el('small.muted', label), el('div.ps-bar', [el('span', { style: { width: v + '%', background: col(0) } }), el('span', { style: { width: (100 - v) + '%', background: col(1) } })]), el('small', `${v}:${100 - v}`)]))) : null;
     const keyEv = m.events.filter((e) => ['goal', 'red', 'injury', 'miss'].includes(e.type));
     const statRow = (r) => el('tr', [el('td', [el('a', { href: '#player-' + r.id }, nameOf(r.player)), el('small.muted', ` ${FM.roleLabel(r.role, r.slot && r.slot.side)}`)]),
-      el('td.num', String(r.rating).replace('.', ',')), el('td.num', r.st.min), el('td.num', r.goals || ''), el('td.num', r.assists || ''), el('td.num', r.st.shots || ''),
+      el('td.num', String(r.rating).replace('.', ',')), el('td.num.muted', r.h1 != null ? String(r.h1).replace('.', ',') : '—'), el('td.num.muted', r.h2 != null ? String(r.h2).replace('.', ',') : '—'), el('td.num', r.st.min), el('td.num', r.goals || ''), el('td.num', r.assists || ''), el('td.num', r.st.shots || ''),
       el('td.num', r.st.keyPasses || ''), el('td.num', r.st.passes ? `${r.st.passOk}/${r.st.passes}` : ''), el('td.num', r.st.tackles || ''), el('td.num', r.st.interceptions || ''),
       el('td.num', r.st.dribbles || ''), el('td.num', r.role === 'GK' ? r.st.saves : r.st.blocks || '')]);
     const statTable = (k, club) => el('div.table-wrap', el('table.mstats', [
       el('caption', clubName(club)),
-      el('thead', el('tr', ['Гравець', 'Оц.', 'Хв', 'Г', 'П', 'Уд', 'Кл. п.', 'Передачі', 'Відб.', 'Перех.', 'Дриб.', 'Блок/сейв'].map((h, i) => el(i ? 'th.num' : 'th', h)))),
+      el('thead', el('tr', ['Гравець', 'Оц.', '1 т.', '2 т.', 'Хв', 'Г', 'П', 'Уд', 'Кл. п.', 'Передачі', 'Відб.', 'Перех.', 'Дриб.', 'Блок/сейв'].map((h, i) => el(i ? 'th.num' : 'th', h)))),
       el('tbody', m.ratings.filter((r) => r.team === k && r.st).map(statRow)),
     ]));
     return el('div', [el('div.grid', [
       el('div.panel', [el('h3', 'Карта ударів'), map, el('div.legend', [el('span', [el('i', { style: { background: 'var(--accent)' } }), clubName(hs.club)]), el('span', [el('i', { style: { background: 'var(--warn)' } }), clubName(as.club)]), el('span', 'коло більше — момент кращий; заповнене — гол')])]),
       el('div.panel', [el('h3', 'Очікувані голи (xG) за матч'), chart, el('p.muted', `${clubName(hs.club)} ${f2(L0.acc)} · ${clubName(as.club)} ${f2(L1.acc)} · вертикальна лінія — перерва${m.weather ? ' · погода: ' + FM.WEATHER[m.weather].label.toLowerCase() : ''}`)]),
+      el('div.panel', [el('h3', 'Теплова карта'), heatTabs, heatBox, el('p.muted', 'Де команда діяла найбільше: позиції гравців, їхні дії й удари.')]),
+      possBars ? el('div.panel', [el('h3', 'Володіння по 15 хвилин'), possBars, m.scoreHT ? el('p.muted', `Перший тайм — ${m.scoreHT.join(':')}.`) : null]) : null,
       el('div.panel', [el('h3', 'Середні позиції й активність'), posMap, el('p.muted', 'Більше коло — більше дій (передачі, відбори, дриблінг, удари). Наведіть на коло, щоб побачити гравця.')]),
       el('div.panel', [el('h3', 'Ключові моменти'), keyEv.length ? el('ol.feed.compact', keyEv.map((e) => el('li.ev-' + e.type, [el('b', e.min + '′ '), e.text]))) : el('p.muted', 'Без яскравих моментів.'),
         el('dl.facts', [el('dt', 'Передачі (точність)'), el('dd', `${m.stats[0].passes} (${m.stats[0].passPct}%) — ${m.stats[1].passes} (${m.stats[1].passPct}%)`),
           el('dt', 'Відбори'), el('dd', `${m.stats[0].tackles} — ${m.stats[1].tackles}`)])]),
     ]), el('div.panel', [el('h3', 'Статистика гравців'), statTable(0, hs.club), statTable(1, as.club),
-      el('p.note', 'Г — голи, П — гольові передачі, Уд — удари, Кл. п. — ключові передачі (з яких був удар), Відб. — відбори, Перех. — перехоплення, Дриб. — успішний дриблінг.')])]);
+      el('p.note', '1 т., 2 т. — оцінки за таймами. Г — голи, П — гольові передачі, Уд — удари, Кл. п. — ключові передачі (з яких був удар), Відб. — відбори, Перех. — перехоплення, Дриб. — успішний дриблінг.')])]);
   }
 
   /**
@@ -2426,6 +2460,8 @@
     for (const t of FM.routine.delegateWeek(W, state)) FM.market.news(state, t);
     for (const t of FM.boardroom.promisesWeek(W, state)) FM.market.news(state, t, 'club');
     for (const t of FM.deals.week(W, state)) FM.market.news(state, t, 'transfers');
+    const fresh = FM.medical.restWeek(W, state, `${S.year}-${S.week - 1}`);
+    if (fresh.length) FM.market.news(state, `Після тижня відпочинку повністю свіжі: ${fresh.map(nameOf).join(', ')}.`, 'players');
     // міжнародне вікно, що минуло: хто їздив у збірні
     if (S.cal && S.cal.intl.includes(S.week - 1)) {
       const cu = FM.boardroom.callups(W, state, S.week - 1);
@@ -2475,7 +2511,7 @@
   const curPlan = () => FM.routine.aggregate(weekSchedule());
   const devOpts = () => {
     const plan = (lastPlan = curPlan());
-    return { training: training(), myClub: state.clubId, plan,
+    return { training: training(), myClub: state.clubId, plan, rest: FM.medical.rested(state),
       recovery: plan.recovery + (FM.club.lvl(state, 'fitness') - 10) * 0.4,
       growthMult: (p) => FM.club.growthMult(state, W, p) * ((W.age(p) ?? 24) <= 21 ? 1 + (FM.career.attr(state, 'youth') - 10) * 0.015 : 1) * FM.youth.growth(state, p) * FM.routine.growthMult(state, p),
       injuryMult: 1.2 - FM.club.lvl(state, 'fitness') * 0.02 };
@@ -2697,6 +2733,12 @@
     return [
       el('header', [el('h1', 'Довідка'), el('span.muted', 'Як усе влаштовано')]),
       el('div.help-grid', [
+        sec('Календар, матч і щоденна робота (як у FM)', [
+          'Сезон — з липня до кінця травня: передсезоння з товариськими, свій старт кожної ліги, вікна збірних (ліги не грають), зимові перерви, тури посеред тижня у вівторок. Ліга чемпіонів — у середу, Ліга Європи й конференцій — у четвер.',
+          'Перед матчем — промова (кожен гравець реагує по-своєму), під час — вигуки з бровки (10 хвилин), у перерві — звіт асистента, після — розмова з командою. Стандарти — у тактиці.',
+          'Тренування — розклад на кожен день; наставники для молоді; доручення асистентові — на екрані «Клуб». Медцентр показує ризик травми й дає відпочинок.',
+          'Правління: прохання (фонд зарплат, гроші, контракт, фарм-клуб), співбесіда перед новою роботою. Трансфери: розстрочка, бонус за матчі, опція викупу, звіт скаута з оцінкою A–D.',
+        ]),
         sec('Перші кроки в клубі', [
           'На початку кар’єри (і в новому клубі) асистент складає план: правління, звіт про склад, тактика, тренування, скаути, слабкі позиції, зайві гравці, контракти, штаб, товариський матч. Кроки позначаються самі, будь-який можна пропустити.',
           'Щоліта — коротша «Передсезонна підготовка». План — у меню й у пошті; перше «Продовжити» нагадає про нього один раз.',
@@ -3199,6 +3241,44 @@
       el('p.note', [own ? 'Ви змінили розклад цього тижня. ' : FM.routine.delegated(state, 'training') ? 'Розклад склав асистент під матчі тижня. ' : 'Розклад — за вашим шаблоном (нижче), з урахуванням матчів. ',
         'Напередодні матчу «Підготовка» додає +1% до гри; після матчу — «Відновлення». ', own ? el('button.btn.link', { type: 'button', onclick: () => { tr.sched = null; saveGame(); render(); } }, 'Скинути правки') : null]),
     ]);
+  }
+
+  // ---------------- Медичний центр ----------------
+  function screenMedical() {
+    const S = state.season, sq = W.squad(state.clubId);
+    const plan = curPlan(), rest = FM.medical.rested(state);
+    const side = mySide(), starters = new Set(side.lineup.xi.map((x) => x.player.id));
+    const ctx = { k: FM.cal.weekK(S), planInjury: plan.injury, injuryMult: 1.2 - FM.club.lvl(state, 'fitness') * 0.02, matches: Math.max(1, weekMatchDays().length), rested: rest, starter: starters };
+    const rows = sq.map((p) => ({ p, rk: FM.medical.risk(W, p, ctx) })).sort((a, b) => b.rk.r - a.rk.r);
+    const hurt = rows.filter((x) => x.rk.level === 'out');
+    const pct = (r) => (r >= 1 ? '—' : `${(r * 100).toFixed(1).replace('.', ',')}%`);
+    const back = (p) => fmt.date(FM.season.dayDate(S, Math.min(FM.season.weeks(S) - 1, S.week + p.injury), 1)).slice(0, 5);
+    return [
+      el('header', [el('h1', 'Медичний центр'), el('span.muted', `Фізіо: рівень ${FM.club.lvl(state, 'physio')} · фітнес-тренер: рівень ${FM.club.lvl(state, 'fitness')}`)]),
+      el('div.grid', [
+        el('div.panel', [el('h3', `Травмовані: ${hurt.length}`), hurt.length ? el('ul.plist', hurt.map(({ p }) => el('li', [el('a', { href: '#player-' + p.id }, nameOf(p)),
+          el('span.muted', `${p.injury} тиж. · орієнтовно до ${back(p)}`)]))) : el('p.muted', 'Травмованих немає.')]),
+        el('div.panel', [el('h3', 'Цей тиждень'), el('dl.facts', [
+          el('dt', 'Матчів'), el('dd', String(weekMatchDays().length)),
+          el('dt', 'Навантаження тренувань'), el('dd', plan.injury > 1.1 ? 'високе' : plan.injury < 0.9 ? 'легке' : 'звичайне'),
+          el('dt', 'Високий ризик'), el('dd', String(rows.filter((x) => x.rk.level === 'high').length)),
+          el('dt', 'Відпочивають'), el('dd', String(rest.size)),
+        ]), el('p.note', ['Ризик залежить від схильності до травм, втоми, віку, кількості матчів і ', el('a', { href: '#training' }, 'розкладу тренувань'), '. Хороший фізіо й фітнес-тренер знижують його.'])]),
+      ]),
+      el('div.panel', [el('h3', 'Ризик травми на тиждень'), el('div.table-wrap.flat', el('table', [
+        el('thead', el('tr', [el('th', 'Гравець'), el('th', 'Поз.'), el('th.num', 'Свіжість'), el('th.num', 'Ризик'), el('th', 'Рівень'), el('th', 'Чинники'), el('th', '')])),
+        el('tbody', rows.filter((x) => x.rk.level !== 'out').map(({ p, rk }) => el('tr', [
+          el('td.name', el('a', { href: '#player-' + p.id }, nameOf(p))),
+          el('td.pos.line-' + FM.ROLE_LINE[p.roles[0]], FM.roleLabel(p.roles[0], p.side)),
+          el('td.num', `${Math.round(p.fitness ?? 100)}%`),
+          el('td.num', el('b', pct(rk.r))),
+          el('td', el('span.chip.' + (rk.level === 'high' ? 'bad' : rk.level === 'mid' ? 'warn' : 'info'), FM.medical.LEVEL_UK[rk.level])),
+          el('td.muted', [rk.why.join(', ') || '—', FM.medical.advice(p, rk) ? el('div', el('b', FM.medical.advice(p, rk))) : null]),
+          el('td', el('button.btn' + (rest.has(p.id) ? '.primary' : ''), { type: 'button', 'aria-pressed': String(rest.has(p.id)), onclick: () => { FM.medical.rest(state, p.id); saveGame(); render(); } }, rest.has(p.id) ? 'Відпочиває' : 'Відпочинок')),
+        ]))),
+      ]))]),
+      el('p.note', 'Відпочинок — на цей тиждень: гравець не грає за основу, тренується легко (ризик травми втричі менший) і наприкінці тижня повністю свіжий.'),
+    ];
   }
 
   /** Наставництво: досвідчений гравець бере молодого (до 21) — той росте швидше й переймає характер. */

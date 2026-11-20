@@ -737,6 +737,8 @@
     for (let m = 1; m <= 45 + added[0]; m++) timeline.push({ m, pi: 0, label: m > 45 ? `45+${m - 45}` : m, extra: m > 45 });
     for (let m = 46; m <= 90 + added[1]; m++) timeline.push({ m, pi: 1, label: m > 90 ? `90+${m - 90}` : m, extra: m > 90 });
     let idx = 0, possH = 0, ticks = 0, done = false, minuteNum = 0;
+    const seg = Array.from({ length: 6 }, () => [0, 0]); // володіння господарів по 15 хвилин
+    let scoreHT = null;
 
     /** Одна хвилина матчу. Повертає false, коли матч уже закінчився. */
     function step() {
@@ -746,6 +748,8 @@
       if (e.pi === 1 && timeline[idx - 2] && timeline[idx - 2].pi === 0) say(46, 'half', null, 'second'); // перша хвилина другого тайму (не компенсація першого)
       const cr = chanceRates(e.m);
       possH += cr.share; ticks++;
+      const si = Math.min(5, Math.floor((Math.min(e.m, 90) - 1) / 15)); seg[si][0] += cr.share; seg[si][1]++;
+      if (e.pi === 1 && !scoreHT) { scoreHT = [H.stats.goals, A.stats.goals]; for (const t of sides) t.perfHT = new Map([...t.perf].map(([id, pf]) => [id, { ...pf }])); }
       // втома: витривалість, пресинг
       for (const t of sides) for (const x of t.onPitch) if (!x.out) x.cond = Math.max(30, x.cond - (0.42 - x.p.attrs.sta * 0.014) * (x.slot.role === 'GK' ? 0.3 : (1 + 0.25 * t.pressing) * shX(t, 'tire')) * WX.tire);
       if (e.m % 5 === 0) { compute(H); compute(A); }
@@ -828,12 +832,35 @@
               interceptions: pf.interceptions || 0, blocks: pf.blocks || 0, dribbles: pf.dribbles || 0, duels: pf.duels || 0, saves: pf.saves, conceded: pf.conceded } });
         }
       }
+      // оцінки за таймами: внесок у кожному таймі окремо
+      const ht = scoreHT || [H.stats.goals, A.stats.goals];
+      const half = (pf, k, x, sc, played) => {
+        if (!played) return null;
+        const res = Math.sign(sc[k] - sc[1 - k]);
+        let r = 6.4 + 0.15 * res + pf.goals + pf.assists * 0.6 + pf.shots * 0.08 + (pf.keyPasses || 0) * 0.15 - pf.yellow * 0.2 - (pf.red ? 1.5 : 0);
+        if (x.slot.role === 'GK') r += pf.saves * 0.25 - pf.conceded * 0.35;
+        r += (slotValue(x.p, x.slot) - 12) * 0.05 + RS.range(-0.3, 0.3);
+        return Math.round(Math.max(3, Math.min(10, r)) * 10) / 10;
+      };
+      for (const t of sides) for (const x of t.onPitch) {
+        const rr = ratings.find((r) => r.id === x.p.id && r.team === t.k);
+        if (!rr) continue;
+        const a = (t.perfHT && t.perfHT.get(x.p.id)) || { goals: 0, assists: 0, shots: 0, keyPasses: 0, yellow: 0, red: false, saves: 0, conceded: 0 };
+        const b = t.perf.get(x.p.id), d = {};
+        for (const key of ['goals', 'assists', 'shots', 'keyPasses', 'yellow', 'saves', 'conceded']) d[key] = (b[key] || 0) - (a[key] || 0);
+        d.red = b.red && !a.red;
+        const on = x.subbedOn || 0, off = x.subbedOff || 93;
+        const sc2 = [H.stats.goals - ht[0], A.stats.goals - ht[1]];
+        rr.h1 = half(a, t.k, x, ht, on < 45 && (!t.perfHT || t.perfHT.has(x.p.id)));
+        rr.h2 = half(d, t.k, x, sc2, off > 46 && on < 90);
+      }
       const motm = [...ratings].sort((a, b) => b.rating - a.rating)[0];
       final = {
         score: [H.stats.goals, A.stats.goals], events,
         stats: [H.stats, A.stats].map((st) => ({ ...st, xg: Math.round(st.xg * 100) / 100 })),
         ratings, motm, formations: [H.formation, A.formation], units: startUnits,
         lineups: sides.map((t) => t.lineup), shots: shotLog, weather,
+        possSeg: seg.map(([s, n]) => (n ? Math.round((s / n) * 100) : null)), scoreHT: scoreHT || null,
         fitness: sides.flatMap((t) => t.onPitch.map((x) => [x.p.id, Math.round(x.cond), x.subbedOn ? 93 - x.subbedOn : (x.subbedOff || 93)])),
       };
       return final;
