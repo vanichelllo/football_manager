@@ -103,7 +103,7 @@
     let view = location.hash.slice(1) || 'overview';
     if (state.sacked && !['sacked', 'options'].includes(view.split('-')[0])) view = 'sacked';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, calendar: screenCalendar, compare: screenCompare, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, search: screenSearch, charts: screenCharts, calendar: screenCalendar, compare: screenCompare, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
     const body = (screens[name] || screenOverview)(arg);
     app.replaceChildren(shell(name, body));
     window.scrollTo(0, 0);
@@ -119,8 +119,8 @@
         el('div.club-head', [badge(my), el('b', clubName(my))]),
         el('nav.nav', { 'aria-label': 'Меню' }, [
           item('overview', 'Огляд'), item('inbox', (() => { const n = FM.market.unread(state); return n ? ['Повідомлення ', el('span.count', { 'aria-label': `${n} непрочитаних` }, String(n))] : 'Повідомлення'; })()), item('squad', 'Склад'), item('dressing', 'Роздягальня'), item('u21', 'Молодь U-21'), item('leagues', 'Ліги й клуби'),
-          item('fixtures', 'Сезон'), item('calendar', 'Календар'), item('table', 'Таблиця'), item('cups', 'Кубки'), item('match', 'Товариський'),
-          item('tactics', 'Тактика'), item('training', 'Тренування'), item('transfers', 'Трансфери'), item('office', 'Клуб'), item('board', 'Правління'), item('media', 'Медіа'), item('coach', 'Тренер'), item('nations', 'Збірна'), item('history', 'Історія'), item('help', 'Довідка'),
+          item('fixtures', 'Сезон'), item('calendar', 'Календар'), item('table', 'Таблиця'), item('charts', 'Графіки'), item('cups', 'Кубки'), item('match', 'Товариський'),
+          item('tactics', 'Тактика'), item('training', 'Тренування'), item('transfers', 'Трансфери'), item('search', 'Пошук'), item('office', 'Клуб'), item('board', 'Правління'), item('media', 'Медіа'), item('coach', 'Тренер'), item('nations', 'Збірна'), item('history', 'Історія'), item('help', 'Довідка'),
           item('options', 'Налаштування'),
         ]),
         el('div.foot', [`Тренер: ${state.manager}`, el('br'), `Сезон ${seasonLabel()}`]),
@@ -131,8 +131,15 @@
 
   // ---------------- Початок кар'єри ----------------
   function renderStart() {
-    let leagueId = 'ukr', clubId = null;
+    let leagueId = 'ukr', clubId = null, challenge = null;
     const grid = el('div.club-grid');
+    const chBox = el('div.tabs', { role: 'group', 'aria-label': 'Режим' });
+    const chNote = el('p.muted');
+    function drawChallenges() {
+      chBox.replaceChildren(...[[null, 'Звичайна кар’єра'], ...Object.entries(FM.challenges.DEFS).map(([k, d]) => [k, 'Виклик: ' + d.label])].map(([k, label]) =>
+        el('button', { type: 'button', 'aria-pressed': String(challenge === k), onclick: () => { challenge = k; clubId = null; startBtn.disabled = true; picked.textContent = 'Оберіть клуб'; drawChallenges(); drawTabs(); drawClubs(); } }, label)));
+      chNote.textContent = challenge ? FM.challenges.DEFS[challenge].desc : 'Будь-який клуб, цілі ставить правління.';
+    }
     const tabs = el('div.tabs', { role: 'group', 'aria-label': 'Ліга' });
     const nameInput = el('input', { id: 'manager-name', type: 'text', value: 'Новий тренер', maxlength: 40, autocomplete: 'off' });
     const tutInput = el('input', { id: 'tutorial', type: 'checkbox', checked: true });
@@ -140,13 +147,15 @@
     const picked = el('span.muted', 'Оберіть клуб');
 
     function drawTabs() {
+      tabs.hidden = !!(challenge && FM.challenges.DEFS[challenge].clubs(W));
       tabs.replaceChildren(...W.db.leagues.map((l) => el('button', {
         type: 'button', 'aria-pressed': String(l.id === leagueId),
         onclick: () => { leagueId = l.id; drawTabs(); drawClubs(); },
       }, l.name)));
     }
     function drawClubs() {
-      const list = W.clubsOf(leagueId).map((c) => ({ c, lvl: W.clubLevel(c.id) })).sort((a, b) => b.lvl - a.lvl);
+      const only = challenge && FM.challenges.DEFS[challenge].clubs(W);
+      const list = (only || W.clubsOf(leagueId)).map((c) => ({ c, lvl: W.clubLevel(c.id) })).sort((a, b) => b.lvl - a.lvl);
       grid.replaceChildren(...list.map(({ c, lvl }) => el('button.club-card', {
         type: 'button', 'aria-pressed': String(c.id === clubId),
         onclick: () => { clubId = c.id; picked.textContent = c.name; startBtn.disabled = false; drawClubs(); },
@@ -160,11 +169,12 @@
       FM.board.initSeason(W, state);
       FM.club.init(W, state);
       FM.career.init(W, state);
+      if (challenge) FM.challenges.start(state, challenge);
       ensureCups();
       saveGame();
       go('overview');
     }
-    drawTabs(); drawClubs();
+    drawChallenges(); drawTabs(); drawClubs();
     // інші кар'єри в слотах збереження
     const startSlots = el('div');
     Promise.all(store.SLOTS.map((n) => store.meta(n))).then((list) => {
@@ -181,6 +191,7 @@
       startSlots,
       el('div.field', [el('label', { for: 'manager-name' }, 'Ваше ім’я'), nameInput]),
       el('label.check', [tutInput, ' Показувати підказки для новачка']),
+      el('div.field', [el('b', 'Режим'), chBox, chNote]),
       tabs,
       grid,
       el('div.panel.confirm', [picked, startBtn]),
@@ -385,6 +396,7 @@
         })),
       ]))), known(p) ? null : el('p.note', 'Гравця не розвідано: атрибути приблизні. Відправте скаута, щоб дізнатися точно.')]),
       playerExtras(p),
+      devChart(p),
       p.retired ? null : p.club === state.clubId ? myPlayerPanel(p) : transferPanel(p),
       !p.retired && p.club === state.clubId && !(p.loan && p.loan.to === state.clubId) ? talkPanel(p) : null,
     ];
@@ -404,6 +416,18 @@
       } }, o.label))),
       talkMsg2 && talkMsg2.id === p.id ? el(talkMsg2.good ? 'p.msg-ok' : 'p.msg-bad', talkMsg2.text) : el('small.muted', 'Наведіть на варіант, щоб побачити, коли він доречний. З одним гравцем — не частіше ніж раз на 4 тижні.'),
     ]);
+  }
+
+  /** Розвиток гравця: рівень (1–200) наприкінці кожного сезону й по тижнях цього сезону (для ваших гравців). */
+  function devChart(p) {
+    if (!known(p)) return null;
+    const pts = (p.hist || []).map(([y, ca]) => [y + 1, ca, `${ca} (кінець сезону ${y}/${String(y + 1).slice(2)})`]);
+    for (const [y, w, ca] of (state.caLog || {})[p.id] || []) pts.push([y + (w + 1) / 38, ca, `${ca} (${y}/${String(y + 1).slice(2)}, тиждень ${w + 1})`]);
+    pts.push([state.season.year + (state.season.week + 1) / 38, p.ca, `${p.ca} (зараз)`]);
+    pts.sort((a, b) => a[0] - b[0]);
+    if (pts.length < 2) return null;
+    return el('div.panel', [el('h3', 'Розвиток'), lineChart([{ label: 'рівень', pts, focus: true }], { yMin: Math.max(1, Math.min(...pts.map((x) => x[1])) - 5), yMax: Math.max(p.pa, ...pts.map((x) => x[1])),
+      xLabel: (x) => String(Math.floor(x)), aria: 'Розвиток рівня гравця' }), el('small.muted', `Рівень (1–200) з часом; верх шкали — потенціал (${p.pa}).`)]);
   }
 
   /** Опис прихованих рис (точно — лише для своїх і розвіданих). */
@@ -486,7 +510,7 @@
           const swap = document.getElementById('bid-swap').value || null;
           const sellOn = document.getElementById('bid-sellon').checked;
           if (fee > me.balance) { deal.msg = `Не вистачає грошей: баланс ${M(me.balance)}.`; deal.ok = false; return render(); }
-          if (FM.finance.embargoed(state)) { deal.msg = 'Заборона трансферів (фінансовий фейр-плей): у це вікно купувати гравців не можна.'; deal.ok = false; return render(); }
+          if (buyBlocked()) { deal.msg = buyBlocked(); deal.ok = false; return render(); }
           const swapVal = swap ? W.player(swap).value * 0.85 : 0; // гравець в обмін рахується як 85% його ціни
           const r = FM.market.clubResponse(W, p, fee + swapVal, me.id, S, { sellOn });
           deal.swap = swap; deal.sellOn = sellOn;
@@ -502,7 +526,7 @@
             const gap = W.clubLevel(p.club) - W.clubLevel(me.id);
             if (gap > 15 + 10 * share) { deal.msg = 'Клуб не хоче віддавати гравця в настільки слабкий клуб.'; deal.ok = false; return render(); }
             if (FM.market.loanFee(p) > me.balance) { deal.msg = 'Не вистачає грошей на оренду.'; deal.ok = false; return render(); }
-            if (FM.finance.embargoed(state)) { deal.msg = 'Заборона трансферів (фінансовий фейр-плей).'; deal.ok = false; return render(); }
+            if (buyBlocked()) { deal.msg = buyBlocked(); deal.ok = false; return render(); }
             if (share < 0.75 && W.clubLevel(p.club) > W.clubLevel(me.id)) { deal.msg = 'Сильніший клуб хоче, щоб ви платили щонайменше 75% зарплати.'; deal.ok = false; return render(); }
             FM.market.loanIn(W, state, p, me.id, share);
             FM.market.news(state, `${nameOf(p)} — в оренді у вас до кінця сезону.`);
@@ -705,6 +729,158 @@
     ]);
   }
 
+  // ---------------- Графіки (розширення 14) ----------------
+  /**
+   * Лінійний графік (SVG): тонкі лінії 2px, лінія фокусу — колір акценту, решта — сірий фон; одна вісь;
+   * підказка при наведенні на кожну точку. series: [{ label, pts: [[x, y, підказка?]], focus }].
+   * opts: { invert (менше — вище), yMin, yMax, xLabel(x), yLabel(y), aria }.
+   */
+  function lineChart(series, opts = {}) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = (tag, a = {}, kids = []) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(a)) n.setAttribute(k, v); for (const c of kids) n.append(c); return n; };
+    const all = series.flatMap((x) => x.pts);
+    if (!all.length) return el('p.muted', 'Даних поки немає.');
+    const W0 = 320, H0 = 160, L = 44, Rr = 60, T = 10, B = 24;
+    const xs = all.map((p) => p[0]), ys = all.map((p) => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs, x0 + 1);
+    let y0 = opts.yMin ?? Math.min(...ys), y1 = opts.yMax ?? Math.max(...ys);
+    if (y1 - y0 < 1e-9) { y0 -= 1; y1 += 1; }
+    const X = (x) => L + ((x - x0) / (x1 - x0)) * (W0 - L - Rr);
+    const Y = (y) => { const k = (y - y0) / (y1 - y0); return opts.invert ? T + k * (H0 - T - B) : H0 - B - k * (H0 - T - B); };
+    const ticks = [y0, (y0 + y1) / 2, y1];
+    const fy = opts.yLabel || ((v) => String(Math.round(v)));
+    const fx = opts.xLabel || ((v) => String(v));
+    const kids = [];
+    for (const t of ticks) { kids.push(svg('line', { x1: L, x2: W0 - Rr, y1: Y(t), y2: Y(t), class: 'ch-grid' })); kids.push(svg('text', { x: L - 4, y: Y(t) + 3, class: 'ch-tick', 'text-anchor': 'end' }, [document.createTextNode(fy(t))])); }
+    for (const t of [x0, Math.round((x0 + x1) / 2), x1]) kids.push(svg('text', { x: X(t), y: H0 - 6, class: 'ch-tick', 'text-anchor': 'middle' }, [document.createTextNode(fx(t))]));
+    const ordered = [...series].sort((a, b) => (a.focus ? 1 : 0) - (b.focus ? 1 : 0)); // фокус — поверх
+    for (const sr of ordered) {
+      if (!sr.pts.length) continue;
+      const d = sr.pts.map((p, i) => `${i ? 'L' : 'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ');
+      kids.push(svg('path', { d, class: sr.focus ? 'ch-line focus' : 'ch-line' }));
+      const last = sr.pts[sr.pts.length - 1];
+      kids.push(svg('circle', { cx: X(last[0]), cy: Y(last[1]), r: 4, class: sr.focus ? 'ch-dot focus' : 'ch-dot' }));
+      if (sr.label && (sr.focus || series.length <= 5)) kids.push(svg('text', { x: X(last[0]) + 6, y: Y(last[1]) + 3, class: sr.focus ? 'ch-label focus' : 'ch-label' }, [document.createTextNode(sr.label.length > 9 ? sr.label.slice(0, 8) + '…' : sr.label)]));
+      // зони наведення більші за точки
+      for (const p of sr.pts) { const hit = svg('circle', { cx: X(p[0]), cy: Y(p[1]), r: 7, class: 'ch-hit' }); hit.append(svg('title', {}, [document.createTextNode(`${sr.label ? sr.label + ': ' : ''}${p[2] || fy(p[1])} · ${fx(p[0])}`)])); kids.push(hit); }
+    }
+    return svg('svg', { viewBox: `0 0 ${W0} ${H0}`, class: 'chart', role: 'img', 'aria-label': opts.aria || 'Графік' }, kids);
+  }
+
+  /** Місце й очки клубів ліги після кожного туру (для графіків). */
+  function leagueProgress(leagueId) {
+    const S = state.season, ids = W.clubsOf(leagueId).map((c) => c.id);
+    const row = Object.fromEntries(ids.map((id) => [id, { pts: 0, gd: 0, gf: 0 }]));
+    const weeks = [...new Set(S.fixtures.filter((f) => f.l === leagueId && f.s).map((f) => f.w))].sort((a, b) => a - b);
+    const pos = Object.fromEntries(ids.map((id) => [id, []])), pts = Object.fromEntries(ids.map((id) => [id, []]));
+    weeks.forEach((w, i) => {
+      for (const f of S.fixtures) if (f.l === leagueId && f.w === w && f.s) {
+        const [a, b] = f.s, H = row[f.h], A = row[f.a];
+        H.gf += a; A.gf += b; H.gd += a - b; A.gd += b - a;
+        if (a > b) H.pts += 3; else if (b > a) A.pts += 3; else { H.pts++; A.pts++; }
+      }
+      const order = ids.slice().sort((x, y) => row[y].pts - row[x].pts || row[y].gd - row[x].gd || row[y].gf - row[x].gf);
+      order.forEach((id, k) => { pos[id].push([i + 1, k + 1]); pts[id].push([i + 1, row[id].pts]); });
+    });
+    return { pos, pts, rounds: weeks.length };
+  }
+
+  function screenCharts() {
+    const me = W.club(state.clubId), lg = me.league;
+    const pr = leagueProgress(lg);
+    const top = Object.keys(pr.pts).sort((a, b) => (pr.pts[b].slice(-1)[0] || [0, 0])[1] - (pr.pts[a].slice(-1)[0] || [0, 0])[1]).slice(0, 5);
+    if (!top.includes(me.id)) top.push(me.id);
+    const bal = (state.balHist || []).filter((x) => x[0] === state.season.year);
+    const size = W.clubsOf(lg).length;
+    return [
+      el('header', [el('h1', 'Графіки'), el('span.muted', `${W.league(lg).name} · сезон ${seasonLabel()}`)]),
+      el('div.grid', [
+        el('div.panel', [el('h3', `Місце ${clubName(me)} після кожного туру`), lineChart([{ label: clubName(me), pts: pr.pos[me.id], focus: true }],
+          { invert: true, yMin: 1, yMax: size, xLabel: (x) => `${x}-й тур`, yLabel: (y) => `${Math.round(y)}-е`, aria: 'Місце в таблиці по турах' })]),
+        el('div.panel', [el('h3', 'Гонка за перші місця: очки'), lineChart(top.map((id) => ({ label: clubName(W.club(id)), pts: pr.pts[id], focus: id === me.id })),
+          { yMin: 0, xLabel: (x) => `${x}-й тур`, aria: 'Очки лідерів по турах' }),
+          el('div.ch-legend', top.map((id) => el('span', [el('i' + (id === me.id ? '.focus' : '')), `${clubName(W.club(id))} ${(pr.pts[id].slice(-1)[0] || [0, 0])[1]}`]))),
+          el('small.muted', 'Ваш клуб — кольором, лідери — сірим (наведіть на точку, щоб побачити клуб).')]),
+        el('div.panel', [el('h3', 'Баланс клубу за тижнями'), lineChart([{ label: clubName(me), pts: bal.map((x) => [x[1] + 1, x[2], FM.market.fmtM(x[2])]), focus: true }],
+          { xLabel: (x) => `тиж. ${x}`, yLabel: (y) => FM.market.fmtM(y), aria: 'Баланс клубу за тижнями' })]),
+      ]),
+      el('p.note', 'Розвиток гравця за сезонами — на його картці (блок «Розвиток»).'),
+    ];
+  }
+
+  // ---------------- Розширений пошук гравців (розширення 13) ----------------
+  const SF0 = () => ({ q: '', league: 'all', nat: 'all', role: 'all', ageMin: 15, ageMax: 40, valMax: '', wageMax: '', contract: 'all', paMin: '', free: false, listed: false,
+    a1: '', v1: 14, a2: '', v2: 14, a3: '', v3: 14, sort: 'ca', limit: 50 });
+  let sf = null;
+  function screenSearch() {
+    sf = sf || SF0();
+    const S = state.season;
+    const seen = (p, k) => (known(p) ? p.attrs[k] : p.attrs[k] + fuzz(p, k + 'm', 1));
+    const seenCA = (p) => (known(p) ? p.ca : p.ca + fuzz(p, 'ca', 8)), seenPA = (p) => (known(p) ? p.pa : p.pa + fuzz(p, 'pa', 12));
+    const allAttrs = Object.keys(FM.ATTRS);
+    const q = sf.q.trim().toLowerCase();
+    const attrsF = [[sf.a1, sf.v1], [sf.a2, sf.v2], [sf.a3, sf.v3]].filter(([a]) => a);
+    const t0 = Date.now();
+    let res = [];
+    for (const p of W.players.values()) {
+      if (p.retired || p.club === state.clubId) continue;
+      if (sf.free ? p.club : !p.club && !p.talent) continue;
+      if (sf.listed && !p.listed) continue;
+      if (sf.league !== 'all' && (!p.club || W.club(p.club).league !== sf.league)) continue;
+      if (sf.nat !== 'all' && p.nat !== sf.nat) continue;
+      if (sf.role !== 'all' && !p.roles.includes(sf.role)) continue;
+      const age = W.age(p) ?? 24;
+      if (age < sf.ageMin || age > sf.ageMax) continue;
+      if (sf.valMax !== '' && p.value > Number(sf.valMax)) continue;
+      if (sf.wageMax !== '' && (p.wage || 0) > Number(sf.wageMax)) continue;
+      if (sf.contract !== 'all' && (p.contract || 9999) > S.year + Number(sf.contract)) continue;
+      if (sf.paMin !== '' && seenPA(p) < Number(sf.paMin)) continue;
+      if (attrsF.some(([a, v]) => (p.attrs[a] == null ? true : seen(p, a) < Number(v)))) continue;
+      if (q && !(p.name.toLowerCase().includes(q) || (p.nameEn || '').toLowerCase().includes(q))) continue;
+      res.push(p);
+    }
+    const key = { ca: seenCA, pa: seenPA, value: (p) => p.value, young: (p) => -(W.age(p) ?? 24), cheap: (p) => -p.value }[sf.sort] || ((p) => seen(p, sf.sort));
+    res.sort((a, b) => key(b) - key(a));
+    const total = res.length;
+    res = res.slice(0, sf.limit);
+    const set = (k) => (e) => { sf[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; render(); };
+    const field = (id, label, input) => el('div.field', [el('label', { for: id }, label), input]);
+    const selF = (id, label, k, opts) => field(id, label, el('select', { id, onchange: set(k) }, opts.map(([v, t]) => el('option', { value: v, selected: String(sf[k]) === String(v) || null }, t))));
+    const numF = (id, label, k, min, max, step = 1) => field(id, label, el('input', { id, type: 'number', min, max, step, value: sf[k], onchange: set(k) }));
+    const nats = [...new Set([...W.players.values()].filter((p) => p.club && !p.retired).map((p) => p.nat))].filter(Boolean).sort((a, b) => FM.countries.name(a).localeCompare(FM.countries.name(b), 'uk'));
+    const attrOpts = [['', '—'], ...allAttrs.map((a) => [a, FM.ATTRS[a]])];
+    return [
+      el('header', [el('h1', 'Пошук гравців'), el('span.muted', `Знайдено ${total}${total > sf.limit ? `, показано ${sf.limit}` : ''} · ${Date.now() - t0} мс`)]),
+      el('div.panel', [el('div.filters', [
+        field('s-q', 'Ім’я', el('input', { id: 's-q', type: 'search', value: sf.q, placeholder: 'частина імені', onchange: set('q') })),
+        selF('s-league', 'Ліга', 'league', [['all', 'Усі'], ...W.db.leagues.map((l) => [l.id, l.name])]),
+        selF('s-nat', 'Країна', 'nat', [['all', 'Усі'], ...nats.map((n) => [n, FM.countries.name(n)])]),
+        selF('s-role', 'Позиція', 'role', [['all', 'Усі'], ...FM.ROLE_ORDER.map((r) => [r, FM.ROLE_NAME[r]])]),
+        numF('s-amin', 'Вік від', 'ageMin', 15, 45), numF('s-amax', 'Вік до', 'ageMax', 15, 45),
+        numF('s-val', 'Ціна до, млн €', 'valMax', 0, 300, 0.5), numF('s-wage', 'Зарплата до, тис. €/тиж.', 'wageMax', 0, 2000),
+        selF('s-con', 'Контракт закінчується', 'contract', [['all', 'Будь-коли'], ['0', 'Цього сезону'], ['1', 'До наступного'], ['2', 'За 2 сезони']]),
+        numF('s-pa', 'Потенціал від (1–200)', 'paMin', 0, 200),
+        ...[1, 2, 3].map((i) => el('div.field.attr-f', [el('label', { for: 's-a' + i }, `Атрибут ${i}`), el('div.row', [
+          el('select', { id: 's-a' + i, onchange: set('a' + i) }, attrOpts.map(([v, t]) => el('option', { value: v, selected: sf['a' + i] === v || null }, t))),
+          el('input', { type: 'number', min: 1, max: 20, value: sf['v' + i], 'aria-label': `Атрибут ${i}, не менше`, onchange: set('v' + i) })])])),
+        selF('s-sort', 'Сортувати', 'sort', [['ca', 'За рівнем'], ['pa', 'За потенціалом'], ['value', 'Дорожчі'], ['cheap', 'Дешевші'], ['young', 'Молодші'], ...allAttrs.map((a) => [a, 'За: ' + FM.ATTRS[a]])]),
+        el('label.check', [el('input', { type: 'checkbox', checked: sf.free || null, onchange: set('free') }), ' Лише вільні агенти й таланти']),
+        el('label.check', [el('input', { type: 'checkbox', checked: sf.listed || null, onchange: set('listed') }), ' Лише виставлені на продаж']),
+        el('button.btn', { type: 'button', onclick: () => { sf = SF0(); render(); } }, 'Скинути'),
+      ])]),
+      el('div.table-wrap', el('table', [
+        el('thead', el('tr', ['Гравець', 'Поз.', 'Вік', 'Клуб', 'Рівень', 'Потенціал', 'Ціна', 'Контракт', ...attrsF.map(([a]) => FM.ATTRS[a])].map((h, i) => el(i >= 2 ? 'th.num' : 'th', h)))),
+        el('tbody', res.map((p) => el('tr.row-link', { onclick: () => go('player-' + p.id) }, [
+          el('td', [el('a', { href: '#player-' + p.id }, nameOf(p)), known(p) ? null : el('small.muted', ' ≈')]), el('td', FM.positions(p)), el('td.num', W.age(p) ?? '—'),
+          el('td', p.club ? clubName(W.club(p.club)) : p.talent ? 'талант зі світу' : 'вільний'), el('td.num', starsEl(seenCA(p), 'Рівень')), el('td.num', starsEl(seenPA(p), 'Потенціал')),
+          el('td.num', FM.market.fmtM(p.value)), el('td.num', p.contract || '—'), ...attrsF.map(([a]) => el('td.num', p.attrs[a] == null ? '—' : String(seen(p, a)))),
+        ]))),
+      ])),
+      total > sf.limit ? el('div.actions', [el('button.btn', { type: 'button', onclick: () => { sf.limit += 50; render(); } }, 'Показати ще 50')]) : null,
+      el('p.note', '≈ — гравця не розвідано: значення приблизні. Ваші гравці в пошук не потрапляють.'),
+    ];
+  }
+
   // ---------------- Медіа й уболівальники (розширення 8) ----------------
   function screenMedia() {
     const me = W.club(state.clubId), m = state.media || { press: [], posts: [], followers: 0 };
@@ -788,7 +964,7 @@
       list.length ? el('ul.plist', list.map((p) => el('li', [
         el('span', [el('a', { href: '#player-' + p.id }, nameOf(p)), el('small.muted', ` ${FM.positions(p)}, ${W.age(p)} р., ${FM.countries.name(p.nat)} · ${FM.worldScout.REGIONS[p.talent.region].label} · ще ${Math.max(0, p.talent.until - now)} тиж.`)]),
         el('span.offer-btns', [starsEl(p.ca, 'Рівень'), starsEl(p.pa, 'Потенціал'), el('button.btn', { type: 'button', onclick: () => {
-          const r = FM.finance.embargoed(state) ? { ok: false, reason: 'Заборона трансферів (фінансовий фейр-плей).' } : FM.worldScout.sign(W, state, p.id); talentMsg = r.ok ? `${p.name} — ваш гравець! Зарплата ${r.wage} тис. €/тиж., контракт на 5 років.` : r.reason; saveGame(); render();
+          const r = buyBlocked() ? { ok: false, reason: buyBlocked() } : FM.worldScout.sign(W, state, p.id); talentMsg = r.ok ? `${p.name} — ваш гравець! Зарплата ${r.wage} тис. €/тиж., контракт на 5 років.` : r.reason; saveGame(); render();
         } }, `Підписати за ${FM.market.fmtM(p.talent.fee)}`)]),
       ]))) : el('p.muted', 'Звітів поки немає.'),
       talentMsg ? el('p.msg-ok', talentMsg) : null]);
@@ -1393,15 +1569,23 @@
       ...SPEEDS.map(([v, label]) => el('button', { type: 'button', 'aria-pressed': String(!paused && liveSpeed === v), disabled: finished || null,
         onclick: () => { liveSpeed = v; paused = false; drawSpeed(); } }, label)),
       el('button', { type: 'button', disabled: finished || null, onclick: () => { M.result(); flush(); finish(); } }, 'Одразу результат'),
+      el('button', { type: 'button', 'aria-pressed': String(FM.sound.on), title: 'Свисток, трибуни, гол (звук синтезується в браузері)', onclick: () => {
+        FM.sound.set(!FM.sound.on); if (FM.sound.on) { FM.sound.whistle(1); FM.sound.ambient(!finished); } drawSpeed();
+      } }, FM.sound.on ? '🔊 Звук' : '🔇 Звук'),
     );
 
     function flush() {
       while (shown < M.events.length) {
         const e = M.events[shown++];
         const team = e.team == null ? null : e.team === 0 ? hs.club : as.club;
-        feed.prepend(el('li.ev.ev-' + e.type + (myK != null && e.team === myK ? '.ours' : ''), [el('span.min', e.min + '′'), team ? badge(team) : el('span.dot'), el('span', e.text)]));
+        feed.prepend(el('li.ev.ev-' + e.type + (myK != null && e.team === myK ? '.ours' : '') + (e.type === 'goal' ? '.flash' : ''), [el('span.min', e.min + '′'), team ? badge(team) : el('span.dot'), el('span', e.text)]));
         scoreEl.textContent = e.score.join(':');
-        if (e.type === 'goal') hold = 1800;
+        // звук і анімація
+        if (e.type === 'goal') { hold = 1800; FM.sound.goal(myK == null || e.team === myK); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
+        else if (e.type === 'chance' || e.type === 'miss') FM.sound.chance();
+        else if (e.type === 'kickoff') { FM.sound.whistle(1); FM.sound.ambient(true); }
+        else if (e.type === 'half' && String(e.min).startsWith('45')) FM.sound.whistle(2);
+        else if (e.type === 'full') { FM.sound.whistle(3); FM.sound.ambient(false); }
         if (e.type === 'half' && String(e.min).startsWith('45')) hold = 1200;
       }
       const s = M.liveStats();
@@ -1505,6 +1689,7 @@
       if (finished) return;
       finished = true;
       clearTimeout(liveTimer);
+      FM.sound.ambient(false);
       activeLive = null;
       const m = M.result();
       flush();
@@ -1746,6 +1931,10 @@
     FM.finance.week(W, state, !!(myF && (myF.h === state.clubId ? myF.s[0] > myF.s[1] : myF.s[1] > myF.s[0])));
     if (myF) { const home = myF.h === state.clubId, d = home ? myF.s[0] - myF.s[1] : myF.s[1] - myF.s[0]; const t = FM.rivals.after(W, state, home ? myF.a : myF.h, Math.sign(d)); if (t) FM.market.news(state, t, 'match'); }
     for (const t of FM.career.weekly(W, state)) FM.market.news(state, t);
+    // історія для графіків: баланс і рівень ваших гравців
+    state.balHist = (state.balHist || []).concat([[S.year, S.week, Math.round(W.club(state.clubId).balance * 100) / 100]]).slice(-150);
+    state.caLog = state.caLog || {};
+    for (const p of W.squad(state.clubId)) { const l = (state.caLog[p.id] = state.caLog[p.id] || []); if (!l.length || l[l.length - 1][2] !== p.ca) l.push([S.year, S.week, p.ca]); if (l.length > 40) l.shift(); }
     for (const t of FM.worldScout.week(W, state)) FM.market.news(state, t, 'transfers');
     for (const t of FM.agents.week(W, state)) FM.market.news(state, t, 'players');
     for (const t of FM.media.week(W, state, { club: clubName, player: nameOf })) FM.market.news(state, t, 'club');
@@ -1839,6 +2028,9 @@
       state.lastReport.vision = ce.lines;
       for (const t of ce.ach) FM.market.news(state, t);
       state.lastReport.ach = ce.ach;
+      const ch = FM.challenges.endSeason(W, state, { league: lg.id, tier2: lg.tier === 2, pos: hist.pos, champion: champions[lg.id] === state.clubId,
+        cupWon: trophies.includes(domestic), relegated: moves.some((m) => m.club === state.clubId && !m.up) });
+      if (ch) { FM.market.news(state, ch, 'club'); state.lastReport.challenge = ch; }
     }
     // турнір збірних улітку
     if (FM.nations) {
@@ -1881,6 +2073,7 @@
         el('p.muted', `Україна: ${R.tour.ukr || 'не кваліфікувалася'}.`)]) : null,
       R.verdict ? el('div.panel', [el('h3', 'Оцінка правління'), el('p', R.verdict), R.prize ? el('p.muted', `Призові за місце й кубки: ${FM.market.fmtM(R.prize)}`) : null,
         (state.jobOffers || []).length ? el('p', ['Вами цікавляться інші клуби — див. ', el('a', { href: '#board' }, 'Правління'), '.']) : null]) : null,
+      R.challenge ? el('div.panel', [el('h3', 'Виклик'), el('p', R.challenge)]) : null,
       R.ffp ? el('div.panel', [el('h3', 'Фінансовий фейр-плей'), el('p', R.ffp)]) : null,
       R.vision && R.vision.length ? el('div.panel', [el('h3', 'Бачення правління'), el('ul.plain', R.vision.map((t) => el('li', t)))]) : null,
       R.ach && R.ach.length ? el('div.panel', [el('h3', 'Нові досягнення'), el('ul.plain', R.ach.map((t) => el('li', t.replace(/^Досягнення: /, ''))))]) : null,
@@ -2010,6 +2203,8 @@
           el('td.num', x.p), el('td.num', x.w), el('td.num', x.d), el('td.num', x.l),
           el('td', x.trophies.length ? x.trophies.map((t) => (t === 'league' ? 'Чемпіонат' : FM.cups.NAMES[t] || t)).join(', ') : '—')]))),
       ])),
+      state.challenge ? el('div.panel', [el('h3', 'Виклик: ' + FM.challenges.DEFS[state.challenge.id].label), el('p', FM.challenges.DEFS[state.challenge.id].desc),
+        el('p.' + (state.challenge.status === 'done' ? 'msg-ok' : state.challenge.status === 'failed' ? 'msg-bad' : 'muted'), state.challenge.status === 'done' ? `Виконано в сезоні ${state.challenge.done}/${String(state.challenge.done + 1).slice(2)}!` : state.challenge.status === 'failed' ? 'Провалено.' : `Триває: до кінця сезону ${state.challenge.until}/${String(state.challenge.until + 1).slice(2)}.`)]) : null,
       el('div.panel', [el('h3', `Досягнення: ${Object.keys(ach).length} з ${C.ACH.length}`), el('ul.ach', C.ACH.map(([id, label, hint]) => el('li' + (ach[id] ? '.got' : ''), [
         el('b', label), el('small', ach[id] ? `${hint} · ${ach[id]}` : hint)])))]),
     ];
@@ -2485,6 +2680,39 @@
     render();
   }
 
+  /** Чому зараз не можна купувати (ФФП або виклик «Лише свої»), або null. */
+  function buyBlocked() {
+    if (FM.finance.embargoed(state)) return 'Заборона трансферів (фінансовий фейр-плей): у це вікно купувати гравців не можна.';
+    if (FM.challenges.noBuy(state)) return 'Виклик «Лише свої»: купувати й брати в оренду гравців не можна.';
+    return null;
+  }
+
+  // ---------------- Синхронізація через GitHub Gist (розширення 16) ----------------
+  let syncMsg = null, syncBusy = false;
+  function syncPanel() {
+    const has = !!FM.sync.token();
+    const tokenIn = el('input', { id: 'gist-token', type: 'password', autocomplete: 'off', placeholder: has ? 'Токен збережено в цьому браузері' : 'ghp_… або github_pat_…' });
+    const run = async (fn) => { syncBusy = true; syncMsg = ['ok', 'Зачекайте…']; render(); try { syncMsg = ['ok', await fn()]; } catch (e) { syncMsg = ['bad', e.message || String(e)]; } syncBusy = false; render(); };
+    return el('div.panel', [el('h3', 'Синхронізація між пристроями'),
+      el('p.muted', 'Кар’єра зберігається в приватному GitHub Gist вашого акаунта: збережіть на одному пристрої — завантажте на іншому. Потрібен токен GitHub лише з правом «gist» (Settings → Developer settings → Personal access tokens). Токен зберігається тільки в цьому браузері. Працює на сайті гри (GitHub Pages); у вбудованому перегляді мережа може бути закрита.'),
+      el('div.field', [el('label', { for: 'gist-token' }, 'Токен GitHub'), el('div.row', [tokenIn,
+        el('button.btn', { type: 'button', onclick: () => { FM.sync.setToken(tokenIn.value); syncMsg = ['ok', tokenIn.value.trim() ? 'Токен збережено.' : 'Токен видалено.']; render(); } }, 'Зберегти токен'),
+        has ? el('button.btn', { type: 'button', onclick: () => { FM.sync.setToken(null); syncMsg = ['ok', 'Токен видалено з цього браузера.']; render(); } }, 'Забути') : null])]),
+      el('div.actions', [
+        el('button.btn.primary', { type: 'button', disabled: !has || syncBusy || null, onclick: () => run(async () => {
+          const code = await exportSave();
+          await FM.sync.upload(code, `${state.manager}, ${clubName(W.club(state.clubId))}, сезон ${seasonLabel()}, тиждень ${state.season.week + 1}`);
+          return `Збережено в хмару: ${clubName(W.club(state.clubId))}, тиждень ${state.season.week + 1}.`;
+        }) }, 'Зберегти в хмару'),
+        el('button.btn', { type: 'button', disabled: !has || syncBusy || null, onclick: () => run(async () => {
+          const { code, updated } = await FM.sync.download();
+          await importSave(code);
+          return `Завантажено з хмари (збережено ${new Date(updated).toLocaleString('uk-UA')}).`;
+        }) }, 'Завантажити з хмари'),
+      ]),
+      syncMsg ? el('p.note.msg-' + syncMsg[0], syncMsg[1]) : null]);
+  }
+
   function savePanel() {
     const codeBox = el('textarea', { id: 'save-code', rows: 3, placeholder: 'Вставте сюди код збереження', spellcheck: 'false' });
     const fileInput = el('input', { type: 'file', accept: '.json,.txt,application/json,text/plain', hidden: true, onchange: async (e) => {
@@ -2562,6 +2790,7 @@
         el('button.btn', { type: 'button', onclick: () => { state.tutorial = state.tutorial ? null : { step: 0 }; saveGame(); state.tutorial ? go('overview') : render(); } }, state.tutorial ? 'Вимкнути' : 'Пройти навчання знову')]),
       slotsPanel(),
       savePanel(),
+      syncPanel(),
       el('div.panel', [el('h3', 'Про базу'), el('dl.facts', [
         el('dt', 'Знімок'), el('dd', fmt.date(W.db.snapshot)),
         el('dt', 'Клубів'), el('dd', W.db.clubs.length),

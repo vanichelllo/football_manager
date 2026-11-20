@@ -206,3 +206,18 @@ test('12. ветерани стають тренерами: резерв, кан
   // з 12 ветеранами в резерві й багатьма звільненнями хоч один клуб узяв ветерана
   assert.ok(state.exPlayers.some((x) => x.taken), 'ветерана найняли');
 });
+
+test('17. виклики: кандидати, заборона купівлі, виконання й провал', () => {
+  require('../js/challenges.js');
+  const { W, state } = fresh();
+  const rescue = FM.challenges.DEFS.rescue.clubs(W);
+  assert.strictEqual(rescue.length, 5);
+  assert.ok(FM.challenges.DEFS.rise.clubs(W).every((c) => W.league(c.league).tier === 2));
+  FM.challenges.start(state, 'academy');
+  assert.ok(FM.challenges.noBuy(state));
+  assert.match(FM.challenges.endSeason(W, state, { cupWon: false }), /триває/);
+  assert.match(FM.challenges.endSeason(W, state, { cupWon: true }), /ВИКОНАНО/);
+  assert.ok(!FM.challenges.noBuy(state), 'після виконання обмеження знято');
+  FM.challenges.start(state, 'rescue');
+  assert.match(FM.challenges.endSeason(W, state, { relegated: true }), /провалено/);
+});
