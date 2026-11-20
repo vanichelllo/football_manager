@@ -254,6 +254,6 @@
     state.season = FM.season.create(W, `${state.season.seed}-${year}`);
   }
 
-  FM.dev = { awards, PLANS, weekly, endSeason, newSeason, makeYouth, injuryWeeks, FOCUS, INTENSITY, ROLE_W };
+  FM.dev = { PROFILE, NAME_SET, awards, PLANS, weekly, endSeason, newSeason, makeYouth, injuryWeeks, FOCUS, INTENSITY, ROLE_W };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

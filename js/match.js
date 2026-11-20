@@ -312,7 +312,7 @@
       const lu = t.lineup || pickLineup(t.players, formation);
       const onPitch = lu.xi.map((x) => ({ p: x.player, slot: x.slot, cond: x.player.fitness ?? 100, yellow: 0, out: false, mf: matchFactor(x.player) }));
       return {
-        k, club: t.club, formation, onPitch, autoSubs: !t.manual,
+        k, club: t.club, formation, onPitch, autoSubs: !t.manual, boost: t.boost || 1, // boost — збори команди перед матчем
         tactic: { mentality: t.mentality || 'balanced', pressing: t.pressing || 'normal', passing: t.passing || 'mixed' },
         mentality: MENTALITY[t.mentality || 'balanced'] || 0, pressing: PRESSING[t.pressing || 'normal'] || 0, passing: PASSING[t.passing || 'mixed'] || 0,
         bench: lu.bench.slice(), subsLeft: 5, subWindows: 3, units: null,

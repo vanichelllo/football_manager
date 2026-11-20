@@ -81,7 +81,7 @@
       const t = user.tactics;
       const lineup = FM.lineupFromIds(available, t.formation, t.ids, t);
       return { club: W.club(clubId), players: available, formation: t.formation, lineup, mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers || {},
-        familiarity: user.familiarity ? Math.min(1, (user.familiarity[t.formation] || 0) / 100) : 1 };
+        familiarity: user.familiarity ? Math.min(1, (user.familiarity[t.formation] || 0) / 100) : 1, boost: user.boost || 1 };
     }
     // ШІ дає відпочити втомленим (свіжість < 72), якщо є кому їх замінити
     const fresh = available.filter((p) => (p.fitness ?? 100) >= 72);
@@ -100,7 +100,7 @@
   function prepare(S, W, f, name, user) {
     const hs = sideFor(S, W, f.h, user, f.a, true), as = sideFor(S, W, f.a, user, f.h, false);
     const side = (x) => ({ club: { ...x.club, name: name ? name.club(x.club) : x.club.name }, players: x.players, formation: x.formation,
-      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing, takers: x.takers, familiarity: x.familiarity });
+      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing, takers: x.takers, familiarity: x.familiarity, boost: x.boost });
     // погода — за датою й країною господарів (детерміновано для матчу)
     const weather = FM.weatherFor ? FM.weatherFor(dateOf(f.w != null ? f.w : S.week, S), W.club(f.h).league, FM.rng(`wx-${S.seed}-${f.id}`)) : null;
     return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined, gen: name ? name.gen : undefined, weather } };

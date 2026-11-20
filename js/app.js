@@ -103,7 +103,7 @@
     let view = location.hash.slice(1) || 'overview';
     if (state.sacked && !['sacked', 'options'].includes(view.split('-')[0])) view = 'sacked';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, calendar: screenCalendar, compare: screenCompare, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, calendar: screenCalendar, compare: screenCompare, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
     const body = (screens[name] || screenOverview)(arg);
     app.replaceChildren(shell(name, body));
     window.scrollTo(0, 0);
@@ -118,7 +118,7 @@
       el('aside.side', [
         el('div.club-head', [badge(my), el('b', clubName(my))]),
         el('nav.nav', { 'aria-label': 'Меню' }, [
-          item('overview', 'Огляд'), item('inbox', (() => { const n = FM.market.unread(state); return n ? ['Повідомлення ', el('span.count', { 'aria-label': `${n} непрочитаних` }, String(n))] : 'Повідомлення'; })()), item('squad', 'Склад'), item('leagues', 'Ліги й клуби'),
+          item('overview', 'Огляд'), item('inbox', (() => { const n = FM.market.unread(state); return n ? ['Повідомлення ', el('span.count', { 'aria-label': `${n} непрочитаних` }, String(n))] : 'Повідомлення'; })()), item('squad', 'Склад'), item('dressing', 'Роздягальня'), item('leagues', 'Ліги й клуби'),
           item('fixtures', 'Сезон'), item('calendar', 'Календар'), item('table', 'Таблиця'), item('cups', 'Кубки'), item('match', 'Товариський'),
           item('tactics', 'Тактика'), item('training', 'Тренування'), item('transfers', 'Трансфери'), item('office', 'Клуб'), item('board', 'Правління'), item('coach', 'Тренер'), item('nations', 'Збірна'), item('history', 'Історія'), item('help', 'Довідка'),
           item('options', 'Налаштування'),
@@ -675,14 +675,67 @@
         el('span', [el('b', sc.name), el('small.muted', ` рівень ${sc.level}${i ? `, ${FM.market.scoutWage(sc)} тис. €/тиж.` : ', головний'}`)]),
         el('span.offer-btns', [
           el('select.tiny', { 'aria-label': 'Регіон скаута', onchange: (e) => { sc.region = e.target.value || null; sc.prog = 0; saveGame(); render(); } }, [el('option', { value: '' }, 'Без завдання'),
-            ...W.db.leagues.filter((l) => !(state.knownLeagues || {})[l.id] && l.id !== W.club(state.clubId).league).map((l) => el('option', { value: l.id, selected: sc.region === l.id || null }, l.name))]),
-          sc.region ? el('small.muted', `${Math.min(99, Math.round(sc.prog / 1.5))}%`) : null,
+            el('optgroup', { label: 'Ліги гри' }, W.db.leagues.filter((l) => !(state.knownLeagues || {})[l.id] && l.id !== W.club(state.clubId).league).map((l) => el('option', { value: l.id, selected: sc.region === l.id || null }, l.name))),
+            el('optgroup', { label: 'Світ: пошук талантів' }, Object.entries(FM.worldScout.REGIONS).map(([k, r]) => el('option', { value: k, selected: sc.region === k || null }, r.label)))]),
+          sc.region && W.league(sc.region) ? el('small.muted', `${Math.min(99, Math.round(sc.prog / 1.5))}%`) : sc.region ? el('small.muted', 'шукає таланти') : null,
           i ? el('button.btn', { type: 'button', onclick: () => { state.scoutStaff = list.filter((x) => x !== sc); saveGame(); render(); } }, 'Звільнити') : null,
         ]),
       ]))),
       list.length < 5 ? el('div.actions', [el('button.btn', { type: 'button', onclick: () => { const sc = FM.market.hireScout(state, R); FM.market.news(state, `Найнято скаута: ${sc.name}, рівень ${sc.level}.`); saveGame(); render(); } }, 'Найняти скаута')]) : null,
       Object.keys(state.knownLeagues || {}).length ? el('p.note', 'Розвідано ліги: ' + Object.keys(state.knownLeagues).map((l) => W.league(l).name).join(', ') + '.') : null,
     ]);
+  }
+
+  // ---------------- Роздягальня (розширення 4) ----------------
+  let meetMsg = null;
+  /** Чи важливий найближчий матч: кубок, дербі, суперник не слабший за нас. */
+  function nextIsBig() {
+    const S = state.season;
+    if (FM.cups.pendingTie(state, state.clubId)) return true;
+    const f = FM.season.fixturesOfWeek(S, S.week).find((x) => x.h === state.clubId || x.a === state.clubId);
+    if (!f) return false;
+    const opp = f.h === state.clubId ? f.a : f.h;
+    return (FM.rivals && FM.rivals.isDerby(W, state.clubId, opp)) || W.clubLevel(opp) >= W.clubLevel(state.clubId) - 4;
+  }
+  function screenDressing() {
+    const D = FM.dressing, gs = D.groups(W, state.clubId), lead = D.leaders(W, state.clubId);
+    const tm = Math.round(FM.morale.teamMorale(W, state.clubId));
+    const res = D.recent(state.season, state.clubId).map((r) => (r > 0 ? 'В' : r < 0 ? 'П' : 'Н')).join(' ');
+    const big = nextIsBig();
+    return [
+      el('header', [el('h1', 'Роздягальня'), el('span.muted', `Настрій команди: ${FM.morale.label({ morale: tm }).toLowerCase()} (${tm}) · останні матчі: ${res || '—'}`)]),
+      el('div.grid', [
+        el('div.panel', [el('h3', 'Лідери'), el('ul.plist', lead.map((p) => el('li', [el('span', [el('a', { href: '#player-' + p.id }, nameOf(p)), el('small.muted', ` ${FM.positions(p)}, ${ageTxt(p)}`)]), el('b', `вплив ${D.influence(W, p)}`)]))),
+          el('p.note', 'Вплив залежить від лідерських якостей, віку, матчів за збірну й рівня. Продаж лідера засмучує команду.')]),
+        el('div.panel', [el('h3', 'Збори команди'),
+          el('p.muted', `Найближчий матч ${big ? 'важливий — налаштування спрацює краще' : 'рядовий'}. Збори — не частіше ніж раз на 3 тижні; ефект — настрій і невеликий бонус сили на найближчий матч.`),
+          el('div.actions', Object.entries(D.MEET).map(([k, m]) => el('button.btn', { type: 'button', title: m.hint, disabled: D.canMeet(state) ? null : true, onclick: () => {
+            const r = D.meet(W, state, k, big); meetMsg = r; saveGame(); render();
+          } }, m.label))),
+          meetMsg ? el(meetMsg.good ? 'p.msg-ok' : 'p.msg-bad', meetMsg.text) : !D.canMeet(state) ? el('small.muted', 'Наступні збори — за кілька тижнів.') : null]),
+      ]),
+      el('div.panel', [el('h3', 'Групи впливу'), gs.length ? el('div.grid', gs.map((g) => el('div.group', [
+        el('b', `${g.label} · ${g.players.length}`), el('div.muted', `Лідер: ${nameOf(g.leader)} · настрій ${g.mood}`),
+        el('div', { class: 'confbar', role: 'meter', 'aria-valuenow': g.mood, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-label': 'Настрій групи' }, el('i', { style: { width: g.mood + '%' }, class: g.mood < 40 ? 'low' : g.mood < 60 ? 'mid' : 'high' })),
+        el('small.muted', g.players.slice(1, 6).map((p) => nameOf(p)).join(', ') + (g.players.length > 6 ? '…' : '')),
+      ]))) : el('p.muted', 'Помітних груп немає — команда згуртована.')]),
+    ];
+  }
+
+  // ---------------- Таланти зі світу (розширення 3) ----------------
+  let talentMsg = null;
+  function talentsPanel() {
+    const list = (state.talents || []).map((id) => W.player(id)).filter((p) => p && p.talent);
+    const now = state.season.year * 100 + state.season.week;
+    return el('div.panel', [el('h3', 'Таланти зі світу'),
+      el('p.muted', 'Відправте скаута в регіон «Світ» (Південна Америка, Африка, Азія…) — він привозитиме звіти про молодих гравців, яких немає в лігах гри. Підписання — за компенсацію за виховання; через ~8 тижнів таланта забере інший клуб.'),
+      list.length ? el('ul.plist', list.map((p) => el('li', [
+        el('span', [el('a', { href: '#player-' + p.id }, nameOf(p)), el('small.muted', ` ${FM.positions(p)}, ${W.age(p)} р., ${FM.countries.name(p.nat)} · ${FM.worldScout.REGIONS[p.talent.region].label} · ще ${Math.max(0, p.talent.until - now)} тиж.`)]),
+        el('span.offer-btns', [starsEl(p.ca, 'Рівень'), starsEl(p.pa, 'Потенціал'), el('button.btn', { type: 'button', onclick: () => {
+          const r = FM.worldScout.sign(W, state, p.id); talentMsg = r.ok ? `${p.name} — ваш гравець! Зарплата ${r.wage} тис. €/тиж., контракт на 5 років.` : r.reason; saveGame(); render();
+        } }, `Підписати за ${FM.market.fmtM(p.talent.fee)}`)]),
+      ]))) : el('p.muted', 'Звітів поки немає.'),
+      talentMsg ? el('p.msg-ok', talentMsg) : null]);
   }
 
   // ---------------- Клуб: персонал, інфраструктура, вболівальники ----------------
@@ -788,6 +841,7 @@
       ]),
       shortlistPanel(),
       scoutsPanel(),
+      talentsPanel(),
       (() => { const out = [...W.players.values()].filter((x) => x.loan && x.loan.from === state.clubId);
         return out.length ? el('div.panel', [el('h3', 'Ваші гравці в оренді'), el('ul.plist', out.map((x) => el('li', [el('a', { href: '#player-' + x.id }, nameOf(x)),
           el('span.muted', `${clubName(W.club(x.club))} · ${(S.ps[x.id] || [0])[0]} ігор`)])))]) : null; })(),
@@ -894,7 +948,7 @@
     t.roles = t.roles || {}; t.variants = t.variants || {}; t.instr = t.instr || {}; t.takers = t.takers || {};
     return t;
   }
-  const USER = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity() });
+  const USER = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity(), boost: FM.dressing.matchBoost(state) });
 
   function mySide() {
     const t = myTactics();
@@ -1634,6 +1688,7 @@
     const myF = FM.season.fixturesOfWeek(S, S.week - 1).find((f) => f.s && (f.h === state.clubId || f.a === state.clubId));
     if (myF) { const home = myF.h === state.clubId; for (const t of FM.career.match(W, state, home ? myF.s : [myF.s[1], myF.s[0]], home ? myF.a : myF.h, 'league')) FM.market.news(state, t); }
     for (const t of FM.career.weekly(W, state)) FM.market.news(state, t);
+    for (const t of FM.worldScout.week(W, state)) FM.market.news(state, t, 'transfers');
     familiarityWeek(FM.season.fixturesOfWeek(S, S.week - 1).some((f) => f.h === state.clubId || f.a === state.clubId));
     for (const e of FM.morale.weekly(W, state)) FM.market.news(state, e.text);
     const r = FM.board.weekly(W, state);

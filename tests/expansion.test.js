@@ -34,3 +34,41 @@ test('2. ринок: ціна росте від форми й падає від 
   for (let w = 0; w < 60 && !rumour; w++) { state.season.week = w % 38; FM.market.rumoursWeek(W, state, FM.rng('r' + w)); rumour = !!hot.interest; }
   assert.ok(rumour);
 });
+
+test('3. скаути по світу: знаходять таланти, їх можна підписати, непідписаних забирають', () => {
+  require('../js/world-scout.js');
+  const { W, state } = fresh();
+  W.club(state.clubId).balance = 50;
+  const sc = FM.market.scouts(state)[0];
+  sc.region = 'w-sa'; sc.level = 18;
+  for (let w = 0; w < 12; w++) { state.season.week = w; FM.worldScout.week(W, state); }
+  const found = (state.talents || []).map((id) => W.player(id));
+  assert.ok(found.length >= 1, 'хоч один талант');
+  const t = found[0];
+  assert.ok(['BRA', 'ARG', 'URU', 'COL', 'ECU', 'PAR', 'CHI'].includes(t.nat));
+  assert.ok(t.pa > t.ca + 20 && W.age(t) >= 16 && W.age(t) <= 21);
+  const r = FM.worldScout.sign(W, state, t.id);
+  assert.ok(r.ok, r.reason);
+  assert.strictEqual(t.club, state.clubId);
+  // решта з часом зникає з переліку
+  for (let w = 12; w < 37; w++) { state.season.week = w; sc.region = null; FM.worldScout.week(W, state); }
+  assert.strictEqual((state.talents || []).length, 0);
+});
+
+test('4. роздягальня: групи й лідери, збори впливають на настрій і силу, продаж лідера засмучує', () => {
+  require('../js/dressing.js');
+  const { W, state } = fresh('Shakhtar Donetsk');
+  const gs = FM.dressing.groups(W, state.clubId);
+  assert.ok(gs.length >= 2 && gs.every((g) => g.leader && g.players.length >= 3));
+  assert.ok(FM.dressing.canMeet(state));
+  const r = FM.dressing.meet(W, state, 'motivate', true);
+  assert.ok(typeof r.text === 'string');
+  assert.ok(!FM.dressing.canMeet(state), 'повторно — не одразу');
+  assert.strictEqual(FM.dressing.matchBoost(state), state.meeting.boost);
+  const leader = FM.dressing.leaders(W, state.clubId)[0];
+  const mate = W.squad(state.clubId).find((p) => p !== leader);
+  const m0 = FM.morale.get(mate);
+  const buyer = [...W.clubs.values()].find((c) => c.id !== state.clubId);
+  FM.market.complete(W, state, leader, buyer.id, 10, 50, 3);
+  if (FM.dressing.influence(W, leader) >= 55) assert.ok(FM.morale.get(mate) < m0);
+});

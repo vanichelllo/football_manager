@@ -183,6 +183,7 @@
   /** Завершити трансфер: гроші, контракт, перехід, запис в історію. */
   function complete(W, state, p, buyerId, fee, wage, years, extra = {}) {
     const from = p.club;
+    if (from && from === state.clubId && buyerId !== state.clubId && FM.dressing) { const t = FM.dressing.onSale(W, state, p); if (t) news(state, t, 'players'); }
     const buyer = W.club(buyerId);
     buyer.balance = Math.round((buyer.balance - fee - (extra.agent || 0)) * 100) / 100;
     if (from) {
@@ -457,7 +458,7 @@
   function scoutsWeek(W, state) {
     state.knownLeagues = state.knownLeagues || {};
     for (const s of scouts(state)) {
-      if (!s.region || state.knownLeagues[s.region]) continue;
+      if (!s.region || state.knownLeagues[s.region] || !W.league(s.region)) continue; // світові регіони — окремо (world-scout.js)
       s.prog += s.level;
       if (s.prog >= 150) {
         state.knownLeagues[s.region] = true;
