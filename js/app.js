@@ -1121,12 +1121,54 @@
   }
 
   // ---------------- Медіа й уболівальники (розширення 8) ----------------
+  // ---------------- Газета туру ----------------
+  const PAPERS = ['Футбольний вісник', 'Спорт-Експрес', 'Голова гра', 'Трибуна', 'Вечірній матч'];
+  /** Випуск газети після туру вашої ліги: заголовок, результати, гравець туру, цитата тренера, фото дня. */
+  function makePaper() {
+    const S = state.season, w = S.week - 1, L = W.club(state.clubId).league;
+    const fx = S.fixtures.filter((f) => f.w === w && f.l === L && f.s);
+    if (!fx.length) return;
+    const R = FM.rng(`paper-${S.seed}-${S.year}-${w}`);
+    const mine = fx.find((f) => f.h === state.clubId || f.a === state.clubId);
+    const big = [...fx].sort((a, b) => Math.abs(b.s[0] - b.s[1]) - Math.abs(a.s[0] - a.s[1]) || (b.s[0] + b.s[1]) - (a.s[0] + a.s[1]))[0];
+    const t = FM.season.table(S, W, L), leader = W.club(t[0].id);
+    const nm = (id) => clubName(W.club(id));
+    let head;
+    if (mine) {
+      const home = mine.h === state.clubId, gf = home ? mine.s[0] : mine.s[1], ga = home ? mine.s[1] : mine.s[0], opp = nm(home ? mine.a : mine.h);
+      head = gf - ga >= 3 ? `РОЗГРОМ! ${nm(state.clubId)} не залишив шансів ${opp}` : gf > ga ? `${nm(state.clubId)} дотискає ${opp}` : gf === ga ? `Нічия з ${opp}: очки поділено` : ga - gf >= 3 ? `Катастрофа: ${opp} ганьбить ${nm(state.clubId)}` : `${opp} сильніший цього разу`;
+    } else head = `${nm(big.h)} — ${nm(big.a)} ${big.s.join(':')}: головний матч туру`;
+    const tw = (state.aw || {}).totw, starIdx = tw && tw.w === w ? tw.r.indexOf(Math.max(...tw.r)) : -1;
+    const star = starIdx >= 0 ? { pid: tw.ids[starIdx], r: tw.r[starIdx] } : null;
+    const QUOTES = mine ? (() => { const home = mine.h === state.clubId, d = (home ? mine.s[0] - mine.s[1] : mine.s[1] - mine.s[0]);
+      return d > 0 ? ['«Хлопці виконали все, що ми готували тиждень».', '«Це перемога характеру».', '«Радіємо, але вже думаємо про наступний матч».']
+        : d === 0 ? ['«Очко — теж результат. Але ми хотіли більшого».', '«Нам бракувало точності в завершенні».']
+          : ['«Беру відповідальність на себе».', '«Такі матчі треба забувати й працювати».', '«Ми розберемо помилки на відео».']; })() : ['«Стежимо за суперниками, але думаємо про себе».'];
+    const PHOTOS = ['📸 Фанати з величезним банером на трибуні', '📸 Тренер аплодує вболівальникам після свистка', '📸 Воротар у польоті — найкращий сейв туру', '📸 Гравці святкують гол купою-малою', '📸 Маленький фанат з автографом кумира', '📸 Порожні трибуни під дощем'];
+    state.paper = { s: S.year, w, name: R.pick(PAPERS), head, leader: leader.id, star, quote: R.pick(QUOTES), photo: R.pick(PHOTOS),
+      results: fx.map((f) => [f.h, f.a, f.s]), date: FM.season.dateOf(w, S) };
+  }
+  function paperPanel() {
+    const P = state.paper;
+    if (!P) return null;
+    return el('div.panel.paper', [el('div.paper-mast', [el('b', P.name), el('small.muted', fmt.date(P.date))]),
+      el('h2.paper-head', P.head),
+      el('p.paper-photo', P.photo),
+      el('div.grid', [
+        el('div', [el('b', 'Результати туру'), el('ul.plain', P.results.map(([h, a, sc]) => el('li' + (h === state.clubId || a === state.clubId ? '.mine' : ''), `${clubName(W.club(h))} ${sc.join(':')} ${clubName(W.club(a))}`)))]),
+        el('div', [P.star && W.player(P.star.pid) ? el('p', [el('b', 'Гравець туру: '), el('a', { href: '#player-' + P.star.pid }, nameOf(W.player(P.star.pid))), ` (${clubName(W.club(W.player(P.star.pid).club))}), оцінка ${String(P.star.r).replace('.', ',')}`]) : null,
+          el('p', [el('b', 'Лідер: '), clubName(W.club(P.leader))]),
+          el('p.paper-quote', [el('b', `${state.manager}: `), P.quote])]),
+      ])]);
+  }
+
   function screenMedia() {
     const me = W.club(state.clubId), m = state.media || { press: [], posts: [], followers: 0 };
     const pr = FM.media.pressure(W, state), fans = FM.club.fans(W, me.id).mood;
     const fmtN = (n) => (n >= 1e6 ? (Math.round(n / 1e5) / 10 + ' млн').replace('.', ',') : n >= 1e3 ? Math.round(n / 1e3) + ' тис.' : String(n));
     return [
       el('header', [el('h1', 'Медіа'), el('span.muted', `Підписників у клубу: ${fmtN(m.followers || 0)} · настрій фанатів ${Math.round(fans)}`)]),
+      paperPanel(),
       el('div.panel', [el('b', `Тиск медіа: ${pr} з 100`), el('div.confbar', { role: 'meter', 'aria-valuenow': pr, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-label': 'Тиск медіа' },
         el('i', { style: { width: pr + '%' }, class: pr >= 70 ? 'low' : pr >= 45 ? 'mid' : 'high' })),
         el('small.muted', 'Тиск росте від поганих результатів, невдоволених уболівальників і недовіри правління. Понад 80 — фанати вимагають відставки, і правління нервує.')]),
@@ -2797,6 +2839,18 @@
     }, [['Далі', () => go(state.sacked ? 'sacked' : 'fixtures'), true], ['Таблиця', () => go('table')]], { fixture: f });
   }
 
+  /** Трофей у шафу: кубок (фінал — рахунок і суперник) або чемпіонство. */
+  function addTrophy(cup, league) {
+    const S = state.season;
+    let final = null;
+    if (cup) {
+      const r = cup.rounds && cup.rounds[cup.rounds.length - 1], t = r && r.ties && r.ties[0];
+      if (t) { const opp = t.a === state.clubId ? t.b : t.a, sc = t.legs.reduce((acc, l) => [acc[0] + l[0], acc[1] + l[1]], [0, 0]); final = { opp: clubName(W.club(opp)), score: t.a === state.clubId ? sc : [sc[1], sc[0]], pens: !!t.pens }; }
+    }
+    const kind = league ? 'league' : cup.super ? 'super' : ['ucl', 'uel', 'uecl'].includes(cup.id) ? 'euro' : 'cup';
+    state.trophies = (state.trophies || []).concat([{ kind, id: league || cup.id, name: league ? `Чемпіонат: ${W.league(league).name}` : cup.name, s: S.year, club: state.clubId, final }]);
+  }
+
   /** Глядачі домашнього матчу: новина, журнал, рекорд відвідуваності. */
   function attendanceNews(oppId, comp) {
     const S = state.season, t = FM.season.table(S, W, W.club(state.clubId).league), n0 = t.length;
@@ -2824,6 +2878,7 @@
     }
     for (const cup of Object.values(state.cups)) if (cup.winner && !cup.announced) {
       cup.announced = true;
+      if (cup.winner === state.clubId) addTrophy(cup);
       FM.market.news(state, cup.winner === state.clubId ? `ТРОФЕЙ! Ви виграли ${cup.name}!` : `${clubName(W.club(cup.winner))} — переможець турніру «${cup.name}».`);
     }
   }
@@ -2910,6 +2965,8 @@
       for (const t2 of FM.awards.match(W, state, home ? myF.s[0] : myF.s[1], home ? myF.s[1] : myF.s[0], home ? myF.a : myF.h, 'league')) FM.market.news(state, t2, 'club');
     }
     for (const t of FM.awards.week(W, state, nameOf)) FM.market.news(state, t, 'match');
+    const p0 = state.paper && state.paper.w; makePaper();
+    if (state.paper && state.paper.w !== p0 && state.paper.s === S.year) FM.market.news(state, `📰 ${state.paper.name}: «${state.paper.head}». Газета туру — в «Медіа».`, 'club');
     // глядачі на домашніх матчах тижня й атрибутика
     for (const f of myFs.filter((x) => x.h === state.clubId)) attendanceNews(f.a, 'league');
     // випадкова подія тижня: новина або лист з вибором
@@ -3039,9 +3096,22 @@
     hist.awards = awards;
     hist.trophies = trophies.concat(champions[my.league] === my.id ? ['league'] : []);
     // нагороди сезону вашої ліги, кар'єра гравців клубу, Зала слави (до підвищень і нового сезону)
+    if (champions[my.league] === my.id) addTrophy(null, my.league);
     for (const t of FM.awards.season(W, state, champions[my.league], hist.trophies.length).news) FM.market.news(state, t, 'club');
     // підвищення й пониження між дивізіонами
-    const moves = FM.season.promote(W, S);
+    // плей-оф за путівку вгору й стикові матчі за виживання
+    const po = FM.season.playoffs(W, S, (h, a, id) => {
+      const { opts } = FM.season.prepare(S, W, { id, h, a, w: FM.season.weeks(S) - 1 }, NAMES, USER());
+      if (id.endsWith('-f')) opts.neutral = true;
+      return FM.match.play(opts).score;
+    });
+    const myLg = W.club(state.clubId).league;
+    for (const [lid, r] of Object.entries(po)) {
+      const mine = r.winner === state.clubId || (r.clubs || []).includes(state.clubId) || r.log.join(' ').includes(clubName(W.club(state.clubId)));
+      if (mine || lid === myLg || W.league(lid).up === myLg) FM.market.news(state, `${r.name}. ${r.log.join(' ')}`, 'match');
+    }
+    state.lastReport.playoffs = Object.values(po).map((r) => `${r.name}: ${clubName(W.club(r.winner))}`);
+    const moves = FM.season.promote(W, S, po);
     for (const m of moves) {
       const c = W.club(m.club);
       c.income0 = Math.round(c.income0 * (m.up ? 1.4 : 0.72) * 100) / 100;
@@ -3105,6 +3175,10 @@
     FM.club.init(W, state);
     for (const c of W.clubs.values()) delete c.vacancy;
     state.cups = FM.cups.createAll(W, state.season, tables);
+    // Суперкубки: чемпіон проти володаря кубка (або віце-чемпіона), Суперкубок УЄФА
+    const runners = Object.fromEntries(Object.keys(champions).map((l) => [l, (tables && tables[l] && tables[l][1]) || null]));
+    Object.assign(state.cups, FM.cups.superCups(W, state.season, champions, cupWinners, runners));
+    for (const c of Object.values(state.cups)) if (c.super && c.teams.includes(state.clubId)) FM.market.news(state, `${c.name}: ви зіграєте з ${clubName(W.club(c.teams.find((x) => x !== state.clubId)))} перед стартом сезону!`, 'match');
     FM.cups.payParticipation(W, state);
     coachMsg = null;
     state.lastReport.ffp = ffp.text;
@@ -3764,7 +3838,7 @@
     const a = FM.awards.aw(state), me = state.clubId, S = state.season;
     const pl = (id) => (W.player(id) ? el('a', { href: '#player-' + id }, nameOf(W.player(id))) : '—');
     const clubOf = (id) => (W.player(id) && W.player(id).club ? clubName(W.club(W.player(id).club)) : '');
-    const tabs = el('div.tabs', [['awards', 'Нагороди'], ['records', 'Рекорди клубу'], ['hof', 'Зала слави'], ['best', 'Найкращі за весь час']].map(([k, l]) =>
+    const tabs = el('div.tabs', [['awards', 'Нагороди'], ['cabinet', 'Шафа трофеїв'], ['records', 'Рекорди клубу'], ['hof', 'Зала слави'], ['best', 'Найкращі за весь час']].map(([k, l]) =>
       el('button', { type: 'button', 'aria-pressed': String(awTab === k), onclick: () => { awTab = k; render(); } }, l)));
     let body;
     if (awTab === 'awards') {
@@ -3780,6 +3854,14 @@
         el('div.panel', [el('h3', 'Нагороди сезону'), seasons.length ? el('ul.plist', seasons.map(([y, r]) => el('li', [el('span', [el('b', seasonOf(Number(y)) + ' · '), W.league(r.league).name, ': чемпіон — ', clubName(W.club(r.champion)),
           r.mvp ? ['; найкращий — ', pl(r.mvp)] : '', r.boot ? ['; бомбардир — ', pl(r.boot[0]), ` (${r.boot[1]})`] : '', r.young ? ['; молодий — ', pl(r.young)] : ''])]))) : el('p.muted', 'Нагороди сезону вручають після останнього туру.')]),
       ];
+    } else if (awTab === 'cabinet') {
+      const T = (state.trophies || []).slice().reverse();
+      const ICON = { league: '🏆', cup: '🥇', euro: '⭐', super: '🛡️' };
+      const count = (k) => T.filter((x) => x.kind === k).length;
+      body = [el('div.panel', [el('h3', `Шафа трофеїв · ${state.manager}`),
+        el('div.cabinet-sum', [['league', 'Чемпіонства'], ['cup', 'Кубки'], ['euro', 'Єврокубки'], ['super', 'Суперкубки']].map(([k, l]) => el('div.cab-tile', [el('span.cab-icon', ICON[k]), el('b', String(count(k))), el('small.muted', l)]))),
+        T.length ? el('ul.plist.cabinet', T.map((x) => el('li', [el('span', [el('span.cab-icon', ICON[x.kind]), ' ', el('b', x.name), el('small.muted', ` · ${seasonOf(x.s)} · ${clubName(W.club(x.club))}`)]),
+          x.final ? el('small', `фінал: ${x.final.score.join(':')} з ${x.final.opp}${x.final.pens ? ' (пен.)' : ''}`) : el('small.muted', 'за підсумками сезону')]))) : el('p.muted', 'Поки порожньо. Перший трофей — найсолодший!')])];
     } else if (awTab === 'records') {
       const R = a.rec[me] || {};
       const row = (k, label) => el('li', [el('span', label), el('b', R[k] ? `${FM.awards.fmtRec(k, R[k])}${R[k].s ? ` · ${seasonOf(R[k].s)}` : ''}` : '—')]);

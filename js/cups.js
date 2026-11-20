@@ -84,6 +84,32 @@
   }
   function roundsFor(n) { let P = 1; while (P * 2 <= n) P *= 2; return Math.log2(P) + (n > P ? 1 : 0); }
 
+  /**
+   * Суперкубки на старті сезону: чемпіон проти володаря кубка країни (якщо це один клуб — проти віце-чемпіона)
+   * за тиждень до першого туру; Суперкубок УЄФА — переможці Ліги чемпіонів і Ліги Європи (середина серпня).
+   * champions — { ліга: клуб }, cupWinners — { id кубка: клуб }, runners — { ліга: віце-чемпіон }.
+   */
+  function superCups(W, S, champions, cupWinners, runners) {
+    const R = FM.rng(`sc-${S.seed}`), out = {};
+    for (const l of W.db.leagues) {
+      if ((l.tier || 1) !== 1 || !champions[l.id]) continue;
+      const a = champions[l.id], b0 = cupWinners[l.id], b = b0 && b0 !== a ? b0 : runners[l.id];
+      if (!b || !W.club(a) || !W.club(b) || W.club(a).league.replace(/2$/, '') !== l.id || W.club(b).league.replace(/2$/, '') !== l.id) continue;
+      const lg = S.cal && S.cal.leagues[l.id];
+      const w = lg ? Math.max(0, lg.start - 1) : 0;
+      const cup = create('sc-' + l.id, [a, b], [[w]], R);
+      cup.name = NAMES[l.id] ? NAMES[l.id].replace('Кубок', 'Суперкубок') : `Суперкубок: ${l.name}`; cup.super = true;
+      out['sc-' + l.id] = cup;
+    }
+    if (cupWinners.ucl && cupWinners.uel && cupWinners.ucl !== cupWinners.uel && W.club(cupWinners.ucl) && W.club(cupWinners.uel)) {
+      const w = S.cal ? FM.cal.weekOf(S.cal.start, S.year, [8, 12]) : 1;
+      const cup = create('usc', [cupWinners.ucl, cupWinners.uel], [[w]], R);
+      cup.name = 'Суперкубок УЄФА'; cup.super = true;
+      out.usc = cup;
+    }
+    return out;
+  }
+
   /** Усі кубки сезону. tables — { ліга: [id клубів за місцями] } минулого сезону або null. */
   function createAll(W, S, tables) {
     const R = FM.rng(`cups-${S.seed}`);
@@ -396,6 +422,6 @@
     z.ucl = a; z.uel = a + b; z.uecl = a + b + c;
   }
 
-  FM.cups = { phaseTable, leaguePhase, pendingTie, finishPending, create, createAll, euroQualifiers, playWeek, payParticipation, clubStatus, NAMES, EURO_SPOTS };
+  FM.cups = { superCups, phaseTable, leaguePhase, pendingTie, finishPending, create, createAll, euroQualifiers, playWeek, payParticipation, clubStatus, NAMES, EURO_SPOTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

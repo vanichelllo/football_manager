@@ -731,3 +731,16 @@ th[aria-sort] { color: var(--fg); }
 .mp-replay { position: absolute; top: 0.4rem; left: 0.5rem; font: 700 0.75rem/1 var(--font-display, inherit); letter-spacing: 0.1em; color: #fff; background: #c0392b; padding: 0.2rem 0.4rem; border-radius: 4px; z-index: 3; }
 .pitch2d.replaying { filter: saturate(0.6); }
 @media (max-width: 760px) { .pitch2d .dot2 { width: 0.7rem; height: 0.7rem; border-width: 1.5px; } }
+.cabinet-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; margin-bottom: 0.8rem; }
+.cab-tile { display: grid; justify-items: center; gap: 0.1rem; padding: 0.6rem 0.3rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); }
+.cab-tile b { font-size: 1.4rem; }
+.cab-icon { font-size: 1.3rem; }
+.cabinet li { display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.paper { background: #fbf8f0; color: #1d1b16; border-color: #d8cfb8; font-family: Georgia, 'Times New Roman', serif; }
+.paper .muted { color: #6b6250; }
+.paper a { color: #1d1b16; }
+.paper-mast { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px double #1d1b16; padding-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.paper-head { font-size: 1.5rem; line-height: 1.2; margin: 0.6rem 0; }
+.paper-photo { background: #ece4cf; padding: 1.2rem 0.8rem; text-align: center; border-radius: 4px; font-style: italic; }
+.paper-quote { font-style: italic; }
+.paper li.mine { font-weight: 700; background: none; }

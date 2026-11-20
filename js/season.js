@@ -247,13 +247,15 @@
   // для других дивізіонів promo — підвищення (скільки ж вилітає з вищої ліги).
   const ZONES = {
     eng: { ucl: 5, uel: 7, rel: 3 }, esp: { ucl: 5, uel: 7, rel: 3 }, ita: { ucl: 4, uel: 7, rel: 3 },
-    ger: { ucl: 4, uel: 7, rel: 2 }, fra: { ucl: 3, uel: 7, rel: 2 }, ukr: { ucl: 3, uel: 7, rel: 2 },
+    ger: { ucl: 4, uel: 7, rel: 2, playoff: 1 }, fra: { ucl: 3, uel: 7, rel: 2, playoff: 1 }, ukr: { ucl: 3, uel: 7, rel: 2, playoff: 1 }, // playoff — стикові з третім другого дивізіону
     por: { ucl: 3, uel: 7, rel: 0 }, ned: { ucl: 3, uel: 7, rel: 0 }, tur: { ucl: 3, uel: 8, rel: 0 }, pol: { ucl: 3, uel: 8, rel: 0 },
     bel: { rel: 0 }, sco: { rel: 0 }, gre: { rel: 0 }, cze: { rel: 0 }, den: { rel: 0 }, aut: { rel: 0 }, sui: { rel: 0 }, // ucl/uel/uecl — з квот (cups.js)
-    eng2: { promo: 3 }, esp2: { promo: 3 }, ita2: { promo: 3 }, ger2: { promo: 2 }, fra2: { promo: 2 }, ukr2: { promo: 2 },
+    eng2: { promo: 3, po: [3, 6] }, esp2: { promo: 3, po: [3, 6] }, ita2: { promo: 3, po: [3, 6] }, ger2: { promo: 2, rpo: 3 }, fra2: { promo: 2, rpo: 3 }, ukr2: { promo: 2, rpo: 3 },
   };
   function zone(leagueId, pos, size) {
     const z = ZONES[leagueId] || {};
+    if (z.po) return pos <= z.promo - 1 ? 'promo' : pos >= z.po[0] && pos <= z.po[1] ? 'playoff' : null; // плей-оф за третю путівку
+    if (z.rpo) return pos <= z.promo ? 'promo' : pos === z.rpo ? 'playoff' : null;
     if (z.promo) return pos <= z.promo ? 'promo' : null;
     if (pos <= z.ucl) return 'ucl';
     if (pos <= z.uel) return 'uel';
@@ -267,19 +269,56 @@
    * Підвищення й виліт між вищою й другою лігою країни (кількість — ZONES[друга].promo).
    * Повертає [{ club, from, to, up }]. Викликати після сезону, до створення нового календаря.
    */
-  function promote(W, S) {
+  /**
+   * Плей-оф після сезону (як у реальних лігах): за третю путівку вгору (3–6 місця другого дивізіону — півфінали з двох
+   * матчів, фінал на нейтральному полі) і стикові за виживання (3-є місце другого дивізіону проти третього з кінця вищого).
+   * play(h, a, id) — зіграти матч (повертає рахунок [гол господарів, гол гостей]). Повертає { ліга: { up: [], down: [], log: [] } }.
+   */
+  function playoffs(W, S, play) {
+    const out = {};
+    const tie = (a, b, id, two) => {
+      const l1 = play(a, b, id + '-1'), l2 = two ? play(b, a, id + '-2') : [0, 0];
+      const ga = l1[0] + (two ? l2[1] : 0), gb = l1[1] + (two ? l2[0] : 0);
+      const pens = ga === gb;
+      const win = pens ? (W.clubLevel(a) + Math.random() * 20 > W.clubLevel(b) + Math.random() * 20 ? a : b) : ga > gb ? a : b;
+      return { win, lose: win === a ? b : a, txt: `${W.club(a).name} — ${W.club(b).name} ${two ? `${l1.join(':')}, ${l2[1]}:${l2[0]}` : l1.join(':')}${pens ? ' (пенальті)' : ''}` };
+    };
+    for (const l of W.db.leagues) {
+      const Z = ZONES[l.id];
+      if (!l.up || !Z) continue;
+      const lower = table(S, W, l.id), upper = table(S, W, l.up);
+      if (Z.po) { // за путівку вгору: 3 проти 6, 4 проти 5, фінал
+        const [from, to] = Z.po, ids = lower.slice(from - 1, to).map((r) => r.id);
+        if (ids.length < 4) continue;
+        const s1 = tie(ids[0], ids[3], `po-${l.id}-s1`, true), s2 = tie(ids[1], ids[2], `po-${l.id}-s2`, true);
+        const fin = tie(s1.win, s2.win, `po-${l.id}-f`, false);
+        out[l.id] = { up: [fin.win], skipAuto: ids[0], log: [`Півфінали: ${s1.txt}; ${s2.txt}.`, `Фінал на нейтральному полі: ${fin.txt}. ${W.club(fin.win).name} виходить вгору!`], winner: fin.win, name: `Плей-оф ${l.name}` };
+      } else if (Z.rpo) { // стикові: 3-є місце внизу проти третього з кінця вгорі
+        const a = upper[upper.length - (ZONES[l.up] && ZONES[l.up].rel ? ZONES[l.up].rel : 2) - 1], b = lower[Z.rpo - 1];
+        if (!a || !b) continue;
+        const r = tie(a.id, b.id, `rpo-${l.id}`, true);
+        out[l.id] = { up: r.win === b.id ? [b.id] : [], down: r.win === b.id ? [a.id] : [], log: [`Стикові матчі: ${r.txt}. ${r.win === b.id ? `${W.club(b.id).name} виходить вгору, ${W.club(a.id).name} вилітає!` : `${W.club(a.id).name} зберігає місце.`}`], winner: r.win, name: `Стикові матчі ${W.league(l.up).name} — ${l.name}`, clubs: [a.id, b.id] };
+      }
+    }
+    return out;
+  }
+
+  function promote(W, S, po = null) {
     const moves = [];
     for (const l of W.db.leagues) {
       if (!l.up || !ZONES[l.id] || !ZONES[l.id].promo) continue;
-      const n = ZONES[l.id].promo;
+      const P = po && po[l.id];
+      // з плей-оф за путівку: напряму вгору на одного менше, третій — переможець плей-оф
+      const n = ZONES[l.id].promo - (P && ZONES[l.id].po ? 1 : 0);
       const upTable = table(S, W, l.up), downTable = table(S, W, l.id);
-      const down = upTable.slice(-n).map((r) => r.id), up = downTable.slice(0, n).map((r) => r.id);
+      const down = upTable.slice(-(n + (P && ZONES[l.id].po ? 1 : 0))).map((r) => r.id), up = downTable.slice(0, n).map((r) => r.id);
+      if (P) { up.push(...P.up.filter((id) => !up.includes(id))); for (const id of P.down || []) if (!down.includes(id)) down.push(id); }
       for (const id of down) { W.club(id).league = l.id; moves.push({ club: id, from: l.up, to: l.id, up: false }); }
       for (const id of up) { W.club(id).league = l.up; moves.push({ club: id, from: l.id, to: l.up, up: true }); }
     }
     return moves;
   }
 
-  FM.season = { midRecover, dayDate, fixtureDate, promote, ZONES, unavailable, firstSaturday, create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, prepare, play, record, playOthers, advance, playWeek, table, leaders, zone, roundRobin };
+  FM.season = { playoffs, midRecover, dayDate, fixtureDate, promote, ZONES, unavailable, firstSaturday, create, weeks, isOver, dateOf, fixturesOfWeek, clubFixtures, nextFixture, sideFor, prepare, play, record, playOthers, advance, playWeek, table, leaders, zone, roundRobin };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);
