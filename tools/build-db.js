@@ -36,6 +36,13 @@ const LEAGUES = [
   { id: 'ned', en: 'Eredivisie', name: 'Ередивізі', country: 'NED' },
   { id: 'tur', en: 'Süper Lig', name: 'Суперліга Туреччини', country: 'TUR' },
   { id: 'pol', en: 'Ekstraklasa', name: 'Екстракляса', country: 'POL' },
+  { id: 'bel', en: 'Belgian Pro League', name: 'Про-ліга Бельгії', country: 'BEL' },
+  { id: 'sco', en: 'Scottish Premiership', name: 'Прем’єршип Шотландії', country: 'SCO' },
+  { id: 'gre', en: 'Super League Greece', name: 'Суперліга Греції', country: 'GRE' },
+  { id: 'cze', en: 'Czech First League', name: 'Перша ліга Чехії', country: 'CZE' },
+  { id: 'den', en: 'Danish Superliga', name: 'Суперліга Данії', country: 'DEN' },
+  { id: 'aut', en: 'Austrian Football Bundesliga', name: 'Бундесліга Австрії', country: 'AUT' },
+  { id: 'sui', en: 'Swiss Super League', name: 'Суперліга Швейцарії', country: 'SUI' },
 ];
 
 const report = [];
@@ -307,7 +314,7 @@ function legacyMap(db) {
 function writeOut(db) {
   const lm = legacyMap(db);
   if (lm) db.legacyIds = lm;
-  const dir = path.join(__dirname, '..', 'data');
+  const dir = process.env.DB_OUT_DIR || path.join(__dirname, '..', 'data'); // DB_OUT_DIR — зібрати в іншу папку
   fs.mkdirSync(dir, { recursive: true });
   const js = '// Згенеровано tools/build-db.js — не редагуйте вручну.\n' +
     `// Джерела: ${db.source}. Знімок: ${db.snapshot}.\n` +

@@ -71,6 +71,10 @@
       first: [['Кенто', 'Kento'], ['Такумі', 'Takumi'], ['Дайкі', 'Daiki'], ['Мін Дже', 'Min-jae'], ['Джун Хо', 'Jun-ho'], ['Сора', 'Sora'], ['Хіро', 'Hiro'], ['Абдулла', 'Abdulla'], ['Елдор', 'Eldor'], ['Сонг Мін', 'Seong-min']],
       last: [['Танака', 'Tanaka'], ['Сато', 'Sato'], ['Ямада', 'Yamada'], ['Кім', 'Kim'], ['Пак', 'Park'], ['Лі', 'Lee'], ['Іто', 'Ito'], ['Накамура', 'Nakamura'], ['Шомуродов', 'Shomurodov'], ['Чой', 'Choi']],
     },
+    GRE: {
+      first: [['Георгіос', 'Georgios'], ['Константінос', 'Konstantinos'], ['Дімітріс', 'Dimitris'], ['Ніколаос', 'Nikolaos'], ['Янніс', 'Giannis'], ['Христос', 'Christos'], ['Панайотіс', 'Panagiotis'], ['Васіліс', 'Vasilis'], ['Тасос', 'Tasos'], ['Андреас', 'Andreas']],
+      last: [['Пападопулос', 'Papadopoulos'], ['Георгіу', 'Georgiou'], ['Ніколау', 'Nikolaou'], ['Константіну', 'Konstantinou'], ['Пападімітріу', 'Papadimitriou'], ['Караяніс', 'Karagiannis'], ['Василіу', 'Vasiliou'], ['Іоанну', 'Ioannou'], ['Мавропанос', 'Mavropanos'], ['Цімікас', 'Tsimikas']],
+    },
     POL: {
       first: [['Якуб', 'Jakub'], ['Кацпер', 'Kacper'], ['Шимон', 'Szymon'], ['Філіп', 'Filip'], ['Міхал', 'Michał'], ['Бартош', 'Bartosz'], ['Матеуш', 'Mateusz'], ['Кароль', 'Karol']],
       last: [['Новак', 'Nowak'], ['Ковальський', 'Kowalski'], ['Вишневський', 'Wiśniewski'], ['Левандовський', 'Lewandowski'], ['Каміньський', 'Kamiński'], ['Зелінський', 'Zieliński'], ['Шиманський', 'Szymański'], ['Возняк', 'Woźniak']],

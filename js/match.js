@@ -103,6 +103,7 @@
   // Калібрування (tests/match.test.js): середнє співвідношення атаки до оборони і базова реалізація моменту.
   const RATIO_REF = 1;
   const BASE_Q = 0.073;
+  const FINISH_K = 1.18; // калібрування реалізації відносно воротаря
 
   // ваги ролей і варіантів — масивами (рахується дуже часто: підбір складу перебирає всі схеми)
   const W_ENTRIES = new Map();
@@ -391,8 +392,10 @@
       // якість моменту: атака проти оборони; реалізація: удар проти воротаря
       const ratio = t.units.att / (0.75 * o.units.def + 0.25 * o.units.gk) / RATIO_REF;
       let q = BASE_Q * ratio ** 1.15 * WX.q;
-      const finish = (shooter.p.attrs.fin * 0.7 + shooter.p.attrs.dec * 0.3) / 12;
-      q *= Math.min(1.5, Math.max(0.6, finish));
+      // реалізація — відносно воротаря суперника (у лігах будь-якого рівня голів приблизно стільки ж)
+      const gq = gkX ? (gkX.p.attrs.ref || 10) * 0.4 + (gkX.p.attrs.one || 10) * 0.3 + (gkX.p.attrs.pos || 10) * 0.3 : 8;
+      const finish = (shooter.p.attrs.fin * 0.7 + shooter.p.attrs.dec * 0.3) / gq;
+      q *= Math.min(1.5, Math.max(0.6, finish)) * FINISH_K;
       q *= (1 - 0.06 * t.passing * (t.passing > 0 && WX.directPenalty ? 1 / WX.directPenalty : 1)) * (1 + 0.05 * o.pressing); // високий пресинг суперника лишає простір за спиною
 
       if (R.chance(0.013)) { // пенальті (~0,3 за матч)

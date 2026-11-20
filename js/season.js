@@ -219,6 +219,7 @@
     eng: { ucl: 5, uel: 7, rel: 3 }, esp: { ucl: 5, uel: 7, rel: 3 }, ita: { ucl: 4, uel: 7, rel: 3 },
     ger: { ucl: 4, uel: 7, rel: 2 }, fra: { ucl: 3, uel: 7, rel: 2 }, ukr: { ucl: 3, uel: 7, rel: 2 },
     por: { ucl: 3, uel: 7, rel: 0 }, ned: { ucl: 3, uel: 7, rel: 0 }, tur: { ucl: 3, uel: 8, rel: 0 }, pol: { ucl: 3, uel: 8, rel: 0 },
+    bel: { rel: 0 }, sco: { rel: 0 }, gre: { rel: 0 }, cze: { rel: 0 }, den: { rel: 0 }, aut: { rel: 0 }, sui: { rel: 0 }, // ucl/uel/uecl — з квот (cups.js)
     eng2: { promo: 3 }, esp2: { promo: 3 }, ita2: { promo: 3 }, ger2: { promo: 2 }, fra2: { promo: 2 }, ukr2: { promo: 2 },
   };
   function zone(leagueId, pos, size) {

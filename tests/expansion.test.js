@@ -168,3 +168,17 @@ test('9. дербі: справжні протистояння знаходят�
   assert.ok(FM.rivals.after(W, state, shak, 1));
   assert.strictEqual(FM.club.fans(W, state.clubId).mood, fans0 + 6);
 });
+
+test('10–11. 23 ліги; три єврокубки по 36 клубів; Ліга конференцій доходить до фіналу', () => {
+  assert.strictEqual(db.leagues.length, 23);
+  for (const id of ['bel', 'sco', 'gre', 'cze', 'den', 'aut', 'sui']) assert.ok(db.leagues.some((l) => l.id === id), id);
+  const { W, state } = fresh();
+  state.cups = FM.cups.createAll(W, state.season, null);
+  for (const id of ['ucl', 'uel', 'uecl']) assert.strictEqual(state.cups[id].teams.length, 36, id);
+  const all = [...state.cups.ucl.teams, ...state.cups.uel.teams, ...state.cups.uecl.teams];
+  assert.strictEqual(new Set(all).size, all.length, 'клуб — лише в одному єврокубку');
+  assert.strictEqual(state.cups.uecl.name, 'Ліга конференцій');
+  for (let w = 0; w < 38; w++) { state.season.week = w; FM.cups.playWeek(W, state, {}); }
+  assert.ok(state.cups.uecl.winner);
+  assert.ok(FM.season.zone('sco', 1, 12) === 'ucl' && FM.season.zone('sco', 3, 12) === 'uel' && FM.season.zone('sco', 5, 12) === 'uecl');
+});

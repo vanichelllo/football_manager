@@ -7,11 +7,15 @@
   const NAMES = {
     eng: 'Кубок Англії', esp: 'Кубок Іспанії', ita: 'Кубок Італії', ger: 'Кубок Німеччини', fra: 'Кубок Франції', ukr: 'Кубок України',
     por: 'Кубок Португалії', ned: 'Кубок Нідерландів', tur: 'Кубок Туреччини', pol: 'Кубок Польщі',
-    ucl: 'Ліга чемпіонів', uel: 'Ліга Європи',
+    bel: 'Кубок Бельгії', sco: 'Кубок Шотландії', gre: 'Кубок Греції', cze: 'Кубок Чехії', den: 'Кубок Данії', aut: 'Кубок Австрії', sui: 'Кубок Швейцарії',
+    ucl: 'Ліга чемпіонів', uel: 'Ліга Європи', uecl: 'Ліга конференцій',
   };
-  // Скільки клубів кожної ліги грає в єврокубках: [Ліга чемпіонів, Ліга Європи]
-  // Місця в єврокубках: [Ліга чемпіонів, Ліга Європи]. Разом — по 36 клубів (якщо ліг менше — скільки є).
-  const EURO_SPOTS = { eng: [5, 2], esp: [5, 2], ita: [4, 3], ger: [4, 3], fra: [3, 4], ukr: [3, 4], por: [3, 4], ned: [3, 4], tur: [3, 5], pol: [3, 5] };
+  // Місця в єврокубках: [Ліга чемпіонів, Ліга Європи, Ліга конференцій]. З усіма 17 вищими лігами — рівно по 36 клубів;
+  // якщо ліг менше — скільки є (непарне число — найслабший вибуває).
+  const EURO_SPOTS = {
+    eng: [5, 2, 1], esp: [5, 2, 1], ita: [4, 3, 1], ger: [4, 3, 1], fra: [3, 3, 2], por: [2, 3, 2], ned: [2, 2, 3], ukr: [2, 2, 3],
+    bel: [1, 3, 2], tur: [1, 3, 2], sco: [1, 2, 2], aut: [1, 2, 2], cze: [1, 2, 2], gre: [1, 1, 3], den: [1, 1, 3], sui: [1, 1, 3], pol: [1, 1, 3],
+  };
   const EURO_LEAGUE_WEEKS = [5, 7, 9, 11, 14, 16, 18, 20];
   const EURO_KO_WEEKS = [[23, 24], [26, 27], [29, 30], [32, 33], [36]];
   // Тижні раундів (номер тижня сезону, з 0); дві цифри — два матчі пари
@@ -57,16 +61,19 @@
 
   /** Учасники єврокубків: з таблиць минулого сезону, а в першому — за силою клубів у минулих сезонах (strength). */
   function euroQualifiers(W, tables) {
-    const ucl = [], uel = [];
+    const ucl = [], uel = [], uecl = [];
     for (const l of W.db.leagues) {
       if ((l.tier || 1) !== 1 || !EURO_SPOTS[l.id]) continue;
-      const order = tables && tables[l.id] ? tables[l.id] : W.clubsOf(l.id).sort((a, b) => b.strength - a.strength).map((c) => c.id);
-      const [a, b] = EURO_SPOTS[l.id];
+      // таблиця минулого сезону — лише клуби, що й досі в цій лізі (хто вилетів, у єврокубки не йде)
+      const order = (tables && tables[l.id] ? tables[l.id] : W.clubsOf(l.id).sort((a, b) => b.strength - a.strength).map((c) => c.id)).filter((id) => W.club(id));
+      const [a, b, c = 0] = EURO_SPOTS[l.id];
       ucl.push(...order.slice(0, a));
       uel.push(...order.slice(a, a + b));
+      uecl.push(...order.slice(a + b, a + b + c));
     }
     const lvl = (id) => W.clubLevel(id);
-    return { ucl: ucl.sort((x, y) => lvl(y) - lvl(x)), uel: uel.sort((x, y) => lvl(y) - lvl(x)) };
+    const even = (list) => { const s = list.sort((x, y) => lvl(y) - lvl(x)); if (s.length % 2) s.pop(); return s; }; // етап ліги — парна кількість
+    return { ucl: even(ucl), uel: even(uel), uecl: even(uecl) };
   }
 
   /** Тижні раундів кубка країни: рівномірно між 4-м і 30-м тижнем (УПЛ — до 27-го). */
@@ -92,6 +99,7 @@
     const q = euroQualifiers(W, tables);
     cups.ucl = createEuro('ucl', q.ucl, W, R);
     cups.uel = createEuro('uel', q.uel, W, R);
+    if (q.uecl.length >= 8) cups.uecl = createEuro('uecl', q.uecl, W, R);
     return cups;
   }
 
@@ -201,7 +209,8 @@
   }
 
   // Призові (млн €): за участь і за кожен виграний раунд
-  const PRIZE = { ucl: [18, 10, 2.1], uel: [5, 3, 0.5], eng: [0.3, 0.8], esp: [0.2, 0.5], ita: [0.2, 0.5], ger: [0.2, 0.6], fra: [0.1, 0.4], ukr: [0.02, 0.06],
+  const PRIZE = { ucl: [18, 10, 2.1], uel: [5, 3, 0.5], uecl: [2.5, 1.5, 0.25], bel: [0.05, 0.1], sco: [0.05, 0.1], gre: [0.05, 0.1], cze: [0.03, 0.08],
+    den: [0.04, 0.08], aut: [0.04, 0.08], sui: [0.05, 0.1], eng: [0.3, 0.8], esp: [0.2, 0.5], ita: [0.2, 0.5], ger: [0.2, 0.6], fra: [0.1, 0.4], ukr: [0.02, 0.06],
     por: [0.1, 0.2], ned: [0.1, 0.2], tur: [0.1, 0.2], pol: [0.03, 0.08] }; // [участь, раунд, перемога в етапі ліги]
 
   function shootout(W, a, b, R) {
@@ -375,6 +384,12 @@
       out.push(status || { cup });
     }
     return out;
+  }
+
+  // зони таблиці вищих ліг — за квотами єврокубків
+  if (FM.season && FM.season.ZONES) for (const [id, [a, b, c = 0]] of Object.entries(EURO_SPOTS)) {
+    const z = (FM.season.ZONES[id] = FM.season.ZONES[id] || { rel: 2 });
+    z.ucl = a; z.uel = a + b; z.uecl = a + b + c;
   }
 
   FM.cups = { phaseTable, leaguePhase, pendingTie, finishPending, create, createAll, euroQualifiers, playWeek, payParticipation, clubStatus, NAMES, EURO_SPOTS };

@@ -116,7 +116,7 @@
   // ---------------- Юнаки ----------------
   const LEAGUE_NAT = { eng: 'ENG', esp: 'ESP', ita: 'ITA', ger: 'GER', fra: 'FRA', ukr: 'UKR' };
   const NAME_SET = { ENG: 'ENG', SCO: 'ENG', WAL: 'ENG', IRL: 'ENG', ESP: 'ESP', ITA: 'ITA', GER: 'GER', AUT: 'GER', FRA: 'FRA', UKR: 'UKR',
-    BRA: 'BRA', POR: 'BRA', NED: 'NED', BEL: 'NED', POL: 'POL', TUR: 'TUR', CRO: 'CRO', SRB: 'CRO', NGA: 'AFR', SEN: 'AFR', CIV: 'AFR', MAR: 'AFR', ARG: 'ESP' };
+    BRA: 'BRA', POR: 'BRA', NED: 'NED', BEL: 'NED', POL: 'POL', TUR: 'TUR', CRO: 'CRO', CZE: 'POL', SVK: 'POL', DEN: 'SCA', NOR: 'SCA', SWE: 'SCA', SUI: 'GER', GRE: 'GRE', SCO: 'ENG', SRB: 'CRO', NGA: 'AFR', SEN: 'AFR', CIV: 'AFR', MAR: 'AFR', ARG: 'ESP' };
   const PROFILE = {
     GK: { ref: 3, han: 2.5, one: 2, aer: 2, kic: 0, dec: 1, pos: 2, pac: -3, sta: -2, str: 0 },
     CB: { fin: -5, pas: -1, dri: -3, cro: -4, tac: 3, hea: 3, dec: 1, pos: 3, otb: -4, wor: 0.5, pac: 0, sta: 0, str: 2.5 },

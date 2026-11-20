@@ -1904,7 +1904,7 @@
     const mine = FM.cups.clubStatus(state, state.clubId);
     if (!cupTab || !cups[cupTab]) cupTab = (mine[0] && mine[0].cup.id) || W.club(state.clubId).league;
     const cup = cups[cupTab];
-    const order = ['ucl', 'uel', ...Object.keys(cups).filter((k) => k !== 'ucl' && k !== 'uel')];
+    const order = ['ucl', 'uel', 'uecl', ...Object.keys(cups).filter((k) => !['ucl', 'uel', 'uecl'].includes(k))].filter((k) => cups[k]);
     const tieRow = (t, r) => {
       const legs = t.legs.map((x) => x.join(':')).join(', ');
       const ga = t.legs.reduce((s, x) => s + x[0], 0), gb = t.legs.reduce((s, x) => s + x[1], 0);
@@ -2165,12 +2165,12 @@
     return [
       el('header', [el('h1', 'Історія'), el('span.muted', `${state.manager} · сезонів: ${H.length}`)]),
       H.length ? el('div.table-wrap', el('table', [
-        el('thead', el('tr', [el('th', 'Сезон'), el('th', 'Клуб'), el('th.num', 'Місце'), el('th.num', 'Очки'), el('th', 'Трофеї'), el('th', 'Бомбардир'), el('th', 'Ліга чемпіонів'), el('th', 'Ліга Європи'), ...W.db.leagues.filter((l) => l.tier !== 2).map((l) => el('th', 'Чемпіон: ' + l.name))])),
+        el('thead', el('tr', [el('th', 'Сезон'), el('th', 'Клуб'), el('th.num', 'Місце'), el('th.num', 'Очки'), el('th', 'Трофеї'), el('th', 'Бомбардир'), el('th', 'Ліга чемпіонів'), el('th', 'Ліга Європи'), el('th', 'Ліга конференцій'), ...W.db.leagues.filter((l) => l.tier !== 2).map((l) => el('th', 'Чемпіон: ' + l.name))])),
         el('tbody', [...H].reverse().map((h) => el('tr', [
           el('td', `${h.year}/${String(h.year + 1).slice(2)}`), el('td', clubName(W.club(h.club))), el('td.num', h.pos), el('td.num', h.pts),
           el('td', (h.trophies || []).length ? h.trophies.map((x) => (x === 'league' ? 'Чемпіонат' : FM.cups.NAMES[x])).join(', ') : '—'),
           el('td', h.scorer && W.player(h.scorer[0]) ? `${nameOf(W.player(h.scorer[0]))} (${h.scorer[1]})` : '—'),
-          el('td', h.cups && h.cups.ucl ? clubName(W.club(h.cups.ucl)) : '—'), el('td', h.cups && h.cups.uel ? clubName(W.club(h.cups.uel)) : '—'),
+          el('td', h.cups && h.cups.ucl ? clubName(W.club(h.cups.ucl)) : '—'), el('td', h.cups && h.cups.uel ? clubName(W.club(h.cups.uel)) : '—'), el('td', h.cups && h.cups.uecl ? clubName(W.club(h.cups.uecl)) : '—'),
           ...W.db.leagues.filter((l) => l.tier !== 2).map((l) => el('td', h.champions[l.id] ? clubName(W.club(h.champions[l.id])) : '—')),
         ]))),
       ])) : el('p.muted', 'Історія з’явиться після першого сезону.'),

@@ -6,10 +6,10 @@
   const FM = (root.FM = root.FM || {});
 
   const LEAGUE_MONEY = { eng: 3, esp: 2, ita: 1.6, ger: 1.8, fra: 1.4, ukr: 0.9, eng2: 1.1, esp2: 0.6, ita2: 0.55, ger2: 0.7, fra2: 0.5, ukr2: 0.2,
-    por: 1, ned: 1, tur: 1.1, pol: 0.5 };
+    por: 1, ned: 1, tur: 1.1, pol: 0.5, bel: 0.9, sco: 0.7, gre: 0.7, cze: 0.55, den: 0.7, aut: 0.65, sui: 0.8 };
   const WAGE_MULT = { eng: 1.3, esp: 1.1, ita: 1, ger: 1.05, fra: 0.95, ukr: 0.55, eng2: 1.1, esp2: 0.8, ita2: 0.8, ger2: 0.85, fra2: 0.75, ukr2: 0.4,
-    por: 0.8, ned: 0.85, tur: 1.1, pol: 0.65 };
-  const MIN_WAGE = { eng: 8, esp: 4, ita: 3, ger: 4, fra: 3, ukr: 1, eng2: 3, esp2: 1.5, ita2: 1.5, ger2: 2, fra2: 1.5, ukr2: 1, por: 1.5, ned: 2, tur: 2, pol: 1 };
+    por: 0.8, ned: 0.85, tur: 1.1, pol: 0.65, bel: 0.8, sco: 0.7, gre: 0.7, cze: 0.6, den: 0.75, aut: 0.7, sui: 0.85 };
+  const MIN_WAGE = { eng: 8, esp: 4, ita: 3, ger: 4, fra: 3, ukr: 1, eng2: 3, esp2: 1.5, ita2: 1.5, ger2: 2, fra2: 1.5, ukr2: 1, por: 1.5, ned: 2, tur: 2, pol: 1, bel: 1.5, sco: 1, gre: 1, cze: 1, den: 1.5, aut: 1.2, sui: 1.5 };
 
   /** Тижнева зарплата за ринковою ціною: ~15% ціни на рік. */
   function fairWage(value, league) {
