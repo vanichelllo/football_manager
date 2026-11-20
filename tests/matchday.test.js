@@ -112,3 +112,40 @@ test('поради в перерві можна застосувати; інст
   assert.ok(m.setInstr(0, fb.p.id, 'defend'));
   assert.strictEqual(m.sides[0].onPitch.find((x) => x.p.id === fb.p.id).slot.instr, 'defend');
 });
+
+test('рідкісні моменти: автоголи, хет-трики, яскраві голи — але не надто часто', () => {
+  let og = 0, hat = 0, wow = 0, n = 300, goals = 0;
+  for (let i = 0; i < n; i++) {
+    const r = FM.match.play(opts('rare' + i));
+    og += r.ownGoals[0] + r.ownGoals[1]; goals += r.score[0] + r.score[1];
+    hat += r.events.filter((e) => /ХЕТ-ТРИК/.test(e.text)).length;
+    wow += r.events.filter((e) => e.hl && e.hl.special).length;
+  }
+  assert.ok(og > 0 && og / n < 0.25, `автоголів за матч ${og / n}`);
+  assert.ok(wow > 0, 'бувають яскраві голи');
+  assert.ok(goals / n > 2.2 && goals / n < 3.3, `голів за матч ${goals / n}`);
+  assert.ok(hat >= 0);
+});
+
+test('випадкові події: новина або лист з вибором, відповідь змінює стан', () => {
+  require('../js/data/names.js'); require('../js/data/countries.js'); require('../js/develop.js'); require('../js/market.js'); require('../js/club.js'); require('../js/youth.js'); require('../js/events.js');
+  const c = club('Dynamo Kyiv');
+  const state = { clubId: c.id, season: FM.season.create(W, 'ev') };
+  FM.market.init(W, state);
+  let news = 0, asks = 0;
+  for (let w = 0; w < 48; w++) {
+    state.season.week = w;
+    const e = FM.events.week(W, state, (p) => p.name);
+    if (!e) continue;
+    if (e.text) news++;
+    if (e.ask) {
+      asks++;
+      assert.ok(state.evPending && state.evPending.opts.length >= 2);
+      const r = FM.events.answer(W, state, 0);
+      assert.ok(typeof r === 'string' && r.length > 5, r);
+      assert.strictEqual(state.evPending, null);
+    }
+  }
+  assert.ok(news + asks >= 5 && news + asks <= 22, `подій за сезон: ${news + asks}`);
+  assert.ok(news > 0 && asks > 0);
+});

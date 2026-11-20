@@ -679,3 +679,9 @@ th[aria-sort] { color: var(--fg); }
   .live-side .control { order: -1; }
   .feed-box .feed-wrap { max-height: 16rem; }
 }
+
+/* Нагороди */
+.plist li.mine { background: var(--accent-soft); border-radius: 6px; }
+.totw li { display: flex; justify-content: space-between; gap: 0.5rem; }
+.awards-line p { margin: 0.3rem 0; }
+.backup-card { border-color: var(--warn); }

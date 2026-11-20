@@ -47,7 +47,7 @@
   /** Частка витрат від доходу: (зарплати + третина чистих витрат на трансфери) / (усі доходи). */
   function ratio(state) {
     const f = (state.board && state.board.fin) || {};
-    const income = (f.tv || 0) + (f.tickets || 0) + (f.prize || 0) + (f.sponsor || 0) + Math.max(0, f.transfers || 0);
+    const income = (f.tv || 0) + (f.tickets || 0) + (f.prize || 0) + (f.sponsor || 0) + (f.merch || 0) + Math.max(0, f.transfers || 0);
     const spend = (f.wages || 0) + Math.max(0, -(f.transfers || 0)) / 3;
     return income > 0 ? spend / income : 0;
   }

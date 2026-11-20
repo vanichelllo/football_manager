@@ -127,7 +127,7 @@
       else if (k === 'html') node.innerHTML = v;
       else node.setAttribute(k, v === true ? '' : v);
     }
-    for (const c of [].concat(children == null ? [] : children)) {
+    for (const c of [].concat(children == null ? [] : children).flat(Infinity)) { // вкладені списки — на будь-яку глибину
       if (c == null || c === false) continue;
       node.append(c instanceof Node ? c : document.createTextNode(String(c)));
     }

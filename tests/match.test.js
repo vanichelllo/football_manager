@@ -74,7 +74,7 @@ test('у протоколі матчу все узгоджено: голи в п
     assert.deepStrictEqual(goals, m.score);
     for (const r of m.ratings) assert.ok(r.rating >= 3 && r.rating <= 10);
     const scorers = m.ratings.reduce((s, r) => s + r.goals, 0);
-    assert.strictEqual(scorers, m.score[0] + m.score[1]);
+    assert.strictEqual(scorers + m.ownGoals[0] + m.ownGoals[1], m.score[0] + m.score[1], 'голи гравців + автоголи = рахунок');
     assert.strictEqual(m.stats[0].poss + m.stats[1].poss, 100);
   }
 });
