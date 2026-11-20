@@ -86,3 +86,29 @@ test('розмова після матчу: похвала після перем
   const res2 = FM.morale.postTalk('disappointed', 1, sq.map((p) => ({ player: p, rating: 7.2 })), R);
   assert.ok(res2.every((x) => x.d < 0), 'розчарування після перемоги ображає');
 });
+
+test('поради в перерві можна застосувати; інструкції й опіка посеред матчу', () => {
+  let tested = 0;
+  for (let i = 0; i < 40 && tested < 3; i++) {
+    const m = FM.match.create(opts('tip' + i, { manual: true }));
+    while (!m.halftime) m.step();
+    for (const [, , act] of m.halfReport(0)) {
+      if (!act) continue;
+      const before = JSON.stringify([m.sides[0].tactic, m.sides[0].subsLeft, m.sides[0].onPitch.map((x) => x.slot.instr), [...m.sides[1].marked], m.sides[0].shout]);
+      assert.ok(m.applyTip(0, act), act.kind);
+      const after = JSON.stringify([m.sides[0].tactic, m.sides[0].subsLeft, m.sides[0].onPitch.map((x) => x.slot.instr), [...m.sides[1].marked], m.sides[0].shout]);
+      assert.notStrictEqual(before, after, `${act.kind} нічого не змінив`);
+      tested++;
+    }
+  }
+  assert.ok(tested >= 3, 'знайшлися поради з дією');
+  const m = FM.match.create(opts('mk', { manual: true }));
+  m.step();
+  const star = m.sides[1].onPitch.find((x) => x.slot.role === 'ST');
+  assert.ok(m.mark(0, star.p.id));
+  assert.ok(m.sides[1].marked.has(star.p.id) && m.sides[0].onPitch.some((x) => x.slot.instr === 'mark'));
+  assert.ok(m.mark(0, null) && !m.sides[1].marked.size);
+  const fb = m.sides[0].onPitch.find((x) => x.slot.role === 'FB');
+  assert.ok(m.setInstr(0, fb.p.id, 'defend'));
+  assert.strictEqual(m.sides[0].onPitch.find((x) => x.p.id === fb.p.id).slot.instr, 'defend');
+});
