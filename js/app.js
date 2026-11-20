@@ -3897,7 +3897,11 @@
     return [
       el('header', [el('h1', 'Налаштування')]),
       el('div.panel.version', [el('h3', 'Версія гри'), el('p', el('b', versionText())),
-        el('p.note', 'Після злиття PR процес «Публікація» за 2–3 хвилини викладає нову версію; тут з’явиться її дата. Якщо дата стара — перезавантажте сторінку (GitHub кешує сайт до 10 хвилин).')]),
+        el('div.actions', [el('button.btn', { type: 'button', onclick: () => {
+          const done = () => location.reload();
+          try { navigator.serviceWorker.getRegistration().then((r) => (r ? r.update() : null)).catch(() => {}).finally(done); } catch (_) { done(); }
+        } }, 'Перезавантажити гру')]),
+        el('p.note', 'Після злиття PR процес «Публікація» за 2–3 хвилини викладає нову версію. Натисніть «Перезавантажити гру» — тут з’явиться її дата. Кар’єра збережена й нікуди не зникне.')]),
       el('div.panel', [el('h3', 'Імена'), el('div.tabs', { style: { marginTop: '0.5rem' } }, [
         el('button', { type: 'button', 'aria-pressed': String(state.names !== 'en'), onclick: () => setNames('uk') }, 'Українською'),
         el('button', { type: 'button', 'aria-pressed': String(state.names === 'en'), onclick: () => setNames('en') }, 'Мовою оригіналу'),
@@ -3927,6 +3931,6 @@
 
   // офлайн-режим: працює, коли гра відкрита з сайту (https), а не з файлу
   if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.FM_BUNDLED) {
-    try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (_) { /* у пісочниці може бути заборонено */ }
+    try { navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {}); } catch (_) { /* у пісочниці може бути заборонено */ }
   }
 })();
