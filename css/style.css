@@ -579,3 +579,25 @@ li.act { align-items: center; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hl-bar.hl-attack, :root:not([data-theme="light"]) .hl-bar.hl-post, :root:not([data-theme="light"]) .hl-bar.hl-pen, :root:not([data-theme="light"]) .feed li.big { background: #3a3218; } }
 :root[data-theme="dark"] .hl-bar.hl-attack, :root[data-theme="dark"] .hl-bar.hl-post, :root[data-theme="dark"] .hl-bar.hl-pen, :root[data-theme="dark"] .feed li.big { background: #3a3218; }
 @media (prefers-reduced-motion: no-preference) { .hl-bar:not([hidden]) { animation: gt-flash 0.6s ease-out; } }
+
+/* Перші кроки в клубі */
+.plan-card { border-color: var(--accent); }
+.plan-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.plan-card-head h3 { margin: 0; }
+.plan-bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; margin: 0.5rem 0; }
+.plan-bar.big { height: 12px; margin: 0 0 1rem; }
+.plan-bar span { display: block; height: 100%; background: var(--accent); }
+.plan-steps { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: 0.6rem; }
+.plan-steps > li { display: flex; gap: 0.8rem; align-items: flex-start; padding: 0.8rem 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.plan-steps > li.done { opacity: 0.7; }
+.plan-steps > li.skipped { opacity: 0.55; }
+.plan-mark { flex: 0 0 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center; font-weight: 700; border: 2px solid var(--accent); color: var(--accent); }
+.plan-steps > li.done .plan-mark { background: var(--accent); color: var(--accent-fg); }
+.plan-steps > li.skipped .plan-mark { border-color: var(--line); color: var(--muted); }
+.plan-body { flex: 1; min-width: 0; }
+.plan-body > b { margin-right: 0.4rem; }
+.plan-body p { margin: 0.25rem 0; }
+.plan-body .small, .plan-card .small { font-size: 0.92rem; }
+.plan-act { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.4rem; }
+.plan-act > p, .plan-act > ul { flex-basis: 100%; }
+.plan-list { margin: 0.2rem 0; }
