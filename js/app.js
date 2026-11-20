@@ -43,6 +43,7 @@
   }
   const seasonLabel = () => { const y = state ? state.season.year : 2026; return `${y}/${String(y + 1).slice(2)}`; };
 
+  const ageTxt = (p) => (W.age(p) != null ? `${W.age(p)} р.` : 'вік невідомий');
   const nameOf = (p) => (state && state.names === 'en' ? p.nameEn : p.name);
   const clubName = (c) => (state && state.names === 'en' ? c.nameEn : c.name);
   /** Родовий відмінок для українських гравців (у трансляції: «Навіс Шевченка»). */
@@ -633,8 +634,8 @@
           el('dt', 'Стадіон'), el('dd', `${fmt.int(me.capacity)} місць`),
           fac.building ? el('dt', 'Будується') : null, fac.building ? el('dd', `${FM.club.UPGRADES[fac.building.kind].label.toLowerCase()}, ще ${fac.building.left} тиж.`) : null,
         ]), el('div.actions', Object.entries(FM.club.UPGRADES).map(([k, U]) => el('button.btn', { type: 'button', disabled: fac.building || null, title: U.hint, onclick: () => {
-          const r = FM.club.requestUpgrade(W, state, k); officeMsg = r.ok ? `Правління погодило: ${U.label.toLowerCase()} за ${r.cost} млн €, готово за ${U.weeks} тиж.` : r.reason; saveGame(); render();
-        } }, `${U.label} — ${U.cost(W, me, fac)} млн`))), el('p.note', 'Покращення погоджує правління: потрібні гроші із запасом і довіра.')]),
+          const r = FM.club.requestUpgrade(W, state, k); officeMsg = r.ok ? `Правління погодило: ${U.label.toLowerCase()} за ${FM.market.fmtM(r.cost)}, готово за ${U.weeks} тиж.` : r.reason; saveGame(); render();
+        } }, `${U.label} — ${FM.market.fmtM(U.cost(W, me, fac))}`))), el('p.note', 'Покращення погоджує правління: потрібні гроші із запасом і довіра.')]),
         el('div.panel', [el('h3', 'Вболівальники'), el('dl.facts', [
           el('dt', 'Настрій'), el('dd', [confBar(fans.mood), `${Math.round(fans.mood)} з 100`]),
           el('dt', 'Заповненість стадіону'), el('dd', `≈${att}%`),
@@ -1632,9 +1633,9 @@
       ])]) : null,
       el('div.panel', [el('h3', 'Юнаки, що прийшли з академії'), R.golden ? el('p.msg-ok', 'Цього року академія видала «золоте покоління» — більше юнаків і з вищим потенціалом!') : null, R.youth.length ? list(R.youth, (p) => `${FM.positions(p)}, ${W.age(p)} р.`) : el('p.muted', 'Цього разу ніхто.'),
         el('p.note', 'Зірки показують потенціал. Щоб юнаки росли, давайте їм ігровий час і тренування.')]),
-      R.expired && R.expired.length ? el('div.panel', [el('h3', 'Пішли після завершення контракту'), list(R.expired, (p) => `${W.age(p)} р.`)]) : null,
-      R.myRetired.length ? el('div.panel', [el('h3', 'Завершили кар’єру у вашому клубі'), list(R.myRetired, (p) => `${W.age(p)} р.`)]) : null,
-      el('div.panel', [el('h3', 'Найвідоміші, хто завершив кар’єру'), R.stars.length ? list(R.stars, (p) => `${W.age(p)} р.${p.lastClub ? ', ' + clubName(W.club(p.lastClub)) : ''}`) : el('p.muted', '—')]),
+      R.expired && R.expired.length ? el('div.panel', [el('h3', 'Пішли після завершення контракту'), list(R.expired, (p) => `${ageTxt(p)}`)]) : null,
+      R.myRetired.length ? el('div.panel', [el('h3', 'Завершили кар’єру у вашому клубі'), list(R.myRetired, (p) => `${ageTxt(p)}`)]) : null,
+      el('div.panel', [el('h3', 'Найвідоміші, хто завершив кар’єру'), R.stars.length ? list(R.stars, (p) => `${ageTxt(p)}${p.lastClub ? ', ' + clubName(W.club(p.lastClub)) : ''}`) : el('p.muted', '—')]),
       el('div.actions', [el('a.btn.primary', { href: '#fixtures' }, 'До сезону'), el('a.btn', { href: '#history' }, 'Історія')]),
     ];
   }

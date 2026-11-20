@@ -68,7 +68,7 @@
     if (f.building) return { ok: false, reason: `Уже триває будівництво: ${UPGRADES[f.building.kind].label.toLowerCase()}.` };
     if (kind !== 'stadium' && f[kind] >= 20) return { ok: false, reason: 'Уже найвищий рівень.' };
     const cost = U.cost(W, c, f);
-    if (c.balance < cost * 1.3) return { ok: false, reason: `Правління відмовляє: на це потрібно ${cost} млн €, а баланс ${c.balance} млн — замало із запасом.` };
+    if (c.balance < cost * 1.3) return { ok: false, reason: `Правління відмовляє: на це потрібно ${FM.market.fmtM(cost)}, а на рахунку ${FM.market.fmtM(c.balance)} — замало із запасом.` };
     if (state.board && state.board.conf < 45) return { ok: false, reason: 'Правління відмовляє: спершу покажіть результати.' };
     c.balance = r2(c.balance - cost);
     f.building = { kind, left: U.weeks };
