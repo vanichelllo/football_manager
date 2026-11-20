@@ -85,6 +85,7 @@
     const p = W.player(id), me = W.club(state.clubId);
     if (!p || !p.talent) return { ok: false, reason: 'Цього таланта вже немає.' };
     if (me.balance < p.talent.fee) return { ok: false, reason: `Не вистачає грошей: потрібно ${FM.market.fmtM(p.talent.fee)}.` };
+    if (FM.budget && !FM.budget.canSpend(W, state, p.talent.fee)) return { ok: false, reason: `Не вистачає трансферного бюджету: ${FM.market.fmtM(FM.budget.available(W, state))}.` };
     const wage = Math.max(1, Math.round(FM.market.fairWage(p.value, me.league) * 1.1));
     FM.market.complete(W, state, p, state.clubId, p.talent.fee, wage, 5);
     delete p.talent;

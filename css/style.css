@@ -693,3 +693,72 @@ th[aria-sort] { color: var(--fg); }
 .match-tactic { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin: 0.8rem 0; display: grid; gap: 0.5rem; }
 .match-tactic .instr { grid-template-columns: minmax(0, 1fr); gap: 0.4rem; }
 .match-tactic .tabs button { padding: 0.2rem 0.6rem; font-size: 0.85rem; }
+.budget .big { font-size: 1.4rem; font-weight: 700; margin: 0.1rem 0; }
+.bud-slider { display: flex; align-items: center; gap: 0.5rem; }
+.bud-slider input { flex: 1; }
+.bud-loan { display: inline-flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+
+/* Рахунки інших матчів наживо */
+.live-ticker { display: flex; gap: 0.8rem; align-items: center; overflow-x: auto; white-space: nowrap; margin: 0 0 0.8rem; padding: 0.4rem 0.7rem;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); font-size: 0.85rem; scrollbar-width: thin; }
+.lt-pos { flex: 0 0 auto; }
+.lt-pos .up { color: var(--accent); font-weight: 700; } .lt-pos .down { color: #c0392b; font-weight: 700; }
+.lt-games { display: inline-flex; gap: 0.8rem; }
+.lt-g { color: var(--muted); }
+.lt-g.flash { color: var(--fg); font-weight: 700; }
+.deadline { border-color: #c0392b; }
+.dl-timer { color: #c0392b; }
+.dl-offers li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.dl-feed li.big { font-weight: 700; }
+
+/* 2D-поле трансляції */
+.pitch-panel { margin: 0 0 0.8rem; }
+.mini-pitch.pitch2d { height: auto; aspect-ratio: 105 / 62; max-height: 22rem; margin: 0; border: 2px solid rgba(255, 255, 255, 0.35);
+  background: repeating-linear-gradient(90deg, #2e7d4f 0 9.09%, #2a7449 9.09% 18.18%); }
+.pitch2d .mp-circle { position: absolute; left: 50%; top: 50%; width: 17%; aspect-ratio: 1; border: 2px solid rgba(255, 255, 255, 0.45); border-radius: 50%; transform: translate(-50%, -50%); }
+.pitch2d .mp-box { top: 22%; bottom: 22%; width: 15%; }
+.pitch2d .mp-six { position: absolute; top: 38%; bottom: 38%; width: 5.5%; border: 2px solid rgba(255, 255, 255, 0.45); }
+.pitch2d .mp-six.l { left: -2px; border-left: 0; } .pitch2d .mp-six.r { right: -2px; border-right: 0; }
+.pitch2d .mp-goal { position: absolute; top: 44%; bottom: 44%; width: 1.2%; background: rgba(255, 255, 255, 0.85); }
+.pitch2d .mp-goal.l { left: 0; } .pitch2d .mp-goal.r { right: 0; }
+.pitch2d .dot2 { width: 0.95rem; height: 0.95rem; border-width: 2px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+.pitch2d .dot2.has-ball { outline: 2px solid #fff; outline-offset: 1px; }
+.pitch2d .ball { width: 0.6rem; height: 0.6rem; z-index: 2; }
+@media (prefers-reduced-motion: no-preference) {
+  .pitch2d .dot2 { transition: left 0.5s ease-out, top 0.5s ease-out; }
+  .pitch2d .ball { transition: left 0.38s ease-out, top 0.38s ease-out; }
+}
+.mp-replay { position: absolute; top: 0.4rem; left: 0.5rem; font: 700 0.75rem/1 var(--font-display, inherit); letter-spacing: 0.1em; color: #fff; background: #c0392b; padding: 0.2rem 0.4rem; border-radius: 4px; z-index: 3; }
+.pitch2d.replaying { filter: saturate(0.6); }
+@media (max-width: 760px) { .pitch2d .dot2 { width: 0.7rem; height: 0.7rem; border-width: 1.5px; } }
+.cabinet-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; margin-bottom: 0.8rem; }
+.cab-tile { display: grid; justify-items: center; gap: 0.1rem; padding: 0.6rem 0.3rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); }
+.cab-tile b { font-size: 1.4rem; }
+.cab-icon { font-size: 1.3rem; }
+.cabinet li { display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.paper { background: #fbf8f0; color: #1d1b16; border-color: #d8cfb8; font-family: Georgia, 'Times New Roman', serif; }
+.paper .muted { color: #6b6250; }
+.paper a { color: #1d1b16; }
+.paper-mast { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px double #1d1b16; padding-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.paper-head { font-size: 1.5rem; line-height: 1.2; margin: 0.6rem 0; }
+.paper-photo { background: #ece4cf; padding: 1.2rem 0.8rem; text-align: center; border-radius: 4px; font-style: italic; }
+.paper-quote { font-style: italic; }
+.paper li.mine { font-weight: 700; background: none; }
+.feud { border: 1px solid #c0392b; border-radius: var(--radius); padding: 0.6rem 0.8rem; margin: 0.8rem 0; background: color-mix(in srgb, #c0392b 6%, var(--panel)); }
+.planner { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; }
+@media (max-width: 900px) { .planner { grid-template-columns: minmax(0, 1fr); } }
+.plan-line { margin-bottom: 0.7rem; }
+.plan-line-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); margin-bottom: 0.3rem; }
+.plan-line li { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; font-size: 0.9rem; }
+
+/* Місії тижня */
+.missions ul.plain { list-style: none; margin: 0.3rem 0 0; padding: 0; display: grid; gap: 0.3rem; }
+.missions .m-done b { text-decoration: line-through; opacity: 0.7; }
+.missions .m-failed { opacity: 0.55; }
+
+/* Гра на двох */
+.duo-gate { max-width: 34rem; margin: 2rem auto; text-align: center; display: grid; gap: 0.6rem; justify-items: center; }
+.duo-who { display: flex; gap: 0.9rem; align-items: center; text-align: left; }
+.duo-who h1 { margin: 0; }
+.duo-gate .note { text-align: left; }
+.tb-duo { white-space: nowrap; max-width: 11rem; overflow: hidden; text-overflow: ellipsis; }

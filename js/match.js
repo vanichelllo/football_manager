@@ -208,10 +208,12 @@
     }
     const rest = players.filter((p) => !used.has(p.id)).sort((a, b) => b.ca - a.ca);
     const bench = [];
+    // запасні, яких обрав тренер (до 9), — спершу; решта місць — найкращі з тих, хто лишився
+    if (tac && Array.isArray(tac.bench)) for (const id of tac.bench) { const p = rest.find((x) => x.id === id); if (p && bench.length < 9) bench.push(p); }
     const gk = rest.find((p) => p.roles[0] === 'GK');
-    if (gk) bench.push(gk);
-    for (const p of rest) if (bench.length < 9 && p !== gk) bench.push(p);
-    return { formation, xi, bench };
+    if (gk && !bench.some((p) => p.roles[0] === 'GK')) bench.unshift(gk);
+    for (const p of rest) if (bench.length < 9 && !bench.includes(p)) bench.push(p);
+    return { formation, xi, bench: bench.slice(0, 9) };
   }
 
   /** Схема, у якій склад найсильніший (для суперників і автопідбору). */
@@ -345,6 +347,7 @@
         perf: new Map(lu.xi.map((x) => [x.player.id, { min: 0, goals: 0, assists: 0, shots: 0, saves: 0, conceded: 0, yellow: 0, red: false, played: true }])),
         lineup: lu, takers: t.takers || {}, marked: new Set(), familiarity: t.familiarity == null ? 1 : t.familiarity,
         setp: { corner: 'far', cbUp: true, fk: 'shoot', ...(t.setp || {}) }, shout: null, shoutLog: [], ai: !t.manual,
+        oppi: { tackle: 'normal', press: 'normal', weakFoot: false, ...(t.oppi || {}) }, // інструкції проти суперника
         stats_extra: null,
       };
     });
@@ -371,11 +374,14 @@
       const fam = 0.95 + 0.05 * t.familiarity; // незнайома тактика — до −5%
       for (const k of ['att', 'mid', 'def']) t.units[k] *= fam * shX(t, 'boost');
       t.units.def *= shX(t, 'def');
+      // жорсткий відбір суперника заважає атаці, м'який — дає простір
+      const oi = sides[1 - t.k] && sides[1 - t.k].oppi;
+      if (oi) t.units.att *= oi.tackle === 'hard' ? 0.97 : oi.tackle === 'soft' ? 1.02 : 1;
     }
 
     function chanceRates(min) {
       // контроль м'яча: пресинг відбирає м'яч частіше, короткі передачі його бережуть
-      const ctrl = (t) => t.units.mid * shX(t, 'ctrl') * (1 + 0.055 * t.pressing - 0.045 * t.passing * (t.passing < 0 && WX.shortPenalty ? WX.shortPenalty : 1));
+      const ctrl = (t) => t.units.mid * shX(t, 'ctrl') * (sides[1 - t.k].oppi.press === 'tight' ? 0.97 : 1) * (1 + 0.055 * t.pressing - 0.045 * t.passing * (t.passing < 0 && WX.shortPenalty ? WX.shortPenalty : 1));
       const mh = ctrl(H) ** 1.5 * homeAdv, ma = ctrl(A) ** 1.5;
       const share = mh / (mh + ma); // частка володіння господарів
       const rate = (t, o, sh) => {
@@ -428,6 +434,7 @@
       const finish = (shooter.p.attrs.fin * 0.7 + shooter.p.attrs.dec * 0.3) / gq;
       q *= Math.min(1.5, Math.max(0.6, finish)) * FINISH_K;
       q *= (1 - 0.06 * t.passing * (t.passing > 0 && WX.directPenalty ? 1 / WX.directPenalty : 1)) * (1 + 0.05 * o.pressing); // високий пресинг суперника лишає простір за спиною
+      if (o.oppi.weakFoot) q *= 0.97; // змушують бити незручною ногою
 
       if (R.chance(0.013)) { // пенальті (~0,3 за матч)
         const tk = taker(t, 'pen');
@@ -527,7 +534,7 @@
       const gkX = o.onPitch.find((x) => !x.out && x.slot.role === 'GK');
       t.stats.shots++; t.perf.get(header.p.id).shots++;
       const k = { near: 0.9, far: 1.05, short: 1.1 }[sp.corner] || 1;
-      const q = 0.075 * k * (sp.cbUp ? 1 : 0.85) * Math.min(1.5, Math.max(0.6, (header.p.attrs.hea + ((tk.p.attrs.set || 8) + (tk.p.attrs.cro || 8)) / 2) / 26)) * WX.q;
+      const q = 0.075 * k * (sp.cbUp ? 1 : 0.85) * Math.min(1.5, Math.max(0.6, ((header.p.attrs.hea || 6) + ((tk.p.attrs.set || 8) + (tk.p.attrs.cro || 8)) / 2) / 26)) * WX.q;
       const scored = finishChance(t, o, min, 'corner', header, tk, gkUp && header.slot.role === 'GK' ? q * 0.9 : q, gkX, gkX ? name(gkX.p) : 'воротар', gkUp && header.slot.role === 'GK' ? 'gk' : null);
       // воротар не встиг повернутися — порожні ворота
       if (gkUp && header.slot.role === 'GK' && !scored && R.chance(0.3)) {
@@ -831,11 +838,11 @@
       const si = Math.min(5, Math.floor((Math.min(e.m, 90) - 1) / 15)); seg[si][0] += cr.share; seg[si][1]++;
       if (e.pi === 1 && !scoreHT) { scoreHT = [H.stats.goals, A.stats.goals]; for (const t of sides) t.perfHT = new Map([...t.perf].map(([id, pf]) => [id, { ...pf }])); }
       // втома: витривалість, пресинг
-      for (const t of sides) for (const x of t.onPitch) if (!x.out) x.cond = Math.max(30, x.cond - (0.42 - x.p.attrs.sta * 0.014) * (x.slot.role === 'GK' ? 0.3 : (1 + 0.25 * t.pressing) * shX(t, 'tire')) * WX.tire);
+      for (const t of sides) for (const x of t.onPitch) if (!x.out) x.cond = Math.max(30, x.cond - (0.42 - x.p.attrs.sta * 0.014) * (x.slot.role === 'GK' ? 0.3 : (1 + 0.25 * t.pressing) * shX(t, 'tire') * (t.oppi.press === 'tight' ? 1.1 : 1)) * WX.tire);
       if (e.m % 5 === 0) { compute(H); compute(A); }
       if (R.chance(cr.h)) chance(H, A, e.label);
       if (R.chance(cr.a)) chance(A, H, e.label);
-      for (const t of sides) if (R.chance(1.9 / 94 * (1 + 0.2 * t.pressing) * (opts.derby ? 1.35 : 1) * shX(t, 'cards'))) card(t, e.label);
+      for (const t of sides) if (R.chance(1.9 / 94 * (1 + 0.2 * t.pressing) * (opts.derby ? 1.35 : 1) * shX(t, 'cards') * (t.oppi.tackle === 'hard' ? 1.4 : t.oppi.tackle === 'soft' ? 0.7 : 1))) card(t, e.label);
       // вигук діє 10 хвилин; ШІ, що програє після 70-ї, кричить «Більше в атаку»
       for (const t of sides) {
         if (t.shout && e.m >= t.shout.until) { t.shout = null; compute(t); }

@@ -59,6 +59,51 @@
     return res > 0 ? `${name}: перемога! Уболівальники святкують, правління задоволене.` : res < 0 ? `${name}: поразка болить подвійно — фанати й правління незадоволені.` : `${name}: нічия, жодна зі сторін не задоволена.`;
   }
 
-  FM.rivals = { LIST, derby, isDerby, of, after };
+  // ---------------- Суперник-тренер: особиста ворожнеча (як у FM) ----------------
+  /** Головний суперник-тренер сезону: тренер дербі-суперника вашої ліги або найближчого за силою клубу. */
+  function feud(W, state) {
+    const S = state.season, me = W.club(state.clubId);
+    let f = state.feud;
+    if (f && f.me === state.clubId && f.y === S.year && W.club(f.club)) { f.name = (W.club(f.club).manager || {}).name || f.name; return f; }
+    const league = W.clubsOf(me.league).filter((c) => c.id !== me.id);
+    const derbies = of(W, me.id).map((x) => W.club(x.id)).filter((c) => c && c.league === me.league);
+    const lvl = W.clubLevel(me.id);
+    const pick = derbies[0] || league.sort((a, b) => Math.abs(W.clubLevel(a.id) - lvl) - Math.abs(W.clubLevel(b.id) - lvl))[0];
+    if (!pick) return null;
+    const heat = f && f.club === pick.id ? Math.max(1, f.heat) : 1;
+    state.feud = { me: state.clubId, club: pick.id, name: (pick.manager || {}).name || 'тренер суперника', heat, y: S.year, w: 0, l: 0, d: 0 };
+    return state.feud;
+  }
+  const JABS = {
+    jab: { label: 'Підколоти в пресі', hint: 'Може завести вашу команду (+2,5%) — або обернутися проти вас.' },
+    respect: { label: 'Висловити повагу', hint: 'Спокійно, без ризику. Ворожнеча вщухає.' },
+    silent: { label: 'Відмовчатися', hint: 'Без наслідків.' },
+  };
+  /** Словесна дуель перед матчем з суперником-тренером. Повертає { boost, text }. */
+  function duel(W, state, kind, R) {
+    const f = feud(W, state);
+    if (!f) return null;
+    let boost = 1, text;
+    if (kind === 'jab') {
+      f.heat = Math.min(5, f.heat + 1);
+      if (R.chance(0.6)) { boost = 1.025; text = `Ваші слова зачепили ${f.name}, а ваша команда рветься в бій.`; }
+      else { boost = 0.985; text = `${f.name} відповів дотепно — ваші гравці нервують.`; }
+    } else if (kind === 'respect') { f.heat = Math.max(1, f.heat - 1); boost = 1.005; text = `${f.name} подякував за теплі слова. Атмосфера спокійна.`; }
+    else text = 'Ви не стали відповідати на провокації.';
+    return { boost, text };
+  }
+  /** Після матчу з суперником-тренером: його цитата. d — різниця голів для вас. */
+  function feudAfter(W, state, d) {
+    const f = feud(W, state);
+    if (!f) return null;
+    if (d > 0) f.w++; else if (d < 0) f.l++; else f.d++;
+    const hot = f.heat >= 3;
+    const q = d > 0 ? (hot ? ['«Суддя вирішив цей матч, а не футбол».', '«Нехай радіють. Друге коло буде іншим».'] : ['«Сьогодні суперник був сильнішим».', '«Вітаю колегу з перемогою».'])
+      : d < 0 ? (hot ? ['«Ось вам і відповідь на всі балачки в пресі».', '«Сьогодні була лекція з футболу».'] : ['«Важка, але заслужена перемога».', '«Поважаю суперника, але ми були кращими».'])
+        : (hot ? ['«Нічия — і жоден із нас не задоволений».'] : ['«Чесна нічия».']);
+    return `${f.name} (${W.club(f.club).name}): ${q[(f.w + f.l + f.d) % q.length]}${hot ? ' 🔥' : ''}`;
+  }
+
+  FM.rivals = { LIST, derby, isDerby, of, after, feud, JABS, duel, feudAfter };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

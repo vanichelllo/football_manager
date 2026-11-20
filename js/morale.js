@@ -40,6 +40,7 @@
     for (const f of S.fixtures) if (f.s) { games[f.h] = (games[f.h] || 0) + 1; games[f.a] = (games[f.a] || 0) + 1; }
     const events = [];
     for (const c of W.clubs.values()) {
+      if (FM.duo && FM.duo.skip(state, c.id)) continue; // гра на двох: гравців другого тренера — у його проході
       const mine = c.id === state.clubId;
       for (const id of c.players) {
         const p = W.player(id);

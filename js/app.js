@@ -102,9 +102,10 @@
     if (!state) return renderStart();
     if (!state.cups) { ensureCups(); saveGame(); } // старе збереження без кубків
     let view = location.hash.slice(1) || 'inbox'; // як у FM: головний екран — пошта
+    if (FM.duo.on(state) && state.duo.handoff) view = 'duo'; // гра на двох: передати телефон
     if (state.sacked && !['sacked', 'options', 'interview'].includes(view.split('-')[0])) view = 'sacked';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, search: screenSearch, charts: screenCharts, calendar: screenCalendar, compare: screenCompare, holiday: screenHoliday, awards: screenAwards, plan: screenPlan, medical: screenMedical, interview: screenInterview, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, dressing: screenDressing, u21: screenU21, media: screenMedia, search: screenSearch, charts: screenCharts, calendar: screenCalendar, compare: screenCompare, holiday: screenHoliday, awards: screenAwards, planner: screenPlanner, plan: screenPlan, medical: screenMedical, interview: screenInterview, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings, duo: screenDuo };
     planTouch(name);
     if (name !== 'inbox') inboxBase = null;
     const body = (screens[name] || screenOverview)(arg);
@@ -134,7 +135,7 @@
       el('aside.side', [
         el('div.club-head', [badge(my), el('b', clubName(my))]),
         el('nav.nav', { 'aria-label': 'Меню' }, [
-          planNav() ? item('plan', planNav()) : null, item('overview', 'Огляд'), item('inbox', (() => { const n = FM.market.unread(state); return n ? ['Повідомлення ', el('span.count', { 'aria-label': `${n} непрочитаних` }, String(n))] : 'Повідомлення'; })()), item('squad', 'Склад'), item('dressing', 'Роздягальня'), item('u21', 'Молодь U-21'), item('leagues', 'Ліги й клуби'),
+          planNav() ? item('plan', planNav()) : null, item('overview', 'Огляд'), item('inbox', (() => { const n = FM.market.unread(state); return n ? ['Повідомлення ', el('span.count', { 'aria-label': `${n} непрочитаних` }, String(n))] : 'Повідомлення'; })()), item('squad', 'Склад'), item('planner', 'План складу'), item('dressing', 'Роздягальня'), item('u21', 'Молодь U-21'), item('leagues', 'Ліги й клуби'),
           item('fixtures', 'Сезон'), item('calendar', 'Календар'), item('table', 'Таблиця'), item('charts', 'Графіки'), item('cups', 'Кубки'), item('match', 'Товариський'),
           item('tactics', 'Тактика'), item('training', 'Тренування'), item('medical', 'Медцентр'), item('transfers', 'Трансфери'), item('search', 'Пошук'), item('office', 'Клуб'), item('board', 'Правління'), item('media', 'Медіа'), item('coach', 'Тренер'), item('nations', 'Збірна'), item('awards', 'Нагороди'), item('history', 'Історія'), item('help', 'Довідка'),
           item('options', 'Налаштування'),
@@ -159,6 +160,9 @@
     const tabs = el('div.tabs', { role: 'group', 'aria-label': 'Ліга' });
     const nameInput = el('input', { id: 'manager-name', type: 'text', value: 'Новий тренер', maxlength: 40, autocomplete: 'off' });
     const tutInput = el('input', { id: 'tutorial', type: 'checkbox', checked: true });
+    const duoInput = el('input', { id: 'duo', type: 'checkbox', onchange: () => { duoBox.hidden = !duoInput.checked; } });
+    const name2 = el('input', { id: 'manager-name-2', type: 'text', value: 'Другий тренер', maxlength: 40, autocomplete: 'off' });
+    const duoBox = el('div.field', { hidden: true }, [el('label', { for: 'manager-name-2' }, 'Ім’я другого тренера'), name2, el('p.muted', 'Клуб другому тренерові оберете на наступному кроці. Ходите по черзі на одному телефоні.')]);
     const startBtn = el('button.btn.primary', { type: 'button', disabled: true, onclick: begin }, 'Почати кар’єру');
     const picked = el('span.muted', 'Оберіть клуб');
 
@@ -185,10 +189,12 @@
       FM.board.initSeason(W, state);
       FM.club.init(W, state);
       FM.career.init(W, state);
-      if (challenge) FM.challenges.start(state, challenge);
+      if (challenge) FM.challenges.start(state, challenge, W);
       FM.nations.ensurePools(W, state); // гравці для збірних, яких немає в базі
       state.day = 0;
       ensureCups();
+      FM.missions.current(W, state);
+      if (duoInput.checked) return renderSecond(name2.value.trim() || 'Другий тренер');
       saveGame();
       go('inbox');
     }
@@ -209,11 +215,44 @@
       startSlots,
       el('div.field', [el('label', { for: 'manager-name' }, 'Ваше ім’я'), nameInput]),
       el('label.check', [tutInput, ' Показувати підказки для новачка']),
+      el('label.check', [duoInput, ' Гра на двох на одному телефоні (два тренери, два клуби)']),
+      duoBox,
       el('div.field', [el('b', 'Режим'), chBox, chNote]),
       tabs,
       grid,
       el('div.panel.confirm', [picked, startBtn]),
       el('p.note', `Дані: ${W.db.source}. Знімок від ${fmt.date(W.db.snapshot)}. Атрибути вирахувані з реальних фактів і можуть не збігатися з вашим уявленням про гравця.`),
+    ]));
+  }
+
+  /** Гра на двох: другий тренер обирає клуб (інший, ніж у першого). */
+  function renderSecond(name) {
+    const first = state.clubId;
+    let leagueId = W.club(first).league, clubId = null;
+    const tabs = el('div.tabs', { role: 'group', 'aria-label': 'Ліга' }), grid = el('div.club-grid');
+    const startBtn = el('button.btn.primary', { type: 'button', disabled: true, onclick: () => {
+      state.duo = { turn: 0, other: {} };
+      FM.duo.swap(state); // тепер у state — лише спільне: створюємо кар'єру другого тренера
+      Object.assign(state, { manager: name, clubId, tutorial: null });
+      FM.board.initSeason(W, state);
+      FM.club.init(W, state);
+      FM.career.init(W, state);
+      FM.missions.current(W, state);
+      FM.market.news(state, `Ви очолили ${clubName(W.club(clubId))}. Гра на двох: суперник по дивану — ${state.duo.other.manager} (${clubName(W.club(state.duo.other.clubId))}).`, 'club');
+      FM.duo.swap(state); // починає перший тренер
+      FM.career.init(W, state);
+      saveGame();
+      go('duo');
+    } }, 'Почати гру на двох');
+    const picked = el('span.muted', 'Оберіть клуб');
+    const drawTabs = () => tabs.replaceChildren(...W.db.leagues.map((l) => el('button', { type: 'button', 'aria-pressed': String(l.id === leagueId), onclick: () => { leagueId = l.id; drawTabs(); drawClubs(); } }, l.name)));
+    const drawClubs = () => grid.replaceChildren(...W.clubsOf(leagueId).filter((c) => c.id !== first).map((c) => ({ c, lvl: W.clubLevel(c.id) })).sort((a, b) => b.lvl - a.lvl).map(({ c, lvl }) => el('button.club-card', {
+      type: 'button', 'aria-pressed': String(c.id === clubId), onclick: () => { clubId = c.id; picked.textContent = c.name; startBtn.disabled = false; drawClubs(); },
+    }, [badge(c), el('span.t', [el('b', c.name), el('small', c.stadium || c.nameEn), starsEl(lvl, 'Рівень клубу')])])));
+    drawTabs(); drawClubs();
+    app.replaceChildren(el('div.start', [
+      el('div.hero', [el('h1', `${name}: оберіть клуб`), el('p', `Перший тренер — ${state.manager}, ${clubName(W.club(first))}. Найцікавіше — клуби однієї ліги: дербі на дивані!`)]),
+      tabs, grid, el('div.panel.confirm', [picked, startBtn]),
     ]));
   }
 
@@ -277,6 +316,7 @@
         ])]),
       ]),
       seasonPanel(),
+      missionsCard(),
       tipsPanel(4),
       newsPanel(),
       el('div.grid', [mini(best, 'Найкращі гравці'), mini(young, 'Найперспективніша молодь (до 21)')]),
@@ -613,6 +653,7 @@
           const sellOn = document.getElementById('bid-sellon').checked;
           const inst = Number(document.getElementById('bid-inst').value) || 0, apps = Number(document.getElementById('bid-apps').value) || 0;
           const bonus = apps ? Math.round(fee * 0.15 * 20) / 20 : 0;
+          if (!FM.budget.canSpend(W, state, fee)) { deal.msg = `Не вистачає трансферного бюджету: ${M(FM.budget.available(W, state))}. Перекиньте гроші із зарплатного бюджету («Правління» → «Бюджети») або продайте когось.`; deal.ok = false; return render(); }
           if (FM.deals.upfront(fee, inst) > me.balance) { deal.msg = `Не вистачає грошей: баланс ${M(me.balance)}${inst ? `, одразу треба ${M(FM.deals.upfront(fee, inst))}` : ''}.`; deal.ok = false; return render(); }
           if (buyBlocked()) { deal.msg = buyBlocked(); deal.ok = false; return render(); }
           const swapVal = swap ? W.player(swap).value * 0.85 : 0; // гравець в обмін рахується як 85% його ціни
@@ -631,12 +672,12 @@
             const opt = document.getElementById('loan-opt').checked;
             const gap = W.clubLevel(p.club) - W.clubLevel(me.id);
             if (gap > 15 + 10 * share) { deal.msg = 'Клуб не хоче віддавати гравця в настільки слабкий клуб.'; deal.ok = false; return render(); }
-            if (FM.market.loanFee(p) > me.balance) { deal.msg = 'Не вистачає грошей на оренду.'; deal.ok = false; return render(); }
+            if (FM.market.loanFee(p) > me.balance || !FM.budget.canSpend(W, state, FM.market.loanFee(p) * (document.getElementById('loan-opt').checked ? 1.25 : 1))) { deal.msg = `Не вистачає грошей на оренду (трансферний бюджет ${M(FM.budget.available(W, state))}).`; deal.ok = false; return render(); }
             if (buyBlocked()) { deal.msg = buyBlocked(); deal.ok = false; return render(); }
             if (share < 0.75 && W.clubLevel(p.club) > W.clubLevel(me.id)) { deal.msg = 'Сильніший клуб хоче, щоб ви платили щонайменше 75% зарплати.'; deal.ok = false; return render(); }
             const owner = p.club, extraFee = opt ? Math.round(FM.market.loanFee(p) * 0.25 * 100) / 100 : 0;
             FM.market.loanIn(W, state, p, me.id, share);
-            if (opt) { p.loan.option = FM.deals.optionPrice(W, p, S); me.balance = Math.round((me.balance - extraFee) * 100) / 100; W.club(owner).balance = Math.round((W.club(owner).balance + extraFee) * 100) / 100; }
+            if (opt) { p.loan.option = FM.deals.optionPrice(W, p, S); me.balance = Math.round((me.balance - extraFee) * 100) / 100; FM.budget.spend(W, state, extraFee); W.club(owner).balance = Math.round((W.club(owner).balance + extraFee) * 100) / 100; }
             FM.market.news(state, `${nameOf(p)} — в оренді у вас до кінця сезону${opt ? `, з опцією викупу за ${M(p.loan.option)}` : ''}.`);
             state.known = state.known || {}; state.known[p.id] = true;
             deal = null; saveGame(); render();
@@ -660,6 +701,7 @@
           const r = FM.market.playerResponse(W, p, me.id, wage, years, { rival: rv, clauses: { clause, goalBonus } });
           if (!r.ok) { deal.msg = r.reason; deal.ok = false; return render(); }
           const ag = FM.market.agentFee(deal.fee, wage, p);
+          if (!FM.budget.canSpend(W, state, deal.fee + ag)) { deal.msg = `Не вистачає трансферного бюджету: ${M(FM.budget.available(W, state))}, а з агентом треба ${M(deal.fee + ag)}.`; deal.ok = false; return render(); }
           if (FM.deals.upfront(deal.fee, deal.inst) + ag > me.balance) { deal.msg = `Не вистачає грошей: баланс ${M(me.balance)}, з агентом — ${M(deal.fee + ag)}.`; deal.ok = false; return render(); }
           const bill = FM.market.wageBill(W, me.id) - (deal.swap ? W.player(deal.swap).wage || 0 : 0);
           if (bill + wage > me.wageBudget) { deal.msg = `Правління не погоджує: фонд зарплат ${me.wageBudget} тис. €/тиж., уже витрачено ${bill}. Продайте когось або запропонуйте менше.`; deal.ok = false; return render(); }
@@ -668,6 +710,7 @@
           state.board.fin.transfers = Math.round((state.board.fin.transfers - now - ag) * 100) / 100;
           FM.market.complete(W, state, p, me.id, now, wage, years, { agent: ag, sellOn: deal.sellOn ? 0.15 : 0, clause: clause || null, goalBonus: goalBonus || null, swap: deal.swap });
           FM.deals.register(state, p, fromId, deal.fee, { inst: deal.inst, apps: deal.apps, bonus: deal.bonus });
+          if (deal.fee - now > 0) FM.budget.spend(W, state, deal.fee - now); // розстрочка: бюджет рахує всю суму одразу
           state.known = state.known || {}; state.known[p.id] = true;
           FM.market.news(state, `Ви підписали ${nameOf(p)}${from ? ` (${from}, ${M(deal.fee)}${deal.swap ? ' + обмін' : ''})` : ' (вільний агент)'}.`);
           deal = null; saveGame(); render();
@@ -789,6 +832,7 @@
           ...(FM.deals.debt(state) ? [el('dt', 'Борг за розстрочкою'), el('dd', FM.market.fmtM(FM.deals.debt(state)))] : []),
         ]), el('p.note', 'Дохід клубу розрахований так, щоб за стартових зарплат сезон був трохи в плюсі. Дорогі контракти з’їдають прибуток; від’ємний баланс знижує довіру.')]),
       ]),
+      budgetPanel(),
       sponsorPanel(),
       requestsPanel(),
       affiliatePanel(),
@@ -804,6 +848,43 @@
     ];
   }
 
+  let budMsg = null;
+  /** Бюджети: трансферний і зарплатний, перекидання між ними, кредит, прогноз, права на назву стадіону. */
+  function budgetPanel() {
+    const me = W.club(state.clubId), b = FM.budget.get(W, state), bill = FM.market.wageBill(W, me.id);
+    const room = Math.max(0, me.wageBudget - bill); // вільне в зарплатному
+    const minM = -FM.budget.toMln(room), maxM = Math.round(b.transfer * 100) / 100;
+    let v = 0;
+    const out = el('p.muted.bud-preview', 'Посуньте повзунок: вліво — у трансфери, вправо — у зарплати.');
+    const slider = el('input', { type: 'range', min: String(Math.min(0, minM)), max: String(Math.max(0, maxM)), step: '0.05', value: '0', 'aria-label': 'Перекинути між бюджетами', oninput: (e) => {
+      v = Number(e.target.value);
+      out.textContent = !v ? 'Без змін.' : v > 0 ? `${M(v)} з трансферного → +${FM.budget.toWeekly(v)} тис. €/тиж. у зарплатний (трансфери: ${M(b.transfer - v)}, зарплати: ${me.wageBudget + FM.budget.toWeekly(v)} тис.)`
+        : `${-FM.budget.toWeekly(v)} тис. €/тиж. із зарплатного → +${M(-v)} у трансферний (трансфери: ${M(b.transfer - v)}, зарплати: ${me.wageBudget + FM.budget.toWeekly(v)} тис.)`;
+    } });
+    const fc = FM.budget.forecast(W, state), L = state.loan && state.loan.left > 0 ? state.loan : null;
+    let loanAmt = Math.round(FM.budget.loanMax(W, state) * 100) / 100;
+    return el('div.panel.budget', [el('h3', 'Бюджети'),
+      el('div.grid', [
+        el('div', [el('small.muted', 'Трансферний бюджет'), el('p.big', M(FM.budget.available(W, state))), el('small.muted', `на старті ${M(b.start)} · витрачено ${M(b.spent)} · з продажів +${M(b.earned)} (75% виручки)`)]),
+        el('div', [el('small.muted', 'Зарплатний бюджет'), el('p.big', `${me.wageBudget} тис. €/тиж.`), el('small.muted', `зайнято ${bill} · вільно ${room} тис. €/тиж.`)]),
+      ]),
+      el('div.field.bud-move', [el('b', 'Перекинути гроші між бюджетами'), el('div.bud-slider', [el('small', 'У трансфери'), slider, el('small', 'У зарплати')]), out,
+        el('button.btn', { type: 'button', onclick: () => { if (!v) return; const r = FM.budget.move(W, state, v); budMsg = r.text; if (r.ok) FM.market.news(state, r.text, 'club'); saveGame(); render(); } }, 'Застосувати')]),
+      el('p.note', '1 млн € трансферного бюджету = 19 тис. € на тиждень зарплат (річна сума). Більший зарплатний бюджет — можна платити більше новим гравцям; більший трансферний — купувати дорожчих.'),
+      budMsg ? el('p.msg-ok', budMsg) : null,
+      el('dl.facts', [
+        el('dt', 'Прогноз на кінець сезону'), el('dd', `${M(fc.end)} (${fc.weekly >= 0 ? '+' : ''}${M(fc.weekly)} на тиждень, без трансферів і призових)`),
+        el('dt', 'Кредит'), el('dd', L ? `${M(L.total - L.paid)} ще повернути · ${M(L.perWeek)}/тиж., ${L.left} тиж.` : 'немає'),
+        el('dt', 'Назва стадіону'), el('dd', me.namingSold ? `«${me.namingSold.sponsor} Арена» (продано ${me.namingSold.s})` : me.stadium || '—'),
+      ]),
+      el('div.actions', [
+        L ? el('button.btn', { type: 'button', onclick: () => { const r = FM.budget.repayLoan(W, state); budMsg = r.text; saveGame(); render(); } }, 'Погасити кредит достроково')
+          : el('span.bud-loan', [el('label', { for: 'loan-amt' }, 'Кредит, млн € '), el('input', { id: 'loan-amt', type: 'number', min: '0.1', max: String(loanAmt), step: '0.1', value: String(loanAmt), style: { width: '6rem' }, onchange: (e) => { loanAmt = Number(e.target.value) || loanAmt; } }),
+            el('button.btn', { type: 'button', title: `До ${M(FM.budget.loanMax(W, state))}, 8% за два роки`, onclick: () => { const r = FM.budget.takeLoan(W, state, loanAmt); budMsg = r.text; if (r.ok) FM.market.news(state, r.text, 'club'); saveGame(); render(); } }, 'Взяти')]),
+        me.namingSold ? null : el('button.btn', { type: 'button', title: 'Одноразові гроші; фанатам не сподобається', onclick: () => { const r = FM.budget.sellNaming(W, state); budMsg = r.text; if (r.ok) FM.market.news(state, r.text, 'club'); saveGame(); render(); } }, `Продати права на назву стадіону (${M(FM.budget.naming(W, state))})`),
+      ]),
+    ]);
+  }
   let reqMsg = null, affCands = null;
   /** Прохання до правління: одне кожного виду на сезон. */
   function requestsPanel() {
@@ -1080,12 +1161,54 @@
   }
 
   // ---------------- Медіа й уболівальники (розширення 8) ----------------
+  // ---------------- Газета туру ----------------
+  const PAPERS = ['Футбольний вісник', 'Спорт-Експрес', 'Голова гра', 'Трибуна', 'Вечірній матч'];
+  /** Випуск газети після туру вашої ліги: заголовок, результати, гравець туру, цитата тренера, фото дня. */
+  function makePaper() {
+    const S = state.season, w = S.week - 1, L = W.club(state.clubId).league;
+    const fx = S.fixtures.filter((f) => f.w === w && f.l === L && f.s);
+    if (!fx.length) return;
+    const R = FM.rng(`paper-${S.seed}-${S.year}-${w}`);
+    const mine = fx.find((f) => f.h === state.clubId || f.a === state.clubId);
+    const big = [...fx].sort((a, b) => Math.abs(b.s[0] - b.s[1]) - Math.abs(a.s[0] - a.s[1]) || (b.s[0] + b.s[1]) - (a.s[0] + a.s[1]))[0];
+    const t = FM.season.table(S, W, L), leader = W.club(t[0].id);
+    const nm = (id) => clubName(W.club(id));
+    let head;
+    if (mine) {
+      const home = mine.h === state.clubId, gf = home ? mine.s[0] : mine.s[1], ga = home ? mine.s[1] : mine.s[0], opp = nm(home ? mine.a : mine.h);
+      head = gf - ga >= 3 ? `РОЗГРОМ! ${nm(state.clubId)} не залишив шансів ${opp}` : gf > ga ? `${nm(state.clubId)} дотискає ${opp}` : gf === ga ? `Нічия з ${opp}: очки поділено` : ga - gf >= 3 ? `Катастрофа: ${opp} ганьбить ${nm(state.clubId)}` : `${opp} сильніший цього разу`;
+    } else head = `${nm(big.h)} — ${nm(big.a)} ${big.s.join(':')}: головний матч туру`;
+    const tw = (state.aw || {}).totw, starIdx = tw && tw.w === w ? tw.r.indexOf(Math.max(...tw.r)) : -1;
+    const star = starIdx >= 0 ? { pid: tw.ids[starIdx], r: tw.r[starIdx] } : null;
+    const QUOTES = mine ? (() => { const home = mine.h === state.clubId, d = (home ? mine.s[0] - mine.s[1] : mine.s[1] - mine.s[0]);
+      return d > 0 ? ['«Хлопці виконали все, що ми готували тиждень».', '«Це перемога характеру».', '«Радіємо, але вже думаємо про наступний матч».']
+        : d === 0 ? ['«Очко — теж результат. Але ми хотіли більшого».', '«Нам бракувало точності в завершенні».']
+          : ['«Беру відповідальність на себе».', '«Такі матчі треба забувати й працювати».', '«Ми розберемо помилки на відео».']; })() : ['«Стежимо за суперниками, але думаємо про себе».'];
+    const PHOTOS = ['📸 Фанати з величезним банером на трибуні', '📸 Тренер аплодує вболівальникам після свистка', '📸 Воротар у польоті — найкращий сейв туру', '📸 Гравці святкують гол купою-малою', '📸 Маленький фанат з автографом кумира', '📸 Порожні трибуни під дощем'];
+    state.paper = { s: S.year, w, name: R.pick(PAPERS), head, leader: leader.id, star, quote: R.pick(QUOTES), photo: R.pick(PHOTOS),
+      results: fx.map((f) => [f.h, f.a, f.s]), date: FM.season.dateOf(w, S) };
+  }
+  function paperPanel() {
+    const P = state.paper;
+    if (!P) return null;
+    return el('div.panel.paper', [el('div.paper-mast', [el('b', P.name), el('small.muted', fmt.date(P.date))]),
+      el('h2.paper-head', P.head),
+      el('p.paper-photo', P.photo),
+      el('div.grid', [
+        el('div', [el('b', 'Результати туру'), el('ul.plain', P.results.map(([h, a, sc]) => el('li' + (h === state.clubId || a === state.clubId ? '.mine' : ''), `${clubName(W.club(h))} ${sc.join(':')} ${clubName(W.club(a))}`)))]),
+        el('div', [P.star && W.player(P.star.pid) ? el('p', [el('b', 'Гравець туру: '), el('a', { href: '#player-' + P.star.pid }, nameOf(W.player(P.star.pid))), ` (${clubName(W.club(W.player(P.star.pid).club))}), оцінка ${String(P.star.r).replace('.', ',')}`]) : null,
+          el('p', [el('b', 'Лідер: '), clubName(W.club(P.leader))]),
+          el('p.paper-quote', [el('b', `${state.manager}: `), P.quote])]),
+      ])]);
+  }
+
   function screenMedia() {
     const me = W.club(state.clubId), m = state.media || { press: [], posts: [], followers: 0 };
     const pr = FM.media.pressure(W, state), fans = FM.club.fans(W, me.id).mood;
     const fmtN = (n) => (n >= 1e6 ? (Math.round(n / 1e5) / 10 + ' млн').replace('.', ',') : n >= 1e3 ? Math.round(n / 1e3) + ' тис.' : String(n));
     return [
       el('header', [el('h1', 'Медіа'), el('span.muted', `Підписників у клубу: ${fmtN(m.followers || 0)} · настрій фанатів ${Math.round(fans)}`)]),
+      paperPanel(),
       el('div.panel', [el('b', `Тиск медіа: ${pr} з 100`), el('div.confbar', { role: 'meter', 'aria-valuenow': pr, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-label': 'Тиск медіа' },
         el('i', { style: { width: pr + '%' }, class: pr >= 70 ? 'low' : pr >= 45 ? 'mid' : 'high' })),
         el('small.muted', 'Тиск росте від поганих результатів, невдоволених уболівальників і недовіри правління. Понад 80 — фанати вимагають відставки, і правління нервує.')]),
@@ -1149,6 +1272,9 @@
         el('div', { class: 'confbar', role: 'meter', 'aria-valuenow': g.mood, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-label': 'Настрій групи' }, el('i', { style: { width: g.mood + '%' }, class: g.mood < 40 ? 'low' : g.mood < 60 ? 'mid' : 'high' })),
         el('small.muted', g.players.slice(1, 6).map((p) => nameOf(p)).join(', ') + (g.players.length > 6 ? '…' : '')),
       ]))) : el('p.muted', 'Помітних груп немає — команда згуртована.')]),
+      (() => { const fr = FM.dressing.friends(W, state.clubId); return el('div.panel', [el('h3', `Найкращі друзі: ${fr.length} пар`), fr.length ? el('ul.plist', fr.map(([a, b]) => el('li', [
+        el('span', ['🤝 ', el('a', { href: '#player-' + a.id }, nameOf(a)), ' і ', el('a', { href: '#player-' + b.id }, nameOf(b))]), el('small.muted', a.nat === b.nat ? FM.countries.name(a.nat) : 'одна мова')]))) : el('p.muted', 'Близьких друзів у команді немає.'),
+        el('p.note', 'Продасте одного — інший сумуватиме. Новачкові легше, коли в команді є співвітчизники.')]); })(),
     ];
   }
 
@@ -1232,6 +1358,60 @@
     ]);
   }
 
+  // ---------------- День дедлайну (як у FM) ----------------
+  /**
+   * Останній тиждень вікна: таймер до закриття, стрічка угод вікна, «панічні пропозиції» —
+   * клуби в останню мить продають гравців зі знижкою 20–35%.
+   */
+  let dlMsg = null;
+  function deadlinePanel() {
+    const S = state.season, me = W.club(state.clubId);
+    const win = FM.market.windows(S).find(([a, b]) => S.week >= a && S.week <= b);
+    if (!win || S.week !== win[1]) return null;
+    const dlDay = S.cal ? 1 : 5, day = curDay();
+    const left = day <= dlDay ? (dlDay - day) * 24 + (24 - 8) : 0;
+    const key = `${S.year}-${S.week}`;
+    if (!state.dl || state.dl.key !== key) {
+      // панічні пропозиції: корисні вам гравці, яких клуби готові віддати дешевше
+      const R = FM.rng(`dl-${S.seed}-${key}`), side = mySide(), xiAvg = side.lineup.xi.reduce((a, x) => a + x.player.ca, 0) / 11;
+      const budget = FM.budget.available(W, state);
+      const cands = [...W.players.values()].filter((p) => p.club && p.club !== state.clubId && !p.loan && !p.retired && !p.virtual && p.ca >= xiAvg * 0.93 && (W.age(p) ?? 30) <= 31
+        && W.club(p.club).players.length > 20 && FM.market.askingPrice(W, p, S) <= Math.max(1, budget * 1.6));
+      const list = [];
+      for (let i = 0; i < 40 && list.length < 3 && cands.length; i++) {
+        const p = cands.splice(R.int(cands.length), 1)[0];
+        if (FM.market.wageDemand(W, p, state.clubId) == null) continue;
+        list.push({ pid: p.id, price: Math.round(FM.market.askingPrice(W, p, S) * (0.65 + R.next() * 0.15) * 20) / 20 });
+      }
+      state.dl = { key, list };
+    }
+    const deals = (state.transfers || []).filter((t) => t.s === S.year && t.w >= win[0] && t.w <= win[1] && t.fee > 0).slice(-12).reverse();
+    return el('div.panel.deadline', [
+      el('div.plan-card-head', [el('h3', '⏰ День дедлайну'), el('b.dl-timer', left > 0 ? `до закриття ${left} год` : 'вікно закривається опівночі!')]),
+      el('p.muted', 'Останні години трансферного вікна: клуби поспішають, ціни падають, рішення — швидкі.'),
+      state.dl.list.length ? el('ul.plist.dl-offers', state.dl.list.map((x) => {
+        const p = W.player(x.pid);
+        if (!p || p.club === state.clubId || x.done) return el('li', [el('span.muted', p ? `${nameOf(p)} — угоду закрито` : '—')]);
+        const wage = FM.market.wageDemand(W, p, state.clubId);
+        return el('li', [el('span', [el('b', '🔥 '), el('a', { href: '#player-' + p.id }, nameOf(p)), el('small.muted', ` ${FM.positions(p)}, ${W.age(p)} р., ${clubName(W.club(p.club))} · ціна ${M(FM.market.askingPrice(W, p, S))} → `), el('b', M(x.price))]),
+          el('button.btn.primary', { type: 'button', onclick: () => {
+            if (!FM.budget.canSpend(W, state, x.price)) { dlMsg = `Не вистачає трансферного бюджету (${M(FM.budget.available(W, state))}).`; return render(); }
+            if (FM.market.wageBill(W, me.id) + wage > me.wageBudget) { dlMsg = `Гравець хоче ${wage} тис. €/тиж. — фонд зарплат не дозволяє. Перекиньте гроші в зарплати («Правління» → «Бюджети»).`; return render(); }
+            if (buyBlocked()) { dlMsg = buyBlocked(); return render(); }
+            const from = clubName(W.club(p.club));
+            FM.market.complete(W, state, p, me.id, x.price, wage, 3);
+            state.board.fin.transfers = Math.round((state.board.fin.transfers - x.price) * 100) / 100;
+            x.done = true; state.known = state.known || {}; state.known[p.id] = true;
+            FM.market.news(state, `Угода в останню мить! ${nameOf(p)} переходить з ${from} за ${M(x.price)}.`, 'transfers');
+            dlMsg = `${nameOf(p)} — ваш гравець! Зарплата ${wage} тис. €/тиж.`; saveGame(); render();
+          } }, `Купити за ${M(x.price)}`)]);
+      })) : el('p.muted', 'Панічних пропозицій для вас немає.'),
+      dlMsg ? el('p.msg-ok', dlMsg) : null,
+      el('b', 'Стрічка угод вікна'),
+      deals.length ? el('ul.plain.dl-feed', deals.map((t) => { const p = W.player(t.p); return el('li' + (t.fee >= 20 ? '.big' : ''), `${t.fee >= 20 ? '💥 ' : ''}${p ? p.name : '?'}: ${t.from && W.club(t.from) ? W.club(t.from).name : 'вільний'} → ${W.club(t.to) ? W.club(t.to).name : ''}, ${M(t.fee)}`); })) : el('p.muted', 'Поки тихо.'),
+    ]);
+  }
+
   // ---------------- Екран «Трансфери» ----------------
   let tf = { role: '', maxAge: 35, maxPrice: 0, league: 'all', nat: 'all', minCa: 0, minAge: 15, listed: false, expiring: false, known: false };
   function screenTransfers() {
@@ -1262,10 +1442,12 @@
 
     return [
       el('header', [el('h1', 'Трансфери'), el('span.muted', open ? 'Трансферне вікно відкрите' : `Вікно закрите · ${nw != null ? `відкриється на ${nw + 1}-му тижні` : 'наступне — влітку'}`)]),
+      deadlinePanel(),
       el('div.grid', [
         el('div.panel', [el('h3', 'Фінанси'), el('dl.facts', [
+          el('dt', 'Трансферний бюджет'), el('dd', el('b', M(FM.budget.available(W, state)))),
           el('dt', 'Баланс'), el('dd', M(me.balance)),
-          el('dt', 'Зарплати'), el('dd', `${FM.market.wageBill(W, me.id)} тис. € на тиждень`),
+          el('dt', 'Зарплати'), el('dd', `${FM.market.wageBill(W, me.id)} з ${me.wageBudget} тис. € на тиждень`),
           el('dt', 'Гравців'), el('dd', me.players.length),
         ])]),
         el('div.panel', [el('h3', 'Пропозиції за ваших гравців'), offers.length ? el('ul.plist', offers.map((o) => el('li', [
@@ -1421,15 +1603,18 @@
     t.roles = t.roles || {}; t.variants = t.variants || {}; t.instr = t.instr || {}; t.takers = t.takers || {};
     return t;
   }
-  const USER = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity(), reserve: new Set([...FM.youth.set(state), ...FM.medical.rested(state)]), // U-21 і ті, хто відпочиває
-    boost: FM.dressing.matchBoost(state) * FM.routine.prepBoost(weekSchedule(), (curEvent() || { day: 6 }).day) }); // збори + підготовка напередодні
+  const USER1 = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity(), reserve: new Set([...FM.youth.set(state), ...FM.medical.rested(state)]), // U-21 і ті, хто відпочиває
+    boost: FM.dressing.matchBoost(state) * FM.routine.prepBoost(weekSchedule(), (curEvent() || { day: 6 }).day) * mindBoost() }); // збори + підготовка напередодні + словесна дуель
+  /** Тренер-людина для рушія матчів; у грі на двох — обидва (склад і тактика другого — його власні). */
+  const USER = () => (FM.duo.on(state) ? [USER1(), FM.duo.as(state, USER1)] : USER1());
+  const mindBoost = () => { const m = state.mind, S = state.season, ev = curEvent(); return m && m.key === `${S.year}-${S.week}` && ev && ev.opp === m.club ? m.boost : 1; };
 
   function mySide() {
     const t = myTactics();
     const players = availablePlayers(state.clubId);
     const lineup = FM.lineupFromIds(players, t.formation, t.ids, t);
     return { club: W.club(state.clubId), players, formation: t.formation, lineup, units: FM.lineupUnits(lineup),
-      mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers, setp: t.setp, familiarity: Math.min(1, (familiarity()[t.formation] || 0) / 100) };
+      mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers, setp: t.setp, oppi: t.oppi, familiarity: Math.min(1, (familiarity()[t.formation] || 0) / 100) };
   }
 
   const shortName = (p) => { const n = nameOf(p).split(' '); return n.length > 1 ? n.slice(1).join(' ') : n[0]; };
@@ -1546,6 +1731,8 @@
           opt('fk', 'Штрафні', [['shoot', 'Бити по воротах'], ['cross', 'Навіс у штрафний']], 'shoot', 'Удар — для майстра стандартів, навіс — коли є високі гравці.'),
         ]);
       })(), el('p.note', 'Якщо призначеного немає на полі, б’є найкращий за атрибутами. Ролі й інструкції змінюють, хто частіше б’є, віддає й наскільки гравець допомагає в атаці чи обороні.')]),
+      benchPanel(t, side, save),
+      oppInstrPanel(t, save),
       el('div.panel', [
         el('h3', 'Командні інструкції'),
         el('div.instr', ['mentality', 'pressing', 'passing'].map((g) => el('div.field', [
@@ -1642,6 +1829,45 @@
     return el('div.panel', [el('h3', 'Поради асистента'), tips.length ? el('ul.tips', tips.slice(0, limit).map(([k, txt, act]) => el('li.tip-' + k, [txt,
       act ? el('div', el('button.btn.tiny-btn', { type: 'button', onclick: () => applyPreTip(act) }, `Застосувати: ${act.label}`)) : null]))) : el('p.muted', 'Усе гаразд — можна грати.')]);
   }
+  /** Запасні (до 9): тренер обирає сам або довіряє помічникові. */
+  function benchPanel(t, side, save) {
+    const xi = new Set(side.lineup.xi.map((x) => x.player.id));
+    const pool = availablePlayers(state.clubId).filter((p) => !xi.has(p.id) && !FM.youth.set(state).has(p.id)).sort((a, b) => FM.ROLE_ORDER.indexOf(a.roles[0]) - FM.ROLE_ORDER.indexOf(b.roles[0]) || b.ca - a.ca);
+    const chosen = Array.isArray(t.bench) ? t.bench.filter((id) => pool.some((p) => p.id === id)) : null;
+    const on = new Set(chosen || side.lineup.bench.map((p) => p.id));
+    return el('div.panel', [el('h3', `Запасні: ${on.size} з 9${chosen ? '' : ' · обирає помічник'}`),
+      el('ul.plist.bench-pick', pool.map((p) => el('li', [el('label.check', [el('input', { type: 'checkbox', checked: on.has(p.id) || null, disabled: !on.has(p.id) && on.size >= 9 || null, onchange: (e) => {
+        const cur = [...on]; t.bench = e.target.checked ? cur.concat([p.id]).slice(0, 9) : cur.filter((x) => x !== p.id); save();
+      } }), ' ', el('span.pos.line-' + FM.ROLE_LINE[p.roles[0]], FM.roleLabel(p.roles[0], p.side)), ' ', nameOf(p)]), starsEl(p.ca, 'Рівень')]))),
+      el('div.actions', [chosen ? el('button.btn.link', { type: 'button', onclick: () => { delete t.bench; save(); } }, 'Довірити вибір помічникові') : null]),
+      el('p.note', 'На лаві має бути воротар — якщо його не обрали, помічник додасть сам. Заміни під час матчу — лише з цих гравців.')]);
+  }
+  const OPPI = {
+    tackle: ['Відбір', [['normal', 'Звичайний'], ['hard', 'Жорсткий'], ['soft', 'Обережний']], 'Жорсткий заважає атаці суперника (−3%), але більше карток; обережний — навпаки.'],
+    press: ['Тиск на гравця з м’ячем', [['normal', 'Звичайний'], ['tight', 'Щільний']], 'Щільний забирає в суперника контроль (−3%), але ваші швидше втомлюються.'],
+    weakFoot: ['Змушувати бити незручною ногою', [[false, 'Ні'], [true, 'Так']], 'Удари суперника трохи гірші (−3%).'],
+  };
+  /** Інструкції проти суперника (як у FM). */
+  function oppInstrPanel(t, save) {
+    t.oppi = t.oppi || {};
+    return el('div.panel', [el('h3', 'Інструкції проти суперника'), el('div.instr', Object.entries(OPPI).map(([k, [label, opts, help]]) => el('div.field', [el('b', label),
+      el('div.tabs', opts.map(([v, l]) => el('button', { type: 'button', 'aria-pressed': String(String(t.oppi[k] ?? opts[0][0]) === String(v)), onclick: () => { t.oppi[k] = v; save(); } }, l))),
+      el('small.muted', help)])))]);
+  }
+
+  /** Словесна дуель з тренером-суперником перед матчем. */
+  function feudPanel(oppId) {
+    const f = FM.rivals.feud(W, state);
+    if (!f || f.club !== oppId) return null;
+    const S = state.season, key = `${S.year}-${S.week}`;
+    const done = state.mind && state.mind.key === key;
+    return el('div.feud', [el('b', `🔥 Особиста ворожнеча: ${f.name} (${clubName(W.club(f.club))})`),
+      el('small.muted', ` · градус ${'🔥'.repeat(f.heat)} · ваші матчі: ${f.w} В, ${f.d} Н, ${f.l} П`),
+      done ? el('p', state.mind.text) : el('div', [el('p.small', 'Журналісти чекають вашого коментаря про суперника.'), el('div.talk-opts', Object.entries(FM.rivals.JABS).map(([k, d]) => el('button.btn', { type: 'button', title: d.hint, onclick: () => {
+        const r = FM.rivals.duel(W, state, k, FM.rng(`duel-${S.seed}-${key}`)); state.mind = { key, boost: r.boost, text: r.text, club: oppId }; FM.market.news(state, `Словесна дуель з ${f.name}: ${r.text}`, 'match'); saveGame(); render();
+      } }, d.label)))])]);
+  }
+
   /** Тактика на матч — прямо на екрані матчу: набір А/Б/В, ментальність, пресинг, передачі. */
   function matchTacticPanel() {
     const t = myTactics(), save = () => { saveGame(); render(); };
@@ -1649,7 +1875,9 @@
       el('div.tabs', TSETS.filter((k) => (state.tacticSets || {})[k] || k === (state.tacticKey || 'A')).map((k) => el('button', { type: 'button', 'aria-pressed': String((state.tacticKey || 'A') === k), onclick: () => { switchTacticSet(k); save(); } },
         `${TSET_UK[k]} · ${((state.tacticSets || {})[k] || t).formation}`))),
       el('div.instr', ['mentality', 'pressing', 'passing'].map((g) => el('div.field', [el('small.muted', { mentality: 'Ментальність', pressing: 'Пресинг', passing: 'Передачі' }[g]), segmented(g, t[g], (v) => { t[g] = v; save(); })]))),
-      el('a.btn.link', { href: '#tactics' }, 'Схема, склад і ролі — у «Тактиці»')]);
+      el('details', [el('summary', 'Проти суперника'), el('div.instr', Object.entries(OPPI).map(([k, [label, opts]]) => { t.oppi = t.oppi || {}; return el('div.field', [el('small.muted', label),
+        el('div.tabs', opts.map(([v, l]) => el('button', { type: 'button', 'aria-pressed': String(String(t.oppi[k] ?? opts[0][0]) === String(v)), onclick: () => { t.oppi[k] = v; save(); } }, l)))]); }))]),
+      el('a.btn.link', { href: '#tactics' }, 'Схема, склад, ролі й запасні — у «Тактиці»')]);
   }
 
   function compareBarsSingle(rows) {
@@ -1750,7 +1978,7 @@
 
   function engineSide(side, manual) {
     return { club: { ...side.club, name: clubName(side.club) }, players: side.players, formation: side.formation, lineup: side.lineup,
-      mentality: side.mentality, pressing: side.pressing, passing: side.passing, takers: side.takers, setp: side.setp, familiarity: side.familiarity, manual };
+      mentality: side.mentality, pressing: side.pressing, passing: side.passing, takers: side.takers, setp: side.setp, oppi: side.oppi, familiarity: side.familiarity, manual };
   }
 
   function startFriendly() {
@@ -1766,8 +1994,8 @@
     }, [['Зіграти ще раз', () => startFriendly(), true], ['Інший суперник', () => render()]]);
   }
 
-  function showLive(active, hs, as, M, myK, onFinish, actions) {
-    app.replaceChildren(shell(active, liveView(hs, as, M, myK, onFinish, actions)));
+  function showLive(active, hs, as, M, myK, onFinish, actions, extra) {
+    app.replaceChildren(shell(active, liveView(hs, as, M, myK, onFinish, actions, extra)));
     window.scrollTo(0, 0);
   }
 
@@ -1914,7 +2142,41 @@
   /** replaceChildren без «null»: порожні блоки (null/false) пропускаються. */
   const put = (node, ...kids) => node.replaceChildren(...kids.flat().filter((x) => x != null && x !== false));
 
-  function liveView(hs, as, M, myK, onFinish, actions) {
+  /**
+   * Рахунки інших матчів туру по ходу вашого (вони вже зіграні — показуємо голи до поточної хвилини)
+   * і таблиця наживо: яке ви зараз місце.
+   */
+  function liveTicker(f, M, myK) {
+    const S = state.season, L = f.l, round = f.r;
+    const others = S.fixtures.filter((x) => x.l === L && x.r === round && x.id !== f.id && x.s);
+    const at = (x, min) => { const s = [0, 0]; for (const [k, m] of x.gm || []) if (m <= min) s[k]++; if (!x.gm && min >= 93) return x.s.slice(); return s; };
+    const table = (min, myScore) => {
+      const rows = new Map(W.clubsOf(L).map((c) => [c.id, { id: c.id, pts: 0, gd: 0, gf: 0 }]));
+      const add = (h, a, sc) => { const H = rows.get(h), A = rows.get(a); if (!H || !A) return; H.gf += sc[0]; A.gf += sc[1]; H.gd += sc[0] - sc[1]; A.gd += sc[1] - sc[0];
+        if (sc[0] > sc[1]) H.pts += 3; else if (sc[0] < sc[1]) A.pts += 3; else { H.pts++; A.pts++; } };
+      for (const x of S.fixtures) if (x.l === L && x.s && x.r !== round) add(x.h, x.a, x.s);
+      for (const x of others) add(x.h, x.a, at(x, min));
+      add(f.h, f.a, myScore);
+      const t = [...rows.values()].sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
+      return t.findIndex((r) => r.id === state.clubId) + 1;
+    };
+    const before = (() => { const t = FM.season.table({ ...S, fixtures: S.fixtures.filter((x) => x.r !== round || x.l !== L) }, W, L); return t.findIndex((r) => r.id === state.clubId) + 1; })();
+    const box = el('div.live-ticker', { 'aria-live': 'off' });
+    const draw = () => {
+      const min = M.minuteNum || 0, sc = M.liveStats().map((x) => x.goals);
+      const pos = table(min, sc);
+      box.replaceChildren(
+        el('span.lt-pos', [el('b', `Зараз ви ${pos}-і`), pos !== before ? el('span.' + (pos < before ? 'up' : 'down'), ` ${pos < before ? '▲' : '▼'}${Math.abs(pos - before)}`) : null]),
+        el('span.lt-games', others.map((x) => { const s2 = at(x, min); const chg = (x.gm || []).some(([, m]) => m <= min && m > min - 3);
+          return el('span.lt-g' + (chg ? '.flash' : ''), `${clubName(W.club(x.h))} ${s2[0]}:${s2[1]} ${clubName(W.club(x.a))}`); })),
+      );
+    };
+    draw();
+    return { box, draw };
+  }
+
+  function liveView(hs, as, M, myK, onFinish, actions, extra) {
+    const ticker = extra && extra.fixture && state ? liveTicker(extra.fixture, M, myK) : null;
     const scoreEl = el('div.sb-score', '0:0');
     const clock = el('div.sb-clock', '0′');
     const feed = el('ol.feed', { 'aria-live': 'polite' });
@@ -1929,6 +2191,7 @@
     /** Виділити момент: смуга «Небезпечна атака» → результат; м'яч летить до місця удару. */
     function highlight(e) {
       hlTimers.forEach(clearTimeout); hlTimers = [];
+      hlActive = true; possK = e.team; carrier = null;
       const k = e.team, team = k === 0 ? hs.club : as.club, ours = myK == null || k === myK;
       const atk = k === 0 ? 1 : -1;
       const sx = k === 0 ? e.hl.x : 100 - e.hl.x, sy = (k === 0 ? e.hl.y : 100 - e.hl.y);
@@ -1941,35 +2204,84 @@
         const out = e.hl.out;
         hlBar.className = 'hl-bar ' + (out === 'goal' ? (ours ? 'hl-goal' : 'hl-goal-against') : 'hl-' + out);
         hlBar.replaceChildren(el('b', e.hl.og ? 'Автогол!' : e.hl.special === 'gk' ? '🧤 ГОЛ ВОРОТАРЯ!' : e.hl.special ? '🚀 ГОЛ-ШЕДЕВР!' : HL_OUT[out] || 'Момент'), el('span.muted', ` ${clubName(team)} · ${e.min}′${e.hl.xg != null ? ` · xG ${String(e.hl.xg).replace('.', ',')}` : ''}`));
-        if (out === 'goal') moveBall(k === 0 ? 98 : 2, 50);
+        if (out === 'goal') { moveBall(k === 0 ? 98 : 2, 50); lastGoal = trail.slice(-6); hlBar.append(' ', el('button.btn.tiny-btn', { type: 'button', onclick: () => replay() }, '▶ Повтор')); setTimeout(() => replay(), 900); }
         else if (out === 'wide') moveBall(k === 0 ? 99 : 1, sy < 50 ? 30 : 70);
         else if (out === 'post') moveBall(k === 0 ? 97 : 3, 44);
       }, 1000));
-      hlTimers.push(setTimeout(() => { hlBar.hidden = true; }, e.hl.out === 'goal' ? 4200 : 3000));
+      hlTimers.push(setTimeout(() => { hlBar.hidden = true; hlActive = false; if (e.hl.out === 'goal') { possK = 1 - k; carrier = null; moveBall(50, 50); drawDots(); } }, e.hl.out === 'goal' ? 4200 : 3000));
     }
+    // ---- 2D-поле (як у FM): гравці бігають за м'ячем, м'яч ходить передачами, на голах — повтор ----
     const dots = el('div.mp-dots');
-    const miniPitch = el('div.mini-pitch', { 'aria-hidden': 'true' }, [el('span.mp-half'), el('span.mp-box.l'), el('span.mp-box.r'), dots, ball]);
-    // гравці: позиції зі схеми, обидві команди зсуваються за м'ячем
-    const drawDots = () => {
-      const shift = (ballX - 50) * 0.35;
-      const list = [];
-      M.sides.forEach((t, k) => {
-        const live = t.onPitch.filter((x) => !x.out);
-        const xy = layoutXY(live.map((x) => x.slot));
-        const c = k === 0 ? hs.club : as.club;
-        live.forEach((x, i) => {
-          const depth = 100 - xy[i][1]; // 0 — свої ворота, 100 — чужі
-          let hx = 6 + depth * 0.88; if (k === 1) hx = 100 - hx;
-          const d = el('i.dot2', { title: nameOf(x.p) });
-          d.style.left = Math.max(2, Math.min(98, hx + shift)) + '%'; d.style.top = (k === 0 ? xy[i][0] : 100 - xy[i][0]) + '%';
-          d.style.background = c.colors[0]; d.style.borderColor = c.colors[1] || '#000';
-          list.push(d);
-        });
+    const replayTag = el('span.mp-replay', { hidden: true }, 'ПОВТОР');
+    const miniPitch = el('div.mini-pitch.pitch2d', { 'aria-hidden': 'true' }, [el('span.mp-half'), el('span.mp-circle'), el('span.mp-box.l'), el('span.mp-box.r'),
+      el('span.mp-six.l'), el('span.mp-six.r'), el('span.mp-goal.l'), el('span.mp-goal.r'), dots, ball, replayTag]);
+    const dotEls = new Map();
+    let possK = 0, carrier = null, hlActive = false, replaying = false;
+    const trail = []; let lastGoal = null;
+    const R2 = FM.rng(`2d-${Date.now()}`);
+    /** Позиції гравців команди k: база — схема, блок зсувається за м'ячем, атака/оборона за володінням. */
+    function teamPos(k) {
+      const t = M.sides[k], live = t.onPitch.filter((x) => !x.out);
+      const xy = layoutXY(live.map((x) => x.slot));
+      const shift = (ballX - 50) * 0.38 + (possK === k ? (k === 0 ? 6 : -6) : (k === 0 ? -4 : 4));
+      return live.map((x, i) => {
+        const depth = 100 - xy[i][1];
+        let px = 5 + depth * 0.86; if (k === 1) px = 100 - px;
+        if (x.slot.role !== 'GK') px += shift; else px += shift * 0.12;
+        let py = k === 0 ? xy[i][0] : 100 - xy[i][0];
+        py += (ballY - 50) * (x.slot.role === 'GK' ? 0.1 : 0.22);
+        return { x: Math.max(2, Math.min(98, px)), y: Math.max(5, Math.min(95, py)), p: x.p, gk: x.slot.role === 'GK' };
       });
-      dots.replaceChildren(...list);
-    };
+    }
+    function drawDots() {
+      const seen = new Set();
+      [0, 1].forEach((k) => {
+        const pos = teamPos(k), c = k === 0 ? hs.club : as.club;
+        // захисники без м'яча: двоє найближчих пресингують
+        if (possK !== k) pos.filter((q) => !q.gk).sort((a, b) => Math.hypot(a.x - ballX, a.y - ballY) - Math.hypot(b.x - ballX, b.y - ballY)).slice(0, 2)
+          .forEach((q) => { q.x += (ballX - q.x) * 0.55; q.y += (ballY - q.y) * 0.55; });
+        for (const q of pos) {
+          let d = dotEls.get(q.p.id);
+          if (!d) { d = el('i.dot2', { title: nameOf(q.p) }); d.style.background = c.colors[0]; d.style.borderColor = c.colors[1] || '#000'; dotEls.set(q.p.id, d); dots.append(d); }
+          d.classList.toggle('has-ball', q.p.id === carrier);
+          d.style.left = q.x + '%'; d.style.top = q.y + '%';
+          seen.add(q.p.id);
+        }
+      });
+      for (const [id, d] of dotEls) if (!seen.has(id)) { d.remove(); dotEls.delete(id); }
+    }
     let ballX = 50, ballY = 50, bt = 0;
-    const moveBall = (x, y) => { ballX = x; ballY = y; ball.style.left = x + '%'; ball.style.top = y + '%'; };
+    const moveBall = (x, y) => { ballX = x; ballY = y; ball.style.left = x + '%'; ball.style.top = y + '%'; if (!replaying) { trail.push([x, y]); if (trail.length > 10) trail.shift(); } };
+    /** Хід 2D-гри: передача партнерові вперед або втрата м'яча (за володінням у матчі). */
+    function play2d() {
+      if (hlActive || replaying || finished) return;
+      const sh = M.liveStats()[0].poss / 100;
+      const keep = possK === 0 ? 0.74 + (sh - 0.5) * 0.5 : 0.74 + (0.5 - sh) * 0.5;
+      if (!R2.chance(keep)) { possK = 1 - possK; carrier = null; }
+      const dir = possK === 0 ? 1 : -1;
+      const mates = teamPos(possK).filter((q) => !q.gk || Math.abs(ballX - (possK === 0 ? 5 : 95)) < 25);
+      const cands = mates.filter((q) => q.p.id !== carrier && Math.hypot(q.x - ballX, q.y - ballY) < 42);
+      if (!cands.length) return drawDots();
+      const t = R2.weighted(cands, (q) => Math.max(0.2, 1 + ((q.x - ballX) * dir) / 15));
+      carrier = t.p.id;
+      // м'яч у зоні атаки довго не стоїть: відкат назад, якщо близько до воріт без моменту
+      const tx = (possK === 0 && t.x > 86) || (possK === 1 && t.x < 14) ? t.x - dir * 12 : t.x;
+      moveBall(tx, t.y);
+      drawDots();
+    }
+    /** Повтор голу: м'яч ще раз проходить шлях до воріт. */
+    function replay() {
+      if (!lastGoal || replaying) return;
+      replaying = true; replayTag.hidden = false; miniPitch.classList.add('replaying');
+      const path = lastGoal.slice();
+      let i = 0;
+      const stepR = () => {
+        if (i >= path.length) { setTimeout(() => { replaying = false; replayTag.hidden = true; miniPitch.classList.remove('replaying'); }, 700); return; }
+        const [x, y] = path[i++]; ball.style.left = x + '%'; ball.style.top = y + '%';
+        setTimeout(stepR, 380);
+      };
+      stepR();
+    }
     let shown = 0, paused = false, finished = false, hold = 0, acc = 0, talkAsked = false, talkMsg = null, idle = 0;
     // промова перед матчем: трансляція чекає на тренера (як у FM)
     let preTalk = myK != null && state ? 'ask' : 'done', preRes = null, shoutMsg = null, instrOpen = false;
@@ -2017,15 +2329,17 @@
         if (liveSpeed === 'key' && ['chance', 'miss', 'red', 'injury', 'penalty'].includes(e.type)) hold = Math.max(hold, 2500); // ключовий момент — пауза, щоб прочитати
       }
       const s = M.liveStats();
+      if (ticker) ticker.draw();
       const lastEv = M.events[M.events.length - 1];
-      if (lastEv && lastEv !== moveBall.last) {
+      if (lastEv && lastEv !== moveBall.last && !hlActive) {
         moveBall.last = lastEv;
+        if (lastEv.team != null) possK = lastEv.team;
         const atk = lastEv.team === 0 ? 1 : -1;
         if (lastEv.type === 'goal') moveBall(50 + atk * 48, 50);
         else if (lastEv.type === 'chance' || lastEv.type === 'miss') moveBall(50 + atk * (36 + (bt++ % 3) * 3), 30 + ((bt * 37) % 40));
         else if (lastEv.type === 'half' || lastEv.type === 'kickoff' || lastEv.type === 'full') moveBall(50, 50);
-        else moveBall(50 + (s[0].poss - 50) * 0.7 + ((bt++ * 17) % 21) - 10, 25 + ((bt * 29) % 50));
-      } else if (!finished) moveBall(Math.max(8, Math.min(92, ballX + ((bt++ * 13) % 15) - 7 + (s[0].poss - 50) * 0.05)), Math.max(12, Math.min(88, ballY + ((bt * 11) % 13) - 6)));
+        else play2d();
+      }
       drawDots();
       statsBox.replaceChildren(compareBars([
         ['Володіння', s[0].poss, s[1].poss, pct], ['Удари', s[0].shots, s[1].shots], ['У площину', s[0].onTarget, s[1].onTarget], ['xG', s[0].xg, s[1].xg, f2],
@@ -2127,8 +2441,10 @@
       );
     }
 
+    let pc = 0;
     function tick() {
       if (finished) return;
+      if (!paused && hold <= 0 && ++pc % 5 === 0) play2d(); // м'яч ходить передачами між хвилинами
       if (!paused) {
         if (hold > 0) hold -= TICK; // пауза після гола чи моменту — у реальному часі
         else {
@@ -2200,10 +2516,12 @@
         el('div.sb-team.away', [badge(as.club, true), el('b', clubName(as.club))]),
       ]),
       el('div.live-controls', speedBtns),
+      ticker ? ticker.box : null,
       hlBar,
+      el('div.pitch-panel', miniPitch),
       el('div.live-grid', [
         el('details.panel.feed-box', { open: true }, [el('summary', [el('span', 'Стрічка подій'), feedPause]), el('div.feed-wrap', feed)]),
-        el('div.live-side', [el('div.panel', [el('h3', 'Статистика наживо'), miniPitch, statsBox]), control]),
+        el('div.live-side', [el('div.panel', [el('h3', 'Статистика наживо'), statsBox]), control]),
       ]),
       after,
     ];
@@ -2384,7 +2702,8 @@
       contNote ? el('small.tb-note', contNote) : null,
       el('div.tb-actions', [
         unread ? el('a.btn.tb-mail', { href: '#inbox', title: 'Непрочитані повідомлення' }, `✉ ${unread}`) : null,
-        el('a.btn.tb-hol', { href: '#holiday', title: 'Доручити тижні асистентові' }, 'Відпустка'),
+        FM.duo.on(state) ? el('button.btn.tb-duo', { type: 'button', disabled: running || null, title: 'Передати хід другому тренерові', onclick: () => { duoHandoff(); go('duo'); } }, `⇄ ${state.duo.other.manager}`)
+          : el('a.btn.tb-hol', { href: '#holiday', title: 'Доручити тижні асистентові' }, 'Відпустка'),
         el('button.btn.primary.tb-cont', { type: 'button', disabled: running || null, title: 'Пробіл', onclick: () => continueGame() }, contLabel()),
       ]),
     ]);
@@ -2416,6 +2735,7 @@
       const day = curDay();
       if (day === 6) {
         if (curEvent()) return stop('fixtures', 'День матчу.');
+        if (duoPending()) { duoHandoff(); return stop('duo'); } // гра на двох: матч другого тренера — його хід
         quickWeek(); // ваша ліга цього тижня не грає — тиждень минає сам
         if (state.sacked) return stop('sacked');
       } else state.day = day + 1;
@@ -2438,6 +2758,78 @@
     if (e.key === ' ' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); continueGame(); }
     else if (e.key === 'Escape' && history.length > 1) history.back();
   });
+
+  // ---------------- Гра на двох на одному телефоні ----------------
+  /** Чи має другий тренер ще не зіграний матч ліги цього тижня (крім skip; midOnly — лише посеред тижня). */
+  function duoPending(skip, midOnly) {
+    if (!FM.duo.on(state)) return false;
+    const o = FM.duo.otherClub(state), S = state.season;
+    return FM.season.fixturesOfWeek(S, S.week).some((f) => f !== skip && !f.s && (f.h === o || f.a === o) && (!midOnly || f.mid));
+  }
+  /** Передати хід: тренери міняються, коли відкриється екран «Хід тренера». */
+  function duoHandoff() { if (FM.duo.on(state)) { state.duo.handoff = true; running = false; saveGame(); } }
+  function screenDuo() {
+    if (!FM.duo.on(state)) return [el('header', [el('h1', 'Гра на двох')]), el('p.muted', 'Цю кар’єру веде один тренер. Гру на двох вмикають на старті нової кар’єри.')];
+    if (state.duo.handoff) {
+      state.duo.handoff = false;
+      FM.duo.swap(state);
+      FM.career.init(W, state);
+      quick = null; contNote = null; inboxBase = null;
+      saveGame();
+    }
+    const me = W.club(state.clubId), o = state.duo.other, ev = curEvent(), unread = FM.market.unread(state);
+    const played = FM.season.fixturesOfWeek(state.season, state.season.week).some((f) => f.s && (f.h === state.clubId || f.a === state.clubId));
+    return [el('div.duo-gate', [
+      el('p.muted', 'Передайте телефон'),
+      el('div.duo-who', [badge(me, true), el('div', [el('h1', state.manager), el('b', clubName(me))])]),
+      el('p', [dateLabel(), ' · ', ev ? nextEventText() : played ? 'свій матч цього тижня ви вже зіграли' : 'цього тижня матчу немає']),
+      unread ? el('p', `Нових повідомлень: ${unread}.`) : null,
+      state.sacked ? el('p.bad', 'Вас звільнили — оберіть нову роботу.') : null,
+      el('div.actions', [el('button.btn.primary', { type: 'button', onclick: () => go(state.sacked ? 'sacked' : unread ? 'inbox' : 'fixtures') }, 'Почати хід')]),
+      el('p.note', `Наступним ходитиме ${o.manager} (${clubName(W.club(o.clubId))}). Хто перший зіграв свій матч, передає хід; тиждень закриває той, хто грає останнім. Кнопка «⇄» угорі — передати хід будь-коли.`),
+    ])];
+  }
+  /** Кінець сезону за другого тренера — поки таблиці сезону ще на місці. */
+  function duoSeasonStart() {
+    if (!FM.duo.on(state)) return;
+    const S = state.season;
+    FM.duo.as(state, () => {
+      FM.duo.second = true;
+      try {
+        FM.career.init(W, state);
+        const my = W.club(state.clubId), t = FM.season.table(S, W, my.league), pos = t.findIndex((r) => r.id === my.id) + 1;
+        const trophies = Object.values(state.cups || {}).filter((c) => c.winner === state.clubId).map((c) => c.id);
+        const champ = t[0] && t[0].id === state.clubId;
+        state.history = (state.history || []).concat([{ year: S.year, champions: {}, club: state.clubId, pos, pts: (t[pos - 1] || {}).pts || 0, scorer: null, trophies: trophies.concat(champ ? ['league'] : []) }]);
+        const verdict = FM.board.endSeason(W, state);
+        const ffp = FM.finance.endSeason(W, state);
+        FM.market.news(state, ffp.text, 'club');
+        if (trophies.length) { state.board.rep = Math.min(100, state.board.rep + 5 * trophies.length); state.board.conf = Math.min(100, state.board.conf + 10); }
+        if (champ) addTrophy(null, my.league);
+        FM.career.addTrophies(state, state.history[state.history.length - 1].trophies);
+        state.duoEnd = { verdict, ffp: ffp.text, league: my.league };
+      } finally { FM.duo.second = false; }
+    });
+    FM.career.init(W, state);
+  }
+  /** Після переходу в новий сезон: звіт, звільнення або нові цілі для другого тренера. */
+  function duoSeasonFinish() {
+    if (!FM.duo.on(state)) return;
+    const main = state.lastReport, mainHist = state.history[state.history.length - 1];
+    FM.duo.as(state, () => {
+      const e = state.duoEnd; delete state.duoEnd;
+      if (!e) return;
+      const h = state.history[state.history.length - 1];
+      if (mainHist) { h.champions = mainHist.champions; h.cups = mainHist.cups; h.awards = mainHist.awards; }
+      state.lastReport = { ...main, league: e.league, awards: mainHist && mainHist.awards ? mainHist.awards[e.league] : main.awards, myRetired: [], youth: [], expired: [], golden: false,
+        verdict: e.verdict.verdict, prize: e.verdict.prize, ffp: e.ffp, vision: null, ach: [], challenge: null };
+      for (const m of main.moves || []) if (m.club === state.clubId) FM.market.news(state, m.up ? `Вітаємо! ${clubName(W.club(m.club))} виходить до ліги «${W.league(m.to).name}».` : `${clubName(W.club(m.club))} вилітає до ліги «${W.league(m.to).name}».`);
+      if (e.verdict.fired) state.sacked = { reason: e.verdict.verdict, offers: FM.board.jobOffers(W, state, 3, 'end') };
+      else { FM.board.initSeason(W, state); state.jobOffers = []; }
+      FM.missions.current(W, state);
+    });
+    FM.career.init(W, state);
+  }
 
   // ---------------- Швидкий режим (розширення 19) ----------------
   /** Один тиждень без трансляції й без переходу між екранами. */
@@ -2490,6 +2882,7 @@
 
   function quickRun(opts = {}) {
     const S = state.season;
+    if (FM.duo.on(state)) { contNote = 'У грі на двох відпустка й швидкий режим вимкнені: кожен тренер грає свої матчі сам.'; return go('fixtures'); }
     const h = opts.holiday || null;
     const untilWeek = !h ? null : h.until === 'season' ? 999 : h.until === 'window' ? (FM.market.windows(S).map(([a]) => a).find((a) => a > S.week) ?? 999) : h.until === 'match' ? S.week + 1 : S.week + Number(h.until);
     quick = { weeks: 0, w: 0, d: 0, l: 0, stop: null, running: true, start: S.week, holiday: !!h, sold: [] };
@@ -2560,13 +2953,21 @@
   /** Тур посеред тижня (вівторок): решта таких турів — одразу, ваш — наживо або результатом; тиждень триває. */
   function playMidweek(f, live) {
     const S = state.season;
+    if (duoPending(f, true)) { // гра на двох: другий тренер теж грає посеред тижня — свій матч, потім його хід
+      const after = (r) => { FM.season.record(S, f, r); FM.season.midRecover(W, [f]); state.day = Math.max(curDay(), 2); duoHandoff(); saveGame(); };
+      if (!live) { after(FM.season.play(S, W, f, NAMES, USER()).m); return go('duo'); }
+      const { hs, as, opts } = FM.season.prepare(S, W, f, NAMES, USER());
+      const myK = f.h === state.clubId ? 0 : 1;
+      opts[myK === 0 ? 'home' : 'away'].manual = true;
+      return showLive('fixtures', hs, as, FM.match.create(opts), myK, after, [['Далі: хід другого тренера', () => go('duo'), true]], { fixture: f });
+    }
     FM.season.playOthers(S, W, { skip: f.id, name: NAMES, user: USER(), midOnly: true });
     const after = (r) => { FM.season.record(S, f, r); FM.season.midRecover(W, [f]); state.day = Math.max(curDay(), 2); saveGame(); };
     if (!live) { after(FM.season.play(S, W, f, NAMES, USER()).m); return go('fixtures'); }
     const { hs, as, opts } = FM.season.prepare(S, W, f, NAMES, USER());
     const myK = f.h === state.clubId ? 0 : 1;
     opts[myK === 0 ? 'home' : 'away'].manual = true;
-    showLive('fixtures', hs, as, FM.match.create(opts), myK, after, [['Далі', () => go('fixtures'), true], ['Таблиця', () => go('table')]]);
+    showLive('fixtures', hs, as, FM.match.create(opts), myK, after, [['Далі', () => go('fixtures'), true], ['Таблиця', () => go('table')]], { fixture: f });
   }
 
   function playMyMatch(live) {
@@ -2582,6 +2983,15 @@
       if (pend.neutral) opts.neutral = true;
       cupNews(FM.cups.finishPending(W, state, pend, FM.match.play(opts)));
       cupsWeek();
+    }
+    if (duoPending(f)) { // гра на двох: другий тренер ще не зіграв — лише свій матч, тиждень закриє він
+      if (!f) { duoHandoff(); return go('duo'); }
+      const after = (r) => { FM.season.record(S, f, r); duoHandoff(); saveGame(); };
+      if (!live) { after(FM.season.play(S, W, f, NAMES, USER()).m); return go('duo'); }
+      const { hs, as, opts } = FM.season.prepare(S, W, f, NAMES, USER());
+      const myK = f.h === state.clubId ? 0 : 1;
+      opts[myK === 0 ? 'home' : 'away'].manual = true;
+      return showLive('fixtures', hs, as, FM.match.create(opts), myK, after, [['Далі: хід другого тренера', () => go('duo'), true]], { fixture: f });
     }
     if (!f || !live) {
       FM.season.playWeek(S, W, { name: NAMES, user: USER(), dev: devOpts() });
@@ -2601,13 +3011,25 @@
     showLive('fixtures', hs, as, M, myK, (r) => {
       FM.season.record(S, f, r);
       const dv = devOpts();
-      FM.season.advance(S, W, { recovery: dv.recovery, myClub: state.clubId });
+      FM.season.advance(S, W, { recovery: dv.recovery, myClub: state.clubId, also: dv.also });
       FM.dev.weekly(W, S, dv);
       FM.market.weekly(W, state);
       boardWeek();
       state.day = 0;
       saveGame();
-    }, [['Далі', () => go(state.sacked ? 'sacked' : 'fixtures'), true], ['Таблиця', () => go('table')]]);
+    }, [['Далі', () => go(state.sacked ? 'sacked' : 'fixtures'), true], ['Таблиця', () => go('table')]], { fixture: f });
+  }
+
+  /** Трофей у шафу: кубок (фінал — рахунок і суперник) або чемпіонство. */
+  function addTrophy(cup, league) {
+    const S = state.season;
+    let final = null;
+    if (cup) {
+      const r = cup.rounds && cup.rounds[cup.rounds.length - 1], t = r && r.ties && r.ties[0];
+      if (t) { const opp = t.a === state.clubId ? t.b : t.a, sc = t.legs.reduce((acc, l) => [acc[0] + l[0], acc[1] + l[1]], [0, 0]); final = { opp: clubName(W.club(opp)), score: t.a === state.clubId ? sc : [sc[1], sc[0]], pens: !!t.pens }; }
+    }
+    const kind = league ? 'league' : cup.super ? 'super' : ['ucl', 'uel', 'uecl'].includes(cup.id) ? 'euro' : 'cup';
+    state.trophies = (state.trophies || []).concat([{ kind, id: league || cup.id, name: league ? `Чемпіонат: ${W.league(league).name}` : cup.name, s: S.year, club: state.clubId, final }]);
   }
 
   /** Глядачі домашнього матчу: новина, журнал, рекорд відвідуваності. */
@@ -2637,6 +3059,8 @@
     }
     for (const cup of Object.values(state.cups)) if (cup.winner && !cup.announced) {
       cup.announced = true;
+      if (cup.winner === state.clubId) addTrophy(cup);
+      else if (cup.winner === FM.duo.otherClub(state)) FM.duo.as(state, () => { addTrophy(cup); FM.market.news(state, `ТРОФЕЙ! Ви виграли ${cup.name}!`); });
       FM.market.news(state, cup.winner === state.clubId ? `ТРОФЕЙ! Ви виграли ${cup.name}!` : `${clubName(W.club(cup.winner))} — переможець турніру «${cup.name}».`);
     }
   }
@@ -2692,21 +3116,21 @@
     } }, text))), el('small.muted', 'Можна не відповідати — тоді все лишиться як є.')]);
   }
 
-  function boardWeek() {
+  function boardWeek(second) {
     const S = state.season;
     // вболівальники, будівництво, лікар, тренери ШІ
     const res = {};
-    for (const f of FM.season.fixturesOfWeek(S, S.week - 1)) if (f.s) { res[f.h] = Math.sign(f.s[0] - f.s[1]); res[f.a] = Math.sign(f.s[1] - f.s[0]); }
+    if (!second) for (const f of FM.season.fixturesOfWeek(S, S.week - 1)) if (f.s) { res[f.h] = Math.sign(f.s[0] - f.s[1]); res[f.a] = Math.sign(f.s[1] - f.s[0]); }
     FM.club.fansWeek(W, state, res);
     const built = FM.club.buildWeek(W, state);
     if (built) FM.market.news(state, `Завершено: ${FM.club.UPGRADES[built].label.toLowerCase()}.`);
     const R = FM.rng(`physio-${S.seed}-${S.week}`);
     for (const p of W.squad(state.clubId)) if (p.injury > 0 && R.chance(FM.club.lvl(state, 'physio') / 40)) { p.injury--; if (p.injury <= 0) delete p.injury; }
-    for (const e of FM.club.managersWeek(W, state)) {
+    if (!second) for (const e of FM.club.managersWeek(W, state)) {
       if (e.ex || e.club.league === W.club(state.clubId).league || W.clubLevel(e.club.id) > 140) FM.market.news(state, `${clubName(e.club)} звільнив тренера ${e.old}. Новий тренер — ${e.now}${e.ex ? ' (колишній гравець, завершив кар’єру нещодавно)' : ''}.`, 'world');
     }
     // міжнародне вікно: збірні грають, гравці повертаються втомленими
-    if (FM.nations && FM.nations.windows(S).includes(S.week)) {
+    if (!second && FM.nations && FM.nations.windows(S).includes(S.week)) {
       for (const { fx, m } of FM.nations.weekly(W, state, { name: (p) => nameOf(p) })) {
         const sc = fx.home ? m.score : [m.score[1], m.score[0]];
         const mine = m.ratings.filter((r) => r.player.club === state.clubId && r.team === (fx.home ? 0 : 1)).map((r) => nameOf(r.player));
@@ -2719,10 +3143,13 @@
       const home = myF.h === state.clubId, d = home ? myF.s[0] - myF.s[1] : myF.s[1] - myF.s[0];
       for (const t of FM.career.match(W, state, home ? myF.s : [myF.s[1], myF.s[0]], home ? myF.a : myF.h, 'league')) FM.market.news(state, t);
       const t = FM.rivals.after(W, state, home ? myF.a : myF.h, Math.sign(d)); if (t) FM.market.news(state, t, 'match');
+      const fd = FM.rivals.feud(W, state); if (fd && fd.club === (home ? myF.a : myF.h)) { const q = FM.rivals.feudAfter(W, state, d); if (q) FM.market.news(state, q, 'match'); }
       if (d > 0) wonAny = true;
       for (const t2 of FM.awards.match(W, state, home ? myF.s[0] : myF.s[1], home ? myF.s[1] : myF.s[0], home ? myF.a : myF.h, 'league')) FM.market.news(state, t2, 'club');
     }
     for (const t of FM.awards.week(W, state, nameOf)) FM.market.news(state, t, 'match');
+    const p0 = state.paper && state.paper.w; makePaper();
+    if (state.paper && state.paper.w !== p0 && state.paper.s === S.year) FM.market.news(state, `📰 ${state.paper.name}: «${state.paper.head}». Газета туру — в «Медіа».`, 'club');
     // глядачі на домашніх матчах тижня й атрибутика
     for (const f of myFs.filter((x) => x.h === state.clubId)) attendanceNews(f.a, 'league');
     // випадкова подія тижня: новина або лист з вибором
@@ -2739,6 +3166,7 @@
     for (const t of FM.routine.delegateWeek(W, state)) FM.market.news(state, t);
     for (const t of FM.boardroom.promisesWeek(W, state)) FM.market.news(state, t, 'club');
     for (const t of FM.deals.week(W, state)) FM.market.news(state, t, 'transfers');
+    const ln = FM.budget.loanWeek(W, state); if (ln) FM.market.news(state, ln, 'club');
     const fresh = FM.medical.restWeek(W, state, `${S.year}-${S.week - 1}`);
     if (fresh.length) FM.market.news(state, `Після тижня відпочинку повністю свіжі: ${fresh.map(nameOf).join(', ')}.`, 'players');
     // міжнародне вікно, що минуло: хто їздив у збірні
@@ -2759,6 +3187,18 @@
     for (const e of FM.morale.weekly(W, state)) FM.market.news(state, e.text);
     const r = FM.board.weekly(W, state);
     if (r.fired) state.sacked = { reason: r.reason, offers: FM.board.jobOffers(W, state, 3, 'sack') };
+    // місії тижня: підсумок минулого, нові на цей
+    for (const t of FM.missions.check(W, state)) FM.market.news(state, t, 'club');
+    FM.missions.current(W, state);
+    // гра на двох: той самий тиждень — для другого тренера (лише його клуб і справи)
+    if (!second && FM.duo.on(state)) {
+      const lp = lastPlan;
+      FM.duo.as(state, () => {
+        FM.duo.second = true;
+        try { FM.career.init(W, state); lastPlan = (lastPlan2 && lastPlan2.myClub === state.clubId && lastPlan2.plan) || curPlan(); FM.market.weekly(W, state); boardWeek(true); } finally { FM.duo.second = false; }
+      });
+      lastPlan = lp; FM.career.init(W, state);
+    }
   }
 
   function training() {
@@ -2788,13 +3228,16 @@
   let lastPlan = null;
   /** Тижневий підсумок розкладу (відновлення, розвиток, тактика, ризик травм). */
   const curPlan = () => FM.routine.aggregate(weekSchedule());
-  const devOpts = () => {
-    const plan = (lastPlan = curPlan());
-    return { training: training(), myClub: state.clubId, plan, rest: FM.medical.rested(state),
-      recovery: plan.recovery + (FM.club.lvl(state, 'fitness') - 10) * 0.4,
-      growthMult: (p) => FM.club.growthMult(state, W, p) * ((W.age(p) ?? 24) <= 21 ? 1 + (FM.career.attr(state, 'youth') - 10) * 0.015 : 1) * FM.youth.growth(state, p) * FM.routine.growthMult(state, p),
-      injuryMult: 1.2 - FM.club.lvl(state, 'fitness') * 0.02 };
+  const devOpts = (inner) => {
+    const st = state, plan = curPlan();
+    if (!inner) lastPlan = plan;
+    return { training: training(), myClub: st.clubId, plan, rest: FM.medical.rested(st),
+      recovery: plan.recovery + (FM.club.lvl(st, 'fitness') - 10) * 0.4,
+      growthMult: (p) => FM.club.growthMult(st, W, p) * ((W.age(p) ?? 24) <= 21 ? 1 + (FM.career.attr(st, 'youth') - 10) * 0.015 : 1) * FM.youth.growth(st, p) * FM.routine.growthMult(st, p),
+      injuryMult: 1.2 - FM.club.lvl(st, 'fitness') * 0.02,
+      also: !inner && FM.duo.on(st) ? [(lastPlan2 = FM.duo.as(st, () => devOpts(true)))] : [] }; // гра на двох: тренування другого тренера
   };
+  let lastPlan2 = null; // розклад тижня другого тренера (гра на двох)
   /** Після тижня: знайомство зі схемою росте від матчів і підготовки, без практики — забувається. */
   function familiarityWeek(played) {
     const fam = familiarity(), cur = myTactics().formation;
@@ -2807,6 +3250,7 @@
 
   /** Завершити сезон і почати наступний: історія, завершення кар'єри, юнаки, новий календар. */
   function startNextSeason() {
+    duoSeasonStart(); // гра на двох: підсумки другого тренера, поки таблиці сезону на місці
     const S = state.season;
     const champions = {};
     for (const l of W.db.leagues) champions[l.id] = FM.season.table(S, W, l.id)[0].id;
@@ -2846,14 +3290,34 @@
       awards: awards[my.league], league: my.league, golden: (rep.golden || []).includes(state.clubId),
     };
     FM.youth.intake(W, state, state.lastReport.youth); // вихованці академії — у молодіжну команду
+    // день академії: презентація нового покоління
+    const kids = (state.lastReport.youth || []).map((id) => W.player(id)).filter(Boolean);
+    if (kids.length) {
+      const star = [...kids].sort((a, b) => b.pa - a.pa)[0];
+      state.academy = { y: state.season.year, ids: kids.map((p) => p.id), star: star.id, open: true };
+      FM.market.news(state, `🎓 День академії: ${kids.length} ${FM.plural(kids.length, 'вихованець', 'вихованці', 'вихованців')} підписали перші контракти. Зірка випуску — ${nameOf(star)} (${FM.positions(star)}).`, 'players');
+    }
     state.u21Stats = {}; state.u21Results = [];
     hist.cups = cupWinners;
     hist.awards = awards;
     hist.trophies = trophies.concat(champions[my.league] === my.id ? ['league'] : []);
     // нагороди сезону вашої ліги, кар'єра гравців клубу, Зала слави (до підвищень і нового сезону)
+    if (champions[my.league] === my.id) addTrophy(null, my.league);
     for (const t of FM.awards.season(W, state, champions[my.league], hist.trophies.length).news) FM.market.news(state, t, 'club');
     // підвищення й пониження між дивізіонами
-    const moves = FM.season.promote(W, S);
+    // плей-оф за путівку вгору й стикові матчі за виживання
+    const po = FM.season.playoffs(W, S, (h, a, id) => {
+      const { opts } = FM.season.prepare(S, W, { id, h, a, w: FM.season.weeks(S) - 1 }, NAMES, USER());
+      if (id.endsWith('-f')) opts.neutral = true;
+      return FM.match.play(opts).score;
+    });
+    const myLg = W.club(state.clubId).league;
+    for (const [lid, r] of Object.entries(po)) {
+      const mine = r.winner === state.clubId || (r.clubs || []).includes(state.clubId) || r.log.join(' ').includes(clubName(W.club(state.clubId)));
+      if (mine || lid === myLg || W.league(lid).up === myLg) FM.market.news(state, `${r.name}. ${r.log.join(' ')}`, 'match');
+    }
+    state.lastReport.playoffs = Object.values(po).map((r) => `${r.name}: ${clubName(W.club(r.winner))}`);
+    const moves = FM.season.promote(W, S, po);
     for (const m of moves) {
       const c = W.club(m.club);
       c.income0 = Math.round(c.income0 * (m.up ? 1.4 : 0.72) * 100) / 100;
@@ -2917,6 +3381,10 @@
     FM.club.init(W, state);
     for (const c of W.clubs.values()) delete c.vacancy;
     state.cups = FM.cups.createAll(W, state.season, tables);
+    // Суперкубки: чемпіон проти володаря кубка (або віце-чемпіона), Суперкубок УЄФА
+    const runners = Object.fromEntries(Object.keys(champions).map((l) => [l, (tables && tables[l] && tables[l][1]) || null]));
+    Object.assign(state.cups, FM.cups.superCups(W, state.season, champions, cupWinners, runners));
+    for (const c of Object.values(state.cups)) if (c.super && c.teams.includes(state.clubId)) FM.market.news(state, `${c.name}: ви зіграєте з ${clubName(W.club(c.teams.find((x) => x !== state.clubId)))} перед стартом сезону!`, 'match');
     FM.cups.payParticipation(W, state);
     coachMsg = null;
     state.lastReport.ffp = ffp.text;
@@ -2932,6 +3400,8 @@
       state.jobOffers = state.board.last && state.board.last.pos <= state.board.last.target
         ? FM.board.jobOffers(W, state, 3, 'up').filter((id) => W.clubLevel(id) > lvl + 3) : [];
     }
+    duoSeasonFinish();
+    FM.missions.current(W, state);
     saveGame();
     go(state.sacked ? 'sacked' : 'report');
   }
@@ -3308,14 +3778,14 @@
       },
       needs: () => {
         if (!pl.needRoles.length) return [el('p.small', 'На всіх позиціях вистачає гравців потрібного рівня. Можна шукати підсилення, але це не обов’язково.')];
-        const budget = Math.max(0, me.balance || 0);
+        const budget = FM.budget ? FM.budget.available(W, state) : Math.max(0, me.balance || 0);
         const cap = [60, 25, 10, 3, 1].find((v) => v <= budget * 0.6) || 1, poor = budget * 0.6 < 1;
         return [el('ul.plist.plan-list', pl.needRoles.map((role) => {
           const n = r.needs.find((x) => x.role === role);
           const ok = FM.plan.isDone(W, state, { ...pl, done: {}, needRoles: [role] }, 'needs');
           return el('li', [el('span', [ok ? '✓ ' : '', el('b', FM.ROLE_NAME[role]), el('small.muted', n ? ` · ${n.thin ? `є ${n.have} з потрібних ${n.need}` : ''}${n.thin && n.weak ? '; ' : ''}${n.weak ? 'основа слабша за решту команди' : ''}` : ' · закрито')]),
             el('button.btn', { type: 'button', onclick: () => { Object.assign(tf, { role, league: 'all', maxAge: 31, maxPrice: cap, sort: 'ca' }); go('transfers'); } }, 'Шукати')]);
-        })), el('p.small.muted', `Пошук відкриється з фільтром за позицією й ціною до ${M(cap)} (баланс ${M(budget)}).${poor ? ' Грошей мало — шукайте дешевих або беріть в оренду (кнопка в картці гравця).' : ''} Крок виконано, коли на кожну позицію є гравець у шортлисті або купівля.`)];
+        })), el('p.small.muted', `Пошук відкриється з фільтром за позицією й ціною до ${M(cap)} (трансферний бюджет ${M(budget)}).${poor ? ' Грошей мало — шукайте дешевих або беріть в оренду (кнопка в картці гравця).' : ''} Крок виконано, коли на кожну позицію є гравець у шортлисті або купівля.`)];
       },
       surplus: () => {
         const left = pl.surplusIds.map((id) => W.player(id)).filter((p) => p && p.club === state.clubId && !p.listed && !p.loan);
@@ -3387,7 +3857,9 @@
       el('header', [el('h1', 'Повідомлення'), el('span.muted', `Усього ${all.length}${maxId > lastRead ? ` · нових ${all.filter((n) => n.id > lastRead).length}` : ''}`)]),
       actionCards(),
       planCard(),
+      missionsCard(),
       backupCard(),
+      academyCard(),
       el('div.tabs', [['all', `Усі (${all.length})`], ...Object.entries(FM.market.NEWS_CATS).filter(([k]) => counts[k]).map(([k, l]) => [k, `${l} (${counts[k]})`])].map(([k, l]) =>
         el('button', { type: 'button', 'aria-pressed': String(inboxCat === k), onclick: () => { inboxCat = k; try { localStorage.setItem('golovnyi-trener:inbox', k); } catch (_) { /* приватне вікно */ } render(); } }, l))),
       el('div.dt-bar', [
@@ -3576,7 +4048,7 @@
     const a = FM.awards.aw(state), me = state.clubId, S = state.season;
     const pl = (id) => (W.player(id) ? el('a', { href: '#player-' + id }, nameOf(W.player(id))) : '—');
     const clubOf = (id) => (W.player(id) && W.player(id).club ? clubName(W.club(W.player(id).club)) : '');
-    const tabs = el('div.tabs', [['awards', 'Нагороди'], ['records', 'Рекорди клубу'], ['hof', 'Зала слави'], ['best', 'Найкращі за весь час']].map(([k, l]) =>
+    const tabs = el('div.tabs', [['awards', 'Нагороди'], ['cabinet', 'Шафа трофеїв'], ['records', 'Рекорди клубу'], ['hof', 'Зала слави'], ['best', 'Найкращі за весь час']].map(([k, l]) =>
       el('button', { type: 'button', 'aria-pressed': String(awTab === k), onclick: () => { awTab = k; render(); } }, l)));
     let body;
     if (awTab === 'awards') {
@@ -3592,6 +4064,14 @@
         el('div.panel', [el('h3', 'Нагороди сезону'), seasons.length ? el('ul.plist', seasons.map(([y, r]) => el('li', [el('span', [el('b', seasonOf(Number(y)) + ' · '), W.league(r.league).name, ': чемпіон — ', clubName(W.club(r.champion)),
           r.mvp ? ['; найкращий — ', pl(r.mvp)] : '', r.boot ? ['; бомбардир — ', pl(r.boot[0]), ` (${r.boot[1]})`] : '', r.young ? ['; молодий — ', pl(r.young)] : ''])]))) : el('p.muted', 'Нагороди сезону вручають після останнього туру.')]),
       ];
+    } else if (awTab === 'cabinet') {
+      const T = (state.trophies || []).slice().reverse();
+      const ICON = { league: '🏆', cup: '🥇', euro: '⭐', super: '🛡️' };
+      const count = (k) => T.filter((x) => x.kind === k).length;
+      body = [el('div.panel', [el('h3', `Шафа трофеїв · ${state.manager}`),
+        el('div.cabinet-sum', [['league', 'Чемпіонства'], ['cup', 'Кубки'], ['euro', 'Єврокубки'], ['super', 'Суперкубки']].map(([k, l]) => el('div.cab-tile', [el('span.cab-icon', ICON[k]), el('b', String(count(k))), el('small.muted', l)]))),
+        T.length ? el('ul.plist.cabinet', T.map((x) => el('li', [el('span', [el('span.cab-icon', ICON[x.kind]), ' ', el('b', x.name), el('small.muted', ` · ${seasonOf(x.s)} · ${clubName(W.club(x.club))}`)]),
+          x.final ? el('small', `фінал: ${x.final.score.join(':')} з ${x.final.opp}${x.final.pens ? ' (пен.)' : ''}`) : el('small.muted', 'за підсумками сезону')]))) : el('p.muted', 'Поки порожньо. Перший трофей — найсолодший!')])];
     } else if (awTab === 'records') {
       const R = a.rec[me] || {};
       const row = (k, label) => el('li', [el('span', label), el('b', R[k] ? `${FM.awards.fmtRec(k, R[k])}${R[k].s ? ` · ${seasonOf(R[k].s)}` : ''}` : '—')]);
@@ -3615,6 +4095,40 @@
       })])];
     }
     return [el('header', [el('h1', 'Нагороди й рекорди'), el('span.muted', `Тренер місяця: ${a.cotm || 0} раз${(a.cotm || 0) === 1 ? '' : (a.cotm || 0) >= 2 && (a.cotm || 0) <= 4 ? 'и' : 'ів'}`)]), tabs, ...body];
+  }
+
+  // ---------------- Планувальник складу на 3 сезони ----------------
+  /** Очікуваний рівень через k сезонів: молодь росте до потенціалу, ветерани згасають. */
+  function projectCa(p, k) {
+    let ca = p.ca, age = W.age(p) ?? 25;
+    for (let i = 0; i < k; i++, age++) {
+      const g = age <= 20 ? 8 : age <= 23 ? 5 : age <= 27 ? 2 : age <= 30 ? 0 : age <= 32 ? -3 : -6;
+      ca = Math.min(p.pa, ca + g);
+    }
+    return Math.max(1, Math.round(ca));
+  }
+  function screenPlanner() {
+    const S = state.season, sq = W.squad(state.clubId).filter((p) => !(p.loan && p.loan.to === state.clubId));
+    const NEED = { gk: 2, def: 6, mid: 6, att: 4 }, LBL = { gk: 'Воротарі', def: 'Захист', mid: 'Півзахист', att: 'Атака' };
+    const line = (p) => (p.roles[0] === 'GK' ? 'gk' : FM.ROLE_LINE[p.roles[0]]);
+    const col = (k) => {
+      const y = S.year + k;
+      const here = sq.filter((p) => (p.contract || 9999) >= y + 1 && !((W.age(p) ?? 25) + k >= 36));
+      return el('div.panel.plan-col', [el('h3', `Сезон ${y}/${String(y + 1).slice(2)}`),
+        ...Object.keys(NEED).map((ln) => {
+          const list = here.filter((p) => line(p) === ln).sort((a, b) => projectCa(b, k) - projectCa(a, k));
+          const hole = NEED[ln] - list.length;
+          return el('div.plan-line', [el('div.plan-line-head', [el('b', LBL[ln]), hole > 0 ? el('span.chip.bad', `дірка: ще ${hole}`) : el('small.muted', `${list.length}`)]),
+            el('ul.plain', list.map((p) => {
+              const age = (W.age(p) ?? 25) + k, last = (p.contract || 9999) === y + 1, old = age >= 33;
+              return el('li', [el('a', { href: '#player-' + p.id }, nameOf(p)), el('small.muted', ` ${age} р.`), ' ', starsEl(projectCa(p, k), 'Очікуваний рівень'),
+                last ? el('span.chip.warn', 'останній рік контракту') : null, old ? el('span.chip', 'може завершити') : null, k && p.pa - p.ca >= 20 && age <= 23 ? el('span.chip.ok', 'росте') : null]);
+            }))]);
+        })]);
+    };
+    return [el('header', [el('h1', 'План складу'), el('span.muted', 'Хто лишиться, у кого спливає контракт, де будуть дірки')]),
+      el('div.planner', [0, 1, 2].map(col)),
+      el('p.note', 'Рівень наступних сезонів — прогноз: молодь росте до потенціалу, після 30 гравці згасають. Гравці з контрактом, що закінчується, у наступному сезоні не показані — продовжте контракт у їхній картці. Після 36 років гравця не враховано.')];
   }
 
   // ---------------- Медичний центр ----------------
@@ -3764,6 +4278,7 @@
         el('p.muted', `Суперник: ${clubName(opp)}, ${oppPos ? oppPos + '-е місце' : ''}${t[oppPos - 1] && t[oppPos - 1].p ? `, ${t[oppPos - 1].pts} ${FM.plural(t[oppPos - 1].pts, 'очко', 'очки', 'очок')}` : ''}.` + (out.length ? ` Не зіграють: ${out.join(', ')}.` : '')),
         cupNote(),
         opponentReport(opp.id, thisWeek.h === opp.id),
+        feudPanel(opp.id),
         matchTacticPanel(),
         tipsPanel(6),
         pressPanel(),
@@ -4107,6 +4622,28 @@
     if (!b) return null;
     return (S.year - b.s) * 48 + S.week - b.w;
   }
+  /** Картка «День академії»: нове покоління вихованців, зірка випуску. */
+  /** Місії тижня (js/missions.js): 1–2 цілі на матчі ліги з нагородами. */
+  function missionsCard() {
+    const M = FM.missions.current(W, state);
+    if (!M.list.length) return null;
+    const ico = { open: '◻', done: '✅', failed: '✖' };
+    return el('div.panel.missions', [el('h3', ['🎯 Місії тижня', el('small.muted', ` · виконано за кар’єру: ${state.missionsDone || 0}`)]),
+      el('ul.plain', M.list.map((m) => el('li.m-' + m.state, [ico[m.state] + ' ', el('b', m.text), el('span.muted', ` — нагорода: ${m.reward}`)])))]);
+  }
+  function academyCard() {
+    const A = state.academy;
+    if (!A || !A.open || A.y !== state.season.year) return null;
+    const kids = A.ids.map((id) => W.player(id)).filter((p) => p && p.club === state.clubId);
+    if (!kids.length) return null;
+    const golden = kids.filter((p) => p.pa >= 150).length >= 2;
+    return el('div.panel.academy-card', [el('div.plan-card-head', [el('h3', '🎓 День академії'), golden ? el('span.chip.ok', 'золоте покоління!') : null]),
+      el('ul.plist', kids.sort((a, b) => b.pa - a.pa).map((p) => el('li' + (p.id === A.star ? '.mine' : ''), [
+        el('span', [p.id === A.star ? '⭐ ' : '', el('a', { href: '#player-' + p.id }, nameOf(p)), el('small.muted', ` ${FM.positions(p)}, ${W.age(p)} р.`)]),
+        el('span', [starsEl(p.pa, 'Потенціал'), ' ', (state.u21 || []).includes(p.id) ? el('button.btn.tiny-btn', { type: 'button', onclick: () => { FM.youth.promote(state, p.id); saveGame(); render(); } }, 'До основи') : el('small.muted', 'в основі')])]))),
+      el('div.actions', [el('a.btn', { href: '#u21' }, 'Молодіжна команда'), el('button.btn.link', { type: 'button', onclick: () => { A.open = false; saveGame(); render(); } }, 'Зрозуміло')])]);
+  }
+
   /** Картка в пошті: пора зробити резервну копію (кожні 8 ігрових тижнів). */
   function backupCard() {
     const S = state.season, ws = weeksSinceBackup(), key = S.year * 100 + S.week;

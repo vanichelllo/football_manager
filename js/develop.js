@@ -82,7 +82,6 @@
    */
   function weekly(W, S, opts = {}) {
     const R = FM.rng(`dev-${S.seed}-${S.week}`);
-    const tr = opts.training || {};
     const games = {}; // скільки матчів зіграв клуб
     for (const f of S.fixtures) if (f.s) { games[f.h] = (games[f.h] || 0) + 1; games[f.a] = (games[f.a] || 0) + 1; }
     const hurt = [];
@@ -90,18 +89,19 @@
     for (const p of W.players.values()) {
       if (p.retired) continue;
       const age = W.age(p) ?? 24;
-      const mine = p.club && p.club === opts.myClub;
+      const oo = !p.club ? null : p.club === opts.myClub ? opts : (opts.also || []).find((x) => x.myClub === p.club); // гра на двох — план другого тренера
+      const mine = !!oo, tr = (oo && oo.training) || {};
       const inten = INTENSITY[(mine && tr.intensity) || 'normal'];
-      const plan = mine && opts.plan ? opts.plan : PLANS[(mine && tr.plan) || 'balanced']; // розклад по днях (js/routine.js) або план
+      const plan = mine && oo.plan ? oo.plan : PLANS[(mine && tr.plan) || 'balanced']; // розклад по днях (js/routine.js) або план
       // травма на тренуванні
-      const restNow = mine && opts.rest && opts.rest.has(p.id);
+      const restNow = mine && oo.rest && oo.rest.has(p.id);
       // схильність до травм і втома — як у медцентрі (js/medical.js)
-      if (p.club && !p.injury && R.chance(0.006 * k * (0.6 + ((p.h && p.h.inj) || 8) / 20) * ((p.fitness ?? 100) < 70 ? 1.5 : 1) * (restNow ? 0.3 : 1) * inten.injury * plan.injury * (mine && opts.injuryMult ? opts.injuryMult : 1))) { p.injury = Math.min(4, injuryWeeks(R)); hurt.push({ id: p.id, weeks: p.injury }); }
+      if (p.club && !p.injury && R.chance(0.006 * k * (0.6 + ((p.h && p.h.inj) || 8) / 20) * ((p.fitness ?? 100) < 70 ? 1.5 : 1) * (restNow ? 0.3 : 1) * inten.injury * plan.injury * (mine && oo.injuryMult ? oo.injuryMult : 1))) { p.injury = Math.min(4, injuryWeeks(R)); hurt.push({ id: p.id, weeks: p.injury }); }
       const clubGames = p.club ? games[p.club] || 0 : 0;
       const apps = (S.ps[p.id] && S.ps[p.id][0]) || 0;
       const share = p.loan && p.loan.aff ? Math.max(0.8, clubGames ? Math.min(1, apps / clubGames) : 0) : clubGames ? Math.min(1, apps / clubGames) : 0.4; // у фарм-клубі — гарантована практика
       let g = Math.max(0, p.pa - p.ca) * growthRate(age) * (0.55 + 0.9 * share) * inten.growth * plan.growth * (0.8 + ((p.h && p.h.pro) || 10) / 50) // професіоналізм
-        * (mine && opts.growthMult ? opts.growthMult(p) : 1) * (restNow ? 0.8 : 1) * k; // тренери й база; відпочинок — легше тренування
+        * (mine && oo.growthMult ? oo.growthMult(p) : 1) * (restNow ? 0.8 : 1) * k; // тренери й база; відпочинок — легше тренування
       if (p.injury) g *= 0.3;
       if (!p.club) g *= 0.5; // без клубу розвиток повільніший
       if (age >= 30) g -= (0.02 + (age - 30) * 0.03) * k;
