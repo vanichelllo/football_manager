@@ -1940,7 +1940,7 @@
         if (shouldHl(e) && !finished) { highlight(e); hold = Math.max(hold, e.hl.out === 'goal' ? 3800 : 2600); moveBall.last = e; }
         scoreEl.textContent = e.score.join(':');
         // звук і анімація
-        if (e.type === 'goal') { hold = liveSpeed === 'key' ? 4000 : 1800; FM.sound.goal(myK == null || e.team === myK); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
+        if (e.type === 'goal') { hold = liveSpeed === 'key' ? 4000 : 1800; FM.sound.goal(myK == null || e.team === myK); if (!finished) vibe(myK == null || e.team === myK ? [90, 50, 90, 50, 160] : 250); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
         else if (e.type === 'chance' || e.type === 'miss') FM.sound.chance();
         else if (e.type === 'kickoff') { FM.sound.whistle(1); FM.sound.ambient(true); }
         else if (e.type === 'half' && String(e.min).startsWith('45')) FM.sound.whistle(2);
@@ -2090,6 +2090,7 @@
       if (finished) return;
       finished = true;
       clearTimeout(liveTimer);
+      keepAwake(false);
       FM.sound.ambient(false);
       activeLive = null;
       const m = M.result();
@@ -2121,6 +2122,7 @@
     }
 
     activeLive = { finish: () => { M.result(); finish(); } };
+    keepAwake(true); // телефон не засинає, поки йде трансляція
     drawSpeed(); drawControl(); flush();
     liveTimer = setTimeout(tick, 300);
     return [
@@ -2944,6 +2946,12 @@
     return [
       el('header', [el('h1', 'Довідка'), el('span.muted', 'Як усе влаштовано')]),
       el('div.help-grid', [
+        sec('Нагороди, гроші, події', [
+          'Нагороди: команда туру щотижня, гравець і тренер місяця, нагороди сезону, рекорди клубу й Зала слави — меню «Нагороди».',
+          'Гроші: абонементи продають у передсезоння («Клуб»), глядачі кожного домашнього матчу й рекорд стадіону, атрибутика (підпис зірки — сплеск продажів).',
+          'Події: щотижня може статися щось у житті клубу — новина 🎲 або лист з вибором. У матчах бувають автоголи, хет-трики, голи-шедеври й навіть гол воротаря.',
+          'Телефон: вібрація на голах і екран, що не гасне під час трансляції («Налаштування»). Резервну копію можна надіслати в Telegram чи на Диск кнопкою «Поділитися».',
+        ]),
         sec('Календар, матч і щоденна робота (як у FM)', [
           'Сезон — з липня до кінця травня: передсезоння з товариськими, свій старт кожної ліги, вікна збірних (ліги не грають), зимові перерви, тури посеред тижня у вівторок. Ліга чемпіонів — у середу, Ліга Європи й конференцій — у четвер.',
           'Перед матчем — промова (кожен гравець реагує по-своєму), під час — вигуки з бровки (10 хвилин), у перерві — звіт асистента, після — розмова з командою. Стандарти — у тактиці.',
@@ -3311,6 +3319,7 @@
       el('header', [el('h1', 'Повідомлення'), el('span.muted', `Усього ${all.length}${maxId > lastRead ? ` · нових ${all.filter((n) => n.id > lastRead).length}` : ''}`)]),
       actionCards(),
       planCard(),
+      backupCard(),
       el('div.tabs', [['all', `Усі (${all.length})`], ...Object.entries(FM.market.NEWS_CATS).filter(([k]) => counts[k]).map(([k, l]) => [k, `${l} (${counts[k]})`])].map(([k, l]) =>
         el('button', { type: 'button', 'aria-pressed': String(inboxCat === k), onclick: () => { inboxCat = k; try { localStorage.setItem('golovnyi-trener:inbox', k); } catch (_) { /* приватне вікно */ } render(); } }, l))),
       el('div.dt-bar', [
@@ -3985,11 +3994,8 @@
     ioMsg = null;
     return el('div.panel', [el('h3', 'Збереження'), status,
       el('div.actions', [
-        el('button.btn', { type: 'button', onclick: async () => {
-          const code = await exportSave();
-          const a = el('a', { href: URL.createObjectURL(new Blob([code], { type: 'text/plain' })), download: `golovnyi-trener-${state.season.year}-tyzhden-${state.season.week + 1}.txt` });
-          document.body.append(a); a.click(); a.remove();
-        } }, 'Зберегти у файл'),
+        canShareFiles() ? el('button.btn.primary', { type: 'button', onclick: () => shareSave() }, 'Поділитися (Telegram, Диск…)') : null,
+        el('button.btn', { type: 'button', onclick: () => downloadSave() }, 'Зберегти у файл'),
         el('button.btn', { type: 'button', onclick: async () => {
           const code = await exportSave();
           try { await navigator.clipboard.writeText(code); ioMsg = ['ok', `Код скопійовано (${Math.round(code.length / 1024)} КБ). Вставте його на іншому пристрої.`]; render(); }
@@ -4001,6 +4007,65 @@
       el('div.field', { style: { marginTop: '0.75rem' } }, [el('label', { for: 'save-code' }, 'Код збереження'), codeBox]),
       el('div.actions', [el('button.btn', { type: 'button', onclick: () => { if (codeBox.value.trim()) importSave(codeBox.value); } }, 'Завантажити з коду')]),
       el('p.note', 'Завантаження замінить поточну кар’єру в цьому браузері.'),
+    ]);
+  }
+
+  // ---------------- Резервні копії: поділитися файлом, нагадування ----------------
+  const saveName = () => `golovnyi-trener-${state.season.year}-tyzhden-${state.season.week + 1}.txt`;
+  const markBackup = () => { state.lastBackup = { s: state.season.year, w: state.season.week, at: Date.now() }; saveGame(); };
+  function canShareFiles() {
+    try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.txt', { type: 'text/plain' })] })); } catch (_) { return false; }
+  }
+  async function downloadSave() {
+    const code = await exportSave();
+    const a = el('a', { href: URL.createObjectURL(new Blob([code], { type: 'text/plain' })), download: saveName() });
+    document.body.append(a); a.click(); a.remove();
+    markBackup();
+  }
+  /** Поділитися файлом збереження через меню телефона (Telegram, Google Диск, пошта…). */
+  async function shareSave() {
+    const code = await exportSave();
+    try {
+      await navigator.share({ files: [new File([code], saveName(), { type: 'text/plain' })], title: 'Головний тренер — збереження', text: `${state.manager}, ${clubName(W.club(state.clubId))}, сезон ${seasonLabel()}` });
+      markBackup(); ioMsg = ['ok', 'Збереження надіслано. Відновити: «Завантажити з файлу».']; render();
+    } catch (e) { if (e && e.name !== 'AbortError') downloadSave(); }
+  }
+  /** Скільки ігрових тижнів минуло від останньої резервної копії (null — ще не було). */
+  function weeksSinceBackup() {
+    const b = state.lastBackup, S = state.season;
+    if (!b) return null;
+    return (S.year - b.s) * 48 + S.week - b.w;
+  }
+  /** Картка в пошті: пора зробити резервну копію (кожні 8 ігрових тижнів). */
+  function backupCard() {
+    const S = state.season, ws = weeksSinceBackup(), key = S.year * 100 + S.week;
+    if (state.backupLater && key < state.backupLater) return null;
+    const started = (state.started && S.week >= 4) || S.year > Number(String(state.started || '2026').slice(0, 4));
+    if (ws == null ? !started : ws < 8) return null;
+    return el('div.panel.backup-card', [el('div.plan-card-head', [el('h3', '💾 Резервна копія'), el('small.muted', ws == null ? 'ще не було' : `остання — ${ws} тиж. тому`)]),
+      el('p.small', 'Гра зберігається в браузері сама, але якщо очистити дані браузера чи змінити телефон — кар’єра зникне. Збережіть копію в Telegram чи на Диск.'),
+      el('div.actions', [canShareFiles() ? el('button.btn.primary', { type: 'button', onclick: () => shareSave() }, 'Поділитися') : null,
+        el('button.btn', { type: 'button', onclick: () => downloadSave().then(() => render()) }, 'Зберегти у файл'),
+        el('button.btn.link', { type: 'button', onclick: () => { state.backupLater = key + 8; saveGame(); render(); } }, 'Пізніше')])]);
+  }
+
+  // ---------------- Телефон: вібрація на голах, екран не гасне під час трансляції ----------------
+  const PHONE_KEY = 'golovnyi-trener:phone';
+  const phone = (() => { try { return { vibe: true, wake: true, ...JSON.parse(localStorage.getItem(PHONE_KEY) || '{}') }; } catch (_) { return { vibe: true, wake: true }; } })();
+  const savePhone = () => { try { localStorage.setItem(PHONE_KEY, JSON.stringify(phone)); } catch (_) { /* приватне вікно */ } };
+  const vibe = (pattern) => { try { if (phone.vibe && navigator.vibrate) navigator.vibrate(pattern); } catch (_) { /* не підтримується */ } };
+  let wakeLock = null;
+  async function keepAwake(on) {
+    try {
+      if (on && phone.wake && navigator.wakeLock && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); }
+      else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+    } catch (_) { wakeLock = null; /* браузер не дозволив */ }
+  }
+  function phonePanel() {
+    const can = { vibe: !!navigator.vibrate, wake: !!navigator.wakeLock };
+    return el('div.panel', [el('h3', 'Телефон'),
+      el('label.check', [el('input', { type: 'checkbox', checked: phone.vibe || null, disabled: !can.vibe || null, onchange: (e) => { phone.vibe = e.target.checked; savePhone(); if (phone.vibe) vibe(60); } }), ' Вібрація на голах', can.vibe ? '' : el('small.muted', ' (цей пристрій не підтримує)')]),
+      el('label.check', [el('input', { type: 'checkbox', checked: phone.wake || null, disabled: !can.wake || null, onchange: (e) => { phone.wake = e.target.checked; savePhone(); } }), ' Екран не гасне під час трансляції', can.wake ? '' : el('small.muted', ' (цей браузер не підтримує)')]),
     ]);
   }
 
@@ -4056,6 +4121,7 @@
           try { navigator.serviceWorker.getRegistration().then((r) => (r ? r.update() : null)).catch(() => {}).finally(done); } catch (_) { done(); }
         } }, 'Перезавантажити гру')]),
         el('p.note', 'Після злиття PR процес «Публікація» за 2–3 хвилини викладає нову версію. Натисніть «Перезавантажити гру» — тут з’явиться її дата. Кар’єра збережена й нікуди не зникне.')]),
+      phonePanel(),
       el('div.panel', [el('h3', 'Імена'), el('div.tabs', { style: { marginTop: '0.5rem' } }, [
         el('button', { type: 'button', 'aria-pressed': String(state.names !== 'en'), onclick: () => setNames('uk') }, 'Українською'),
         el('button', { type: 'button', 'aria-pressed': String(state.names === 'en'), onclick: () => setNames('en') }, 'Мовою оригіналу'),

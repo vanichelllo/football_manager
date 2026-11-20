@@ -684,3 +684,4 @@ th[aria-sort] { color: var(--fg); }
 .plist li.mine { background: var(--accent-soft); border-radius: 6px; }
 .totw li { display: flex; justify-content: space-between; gap: 0.5rem; }
 .awards-line p { margin: 0.3rem 0; }
+.backup-card { border-color: var(--warn); }
