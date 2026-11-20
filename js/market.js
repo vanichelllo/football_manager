@@ -97,7 +97,7 @@
     if (p.loan) return { ok: false, reason: 'Гравець в оренді — його не можна купити, доки він не повернеться.' };
     if (p.clause && fee >= p.clause) return { ok: true, ask: p.clause, clause: true }; // відступні: клуб не може відмовити
     if (p.boughtWeek != null && p.boughtSeason === S.year) return { ok: false, reason: 'Гравця щойно купили — клуб не продає його в тому ж сезоні.' };
-    const ask = askingPrice(W, p, S) * (opts && opts.sellOn ? 0.9 : 1);
+    const ask = askingPrice(W, p, S) * (opts && opts.sellOn ? 0.9 : 1) * (FM.career ? FM.career.negFor(buyerId) : 1); // переговори тренера
     const r5 = (v) => Math.round(v * 20) / 20;
     if (fee >= ask - 0.001) return { ok: true, ask: r5(ask) };
     if (fee >= ask * 0.75) return { ok: false, counter: r5(ask), ask: r5(ask), reason: `Клуб просить ${fmtM(r5(ask))}.` };
@@ -114,7 +114,7 @@
     let k = p.club ? 1.15 : 1; // за перехід — надбавка
     if (gap > 8) k *= 1 + (gap - 8) * 0.03;
     if (gap < -10) k *= 0.95; // у сильніший клуб — охочіше
-    return Math.round(base * k);
+    return Math.round(base * k * (FM.career ? FM.career.negFor(buyerId) : 1));
   }
 
   /** Суперник у боротьбі за гравця (детерміновано на тиждень): { club, wage } або null. */

@@ -139,7 +139,7 @@
   function jobOffers(W, state, n = 3, seed = '') {
     const R = FM.rng(`jobs-${state.season.seed}-${state.season.week}-${seed}`);
     const rep = state.board ? state.board.rep : 40;
-    const maxLvl = 60 + rep * 1.05; // репутація 50 → клуби до ~112, 90 → до ~155
+    const maxLvl = Math.min(60 + rep * 1.05, FM.career && state.coach ? FM.career.maxLevel(state) : 999); // репутація 50 → клуби до ~112, 90 → до ~155; не вище ліцензії
     const cands = [...W.clubs.values()].filter((c) => c.id !== state.clubId && W.clubLevel(c.id) <= maxLvl && W.clubLevel(c.id) >= maxLvl - 45);
     const out = [];
     while (out.length < n && cands.length) out.push(cands.splice(R.int(cands.length), 1)[0].id);
@@ -148,6 +148,7 @@
 
   /** Очолити інший клуб. */
   function takeJob(W, state, clubId) {
+    if (FM.career) FM.career.onJob(W, state, clubId);
     state.clubId = clubId;
     state.tactics = null;
     if (state.training) state.training.individual = {};

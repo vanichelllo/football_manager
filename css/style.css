@@ -445,3 +445,14 @@ details.opp .facts { margin-top: 0.5rem; }
 .staff-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.4rem 1rem; align-items: center; padding: 0.6rem 0; border-bottom: 1px dashed var(--line); }
 .staff-row:last-child { border-bottom: 0; }
 .staff-row .cands { grid-column: 1 / -1; }
+
+/* Кар'єра тренера: бачення правління, досягнення, прості списки */
+ul.plain { margin: 0.2rem 0 0; padding-left: 1.1rem; display: grid; gap: 0.3rem; }
+.vstat { font-weight: 600; white-space: nowrap; color: var(--muted); }
+.vstat.ok { color: var(--accent); }
+.vstat.bad { color: var(--warn); }
+ul.ach { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); }
+ul.ach li { border: 1px dashed var(--line); border-radius: var(--radius); padding: 0.5rem 0.7rem; display: grid; gap: 0.15rem; color: var(--muted); }
+ul.ach li b { font-weight: 600; }
+ul.ach li.got { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--fg); }
+ul.ach li.got b::before { content: "★ "; color: var(--accent); }

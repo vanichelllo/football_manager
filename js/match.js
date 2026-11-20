@@ -578,10 +578,11 @@
     }
 
     /** Промова в перерві: множник сили на другий тайм і мораль гравців на полі. */
-    function halftimeTalk(k, kind) {
+    function halftimeTalk(k, kind, mult = 1) {
       const t = sides[k], o = sides[1 - k];
       if (!FM.morale || t.talked) return null;
       const e = FM.morale.talkEffect(kind, t.stats.goals - o.stats.goals, R);
+      if (mult !== 1) { e.boost = 1 + (e.boost - 1) * (e.boost > 1 ? mult : 1); e.morale = e.morale > 0 ? e.morale * mult : e.morale; } // мотивація тренера
       t.talked = true; t.boost = e.boost;
       for (const x of t.onPitch) if (!x.out) x.p.morale = Math.max(0, Math.min(100, FM.morale.get(x.p) + e.morale));
       compute(t);
