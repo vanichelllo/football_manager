@@ -1,0 +1,11 @@
+{
+  "name": "Головний тренер",
+  "short_name": "Головний тренер",
+  "description": "Футбольний менеджер з реальними лігами, клубами й гравцями",
+  "lang": "uk",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0e1512",
+  "theme_color": "#17734a",
+  "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -10,6 +10,7 @@ const path = require('path');
 const wiki = require('./lib/wiki');
 const P = require('./lib/parse');
 const R = require('./lib/ratings');
+const T = require('./lib/translit');
 const COUNTRIES = require('../js/data/countries');
 
 const SEASON = '2026–27';
@@ -152,8 +153,11 @@ async function ukrainianLabels(qids) {
   const out = {};
   for (let i = 0; i < qids.length; i += 120) {
     const values = qids.slice(i, i + 120).map((q) => 'wd:' + q).join(' ');
-    const rows = await wiki.sparql(`SELECT ?item ?uk WHERE { VALUES ?item { ${values} } ?item rdfs:label ?uk . FILTER(LANG(?uk) = "uk") }`);
-    for (const r of rows) out[r.item.split('/').pop()] = r.uk;
+    // мітка українською, а якщо її немає — назва статті в українській Вікіпедії
+    const rows = await wiki.sparql(`SELECT ?item ?uk ?ukw WHERE { VALUES ?item { ${values} }
+      OPTIONAL { ?item rdfs:label ?uk . FILTER(LANG(?uk) = "uk") }
+      OPTIONAL { ?a schema:about ?item ; schema:isPartOf <https://uk.wikipedia.org/> ; schema:name ?ukw } }`);
+    for (const r of rows) { const v = r.uk || r.ukw; if (v) out[r.item.split('/').pop()] = v; }
   }
   return out;
 }
@@ -187,7 +191,6 @@ function build(clubs, playerArticles, ukLabel) {
   const leagues = LEAGUES.map((l) => ({ id: l.id, name: l.name, country: l.country, size: l.size, tier: l.tier || 1, up: l.up || null }));
   const outClubs = [];
   const players = [];
-  let pid = 0;
   const unknownNat = new Set();
 
   // гравець — лише в одному клубі: орендований — там, де грає («on loan from»), інакше — у першому за списком
@@ -204,7 +207,7 @@ function build(clubs, playerArticles, ukLabel) {
     if (c.squad.length < before) report.push(`${c.name}: ${before - c.squad.length} гравців указано й в іншому клубі — лишено там`);
   }
   for (const [ci, c] of clubs.entries()) {
-    const clubId = 'c' + ci;
+    const clubId = stableId('c', c.title);
     const club = {
       id: clubId, league: c.leagueId, code: c.code,
       name: cleanUk(ukLabel[c.qid]) || c.name, nameEn: c.name, fullName: c.fullName,
@@ -231,10 +234,10 @@ function build(clubs, playerArticles, ukLabel) {
         pos: main, posGroup: s.group || ROLE_GROUP[main], height: P.height(ib.height) };
       const { ca, pa } = R.abilities(facts, { league: c.leagueId, strength: Math.max(0, c.strength) });
       const attrs = R.attributes(facts, ca);
-      const id = 'p' + pid++;
+      const id = stableId('p', key);
       players.push({
         id, club: clubId,
-        name: (art && cleanUk(ukLabel[art.qid])) || s.name, nameEn: s.name,
+        name: (art && cleanUk(ukLabel[art.qid])) || (nat === 'UKR' && /^[A-Za-z' .-]+$/.test(s.name) ? T.toUk(s.name) : s.name), nameEn: s.name,
         born, nat: nat || s.nat || '', number: s.number, roles, side: rr.side,
         height: facts.height, caps: car.caps, intlGoals: car.intlGoals,
         leagueApps: car.leagueApps, leagueGoals: car.leagueGoals,
@@ -264,7 +267,40 @@ function build(clubs, playerArticles, ukLabel) {
     leagues, clubs: outClubs, players };
 }
 
+// Стабільні id: з назви статті (або клуб/ім'я), тож після оновлення бази збереження лишаються сумісними
+const usedIds = new Set();
+function stableId(prefix, key) {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+  let base = (h >>> 0).toString(36);
+  if (/^\d+$/.test(base)) base = 'z' + base; // не плутати з давніми порядковими id (c12, p345)
+  let id = prefix + base;
+  for (let k = 2; usedIds.has(id); k++) id = prefix + base + '_' + k;
+  usedIds.add(id);
+  return id;
+}
+
+/** Відповідність id попередньої бази (порядкові c0, p0…) новим — щоб продовжити давні кар'єри. */
+function legacyMap(db) {
+  const file = path.join(__dirname, '..', 'data', 'db.js');
+  let old;
+  try { const ctx = { window: {} }; require('vm').runInNewContext(fs.readFileSync(file, 'utf8'), ctx); old = ctx.window.FM_DB; } catch (_) { return null; }
+  if (!old || !old.clubs.some((c) => /^c\d+$/.test(c.id))) return old && old.legacyIds ? old.legacyIds : null; // уже стабільні — переносимо давню таблицю
+  const clubByWiki = new Map(db.clubs.map((c) => [c.wiki, c.id]));
+  const oldClubWiki = new Map(old.clubs.map((c) => [c.id, c.wiki]));
+  const playerByKey = new Map(db.players.map((p) => [p.wiki || `${db.clubs.find((c) => c.id === p.club).wiki}/${p.nameEn}`, p.id]));
+  const map = {};
+  for (const c of old.clubs) if (clubByWiki.has(c.wiki)) map[c.id] = clubByWiki.get(c.wiki);
+  for (const p of old.players) {
+    const key = p.wiki || `${oldClubWiki.get(p.club)}/${p.nameEn}`;
+    if (playerByKey.has(key)) map[p.id] = playerByKey.get(key);
+  }
+  return map;
+}
+
 function writeOut(db) {
+  const lm = legacyMap(db);
+  if (lm) db.legacyIds = lm;
   const dir = path.join(__dirname, '..', 'data');
   fs.mkdirSync(dir, { recursive: true });
   const js = '// Згенеровано tools/build-db.js — не редагуйте вручну.\n' +
