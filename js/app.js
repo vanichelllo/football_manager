@@ -125,7 +125,7 @@
           item('tactics', 'Тактика'), item('training', 'Тренування'), item('medical', 'Медцентр'), item('transfers', 'Трансфери'), item('search', 'Пошук'), item('office', 'Клуб'), item('board', 'Правління'), item('media', 'Медіа'), item('coach', 'Тренер'), item('nations', 'Збірна'), item('history', 'Історія'), item('help', 'Довідка'),
           item('options', 'Налаштування'),
         ]),
-        el('div.foot', [`Тренер: ${state.manager}`, el('br'), `Сезон ${seasonLabel()}`]),
+        el('div.foot', [`Тренер: ${state.manager}`, el('br'), `Сезон ${seasonLabel()}`, el('br'), el('a.muted', { href: '#options', title: versionText() }, versionText(true))]),
       ]),
       el('main.main', [topbar(), tutorialBox(active), ...[].concat(body)]),
     ]);
@@ -3880,10 +3880,24 @@
     ]);
   }
 
+  /** «Версія від 20.11.2026, 15:40 (коміт abc1234)» — з js/version.js, який пише процес публікації. */
+  function versionText(short) {
+    const v = window.FM_VERSION;
+    if (!v || !v.built) return short ? 'розробницька копія' : 'Розробницька копія (дата збірки невідома)';
+    const d = new Date(v.built);
+    const opt = { timeZone: 'Europe/Kyiv', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+    let txt;
+    try { txt = d.toLocaleString('uk-UA', opt).replace(',', ''); } catch (_) { txt = d.toISOString().slice(0, 16).replace('T', ' '); }
+    if (short) return `версія від ${txt.slice(0, 5)}, ${txt.slice(-5)}`;
+    return `Версія від ${txt.replace(' ', ', ')}${v.commit ? ` (коміт ${v.commit})` : ''}${v.source ? ` · ${v.source}` : ''}`;
+  }
+
   function screenSettings() {
     const setNames = (v) => { state.names = v; saveGame(); render(); };
     return [
       el('header', [el('h1', 'Налаштування')]),
+      el('div.panel.version', [el('h3', 'Версія гри'), el('p', el('b', versionText())),
+        el('p.note', 'Після злиття PR процес «Публікація» за 2–3 хвилини викладає нову версію; тут з’явиться її дата. Якщо дата стара — перезавантажте сторінку (GitHub кешує сайт до 10 хвилин).')]),
       el('div.panel', [el('h3', 'Імена'), el('div.tabs', { style: { marginTop: '0.5rem' } }, [
         el('button', { type: 'button', 'aria-pressed': String(state.names !== 'en'), onclick: () => setNames('uk') }, 'Українською'),
         el('button', { type: 'button', 'aria-pressed': String(state.names === 'en'), onclick: () => setNames('en') }, 'Мовою оригіналу'),
