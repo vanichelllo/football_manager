@@ -105,7 +105,8 @@
     if (S.week >= FM.cal.at(S, 6) && mine) b.conf += Math.max(-1.6, Math.min(1.2, (b.target.pos - pos) * 0.25));
     if (W.club(state.clubId).balance < 0) b.conf -= 1;
     b.conf = Math.max(0, Math.min(100, Math.round(b.conf * 10) / 10));
-    if (S.week >= FM.cal.at(S, 10) && b.conf < (b.contract && b.contract > S.year + 1 ? 10 : 15) && !b.fired) // довгий контракт — правління терплячіше { b.fired = true; return { fired: true, reason: 'Правління втратило довіру через погані результати.' }; }
+    // довгий контракт — правління терплячіше
+    if (S.week >= FM.cal.at(S, 10) && b.conf < (b.contract && b.contract > S.year + 1 ? 10 : 15) && !b.fired) { b.fired = true; return { fired: true, reason: 'Правління втратило довіру через погані результати.' }; }
     return { fired: false };
   }
 
