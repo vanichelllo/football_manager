@@ -33,7 +33,31 @@
   /** Кандидати на посаду: три людини різного рівня й ціни. */
   function candidates(state, role) {
     const R = FM.rng(`cand-${state.season.seed}-${state.season.week}-${role}`);
-    return [0, 1, 2].map(() => { const level = clampL(5 + R.int(16)); return { name: randName(R), level, wage: staffWage(role, level, state) }; }).sort((a, b) => b.level - a.level);
+    const list = [0, 1, 2].map(() => { const level = clampL(5 + R.int(16)); return { name: randName(R), level, wage: staffWage(role, level, state) }; });
+    // колишні гравці, що завершили кар'єру, — теж шукають роботу в штабі
+    const ex = (state.exPlayers || []).filter((x) => !x.taken);
+    if (ex.length && R.chance(0.6)) {
+      const x = ex[R.int(ex.length)];
+      const level = clampL(x.level + (role === 'gkCoach' ? (x.gk ? 2 : -4) : role === 'youth' ? 1 : 0));
+      list[2] = { name: x.name, level, wage: staffWage(role, level, state) * 1.2, ex: x.pid, note: `колишній гравець (${x.club})` };
+    }
+    return list.sort((a, b) => b.level - a.level);
+  }
+  /**
+   * Гравці, що завершили кар'єру, з досвідом лідера — у резерв тренерів.
+   * retired — список гравців (FM.dev.endSeason → retired).
+   */
+  function addExPlayers(W, state, retired) {
+    const pool = (state.exPlayers = state.exPlayers || []);
+    for (const p of retired) {
+      const lea = p.attrs.lea || 10, dec = p.attrs.dec || 10;
+      if (p.ca < 120 && lea < 15) continue;
+      const level = clampL((lea + dec) / 2 + (p.ca - 120) / 15 + (p.caps || 0) / 40);
+      const c = W.club(p.lastClub || p.club);
+      pool.push({ pid: p.id, name: p.name, level, gk: p.roles[0] === 'GK', club: c ? c.name : '', nat: p.nat, year: state.season.year });
+    }
+    state.exPlayers = pool.slice(-60);
+    return pool;
   }
   const staffBill = (state) => Object.entries(state.staff || {}).reduce((s, [r, x]) => s + staffWage(r, x.level, state), 0);
 
@@ -145,9 +169,12 @@
       const gap = pos - expect; // скільки місць нижче очікуваного
       if (gap >= 6 && R.chance(0.04 + (gap - 6) * 0.01) && !(c.manager.since === S.year && S.week < 20)) {
         const old = c.manager.name;
-        c.manager = { name: randName(R), style: R.pick(Object.keys(STYLES)), since: S.year, newWeek: S.week };
+        const ex = (state.exPlayers || []).filter((x) => !x.taken);
+        const legend = ex.length && R.chance(0.5) ? ex[R.int(ex.length)] : null; // клуби люблять наймати колишніх зірок
+        if (legend) legend.taken = c.id;
+        c.manager = { name: legend ? legend.name : randName(R), style: R.pick(Object.keys(STYLES)), since: S.year, newWeek: S.week, ex: legend ? legend.pid : undefined };
         c.vacancy = { week: S.week, year: S.year };
-        out.push({ club: c, old, now: c.manager.name });
+        out.push({ club: c, old, now: c.manager.name, ex: !!c.manager.ex });
       }
     }
     return out;
@@ -170,7 +197,7 @@
     managers(W, state);
   }
 
-  FM.club = { ROLES, PRICES, UPGRADES, STYLES, init, initStaff, lvl, candidates, staffWage, staffBill, growthMult, facilities, requestUpgrade, buildWeek,
+  FM.club = { addExPlayers, ROLES, PRICES, UPGRADES, STYLES, init, initStaff, lvl, candidates, staffWage, staffBill, growthMult, facilities, requestUpgrade, buildWeek,
     fans, attendance, ticketFactor, fansWeek, managers, managersWeek, aiStyle };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

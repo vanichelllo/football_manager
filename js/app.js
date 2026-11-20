@@ -804,8 +804,8 @@
       return el('li.staff-row', [
         el('div', [el('b', d.label), el('div.muted', `${x.name} · рівень ${x.level} · ${String(FM.club.staffWage(role, x.level, state)).replace(".", ",")} тис. €/тиж.`), el('small.muted', d.hint)]),
         el('button.btn', { type: 'button', onclick: () => { staffPick = staffPick === role ? null : role; render(); } }, staffPick === role ? 'Сховати' : 'Шукати заміну'),
-        list ? el('ul.plist.cands', list.map((c) => el('li', [el('span', `${c.name} · рівень ${c.level} · ${c.wage} тис. €/тиж.`),
-          el('button.btn', { type: 'button', onclick: () => { staff[role] = { name: c.name, level: c.level }; staffPick = null; officeMsg = `${d.label}: тепер ${c.name}.`; saveGame(); render(); } }, 'Найняти')]))) : null,
+        list ? el('ul.plist.cands', list.map((c) => el('li', [el('span', [`${c.name} · рівень ${c.level} · ${String(Math.round(c.wage * 10) / 10).replace('.', ',')} тис. €/тиж.`, c.note ? el('small.muted', ` · ${c.note}`) : null]),
+          el('button.btn', { type: 'button', onclick: () => { staff[role] = { name: c.name, level: c.level }; if (c.ex) { const x = (state.exPlayers || []).find((y) => y.pid === c.ex); if (x) x.taken = state.clubId; } staffPick = null; officeMsg = `${d.label}: тепер ${c.name}.`; saveGame(); render(); } }, 'Найняти')]))) : null,
       ]);
     });
     const att = Math.round(FM.club.attendance(W, me.id, 0.5) * 100);
@@ -1731,7 +1731,7 @@
     const R = FM.rng(`physio-${S.seed}-${S.week}`);
     for (const p of W.squad(state.clubId)) if (p.injury > 0 && R.chance(FM.club.lvl(state, 'physio') / 40)) { p.injury--; if (p.injury <= 0) delete p.injury; }
     for (const e of FM.club.managersWeek(W, state)) {
-      if (e.club.league === W.club(state.clubId).league || W.clubLevel(e.club.id) > 140) FM.market.news(state, `${clubName(e.club)} звільнив тренера ${e.old}. Новий тренер — ${e.now}.`);
+      if (e.ex || e.club.league === W.club(state.clubId).league || W.clubLevel(e.club.id) > 140) FM.market.news(state, `${clubName(e.club)} звільнив тренера ${e.old}. Новий тренер — ${e.now}${e.ex ? ' (колишній гравець, завершив кар’єру нещодавно)' : ''}.`, 'world');
     }
     // міжнародне вікно: збірні грають, гравці повертаються втомленими
     if (FM.nations && FM.nations.WINDOWS.includes(S.week)) {
@@ -1806,6 +1806,7 @@
     state.youthBonus = (FM.club.lvl(state, 'youth') - 10) + (FM.club.facilities(W, state.clubId).youth - 10) * 0.8;
     const contracts = FM.market.endSeason(W, state);
     const rep = FM.dev.endSeason(W, state);
+    FM.club.addExPlayers(W, state, rep.retired); // ветерани — у резерв тренерів
     state.lastReport = {
       year: S.year,
       myRetired: rep.retired.filter((p) => p.lastClub === state.clubId).map((p) => p.id),

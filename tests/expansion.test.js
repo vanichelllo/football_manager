@@ -182,3 +182,27 @@ test('10–11. 23 ліги; три єврокубки по 36 клубів; Лі
   assert.ok(state.cups.uecl.winner);
   assert.ok(FM.season.zone('sco', 1, 12) === 'ucl' && FM.season.zone('sco', 3, 12) === 'uel' && FM.season.zone('sco', 5, 12) === 'uecl');
 });
+
+test('12. ветерани стають тренерами: резерв, кандидати в штаб, нові тренери клубів ШІ', () => {
+  const { W, state } = fresh();
+  const stars = [...W.players.values()].filter((p) => p.ca >= 140).slice(0, 12);
+  for (const p of stars) { p.lastClub = p.club; p.attrs.lea = 17; }
+  FM.club.addExPlayers(W, state, stars);
+  assert.strictEqual(state.exPlayers.length, 12);
+  let seen = false;
+  for (let w = 0; w < 30 && !seen; w++) { state.season.week = w; seen = FM.club.candidates(state, 'assistant').some((c) => c.ex); }
+  assert.ok(seen, 'ветеран серед кандидатів у штаб');
+  // найсильніший клуб АПЛ програє все — тренера звільняють, а на його місце часто беруть ветерана
+  FM.club.managers(W, state);
+  const S = state.season;
+  const top = W.clubsOf('eng').sort((x, y) => W.clubLevel(y.id) - W.clubLevel(x.id))[0];
+  const sacked = [];
+  for (let w = 0; w < 38; w++) {
+    for (const f of FM.season.fixturesOfWeek(S, w)) if (f.l === 'eng') f.s = f.h === top.id ? [0, 2] : f.a === top.id ? [2, 0] : [1, 1];
+    S.week = w + 1;
+    sacked.push(...FM.club.managersWeek(W, state).filter((e) => e.club.id === top.id));
+  }
+  assert.ok(sacked.length >= 1, 'тренера аутсайдера-фаворита звільнили');
+  // з 12 ветеранами в резерві й багатьма звільненнями хоч один клуб узяв ветерана
+  assert.ok(state.exPlayers.some((x) => x.taken), 'ветерана найняли');
+});
