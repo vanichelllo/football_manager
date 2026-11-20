@@ -205,6 +205,11 @@
       const bonus = c.id === state.clubId ? state.youthBonus || 0 : c.fac ? (c.fac.youth - 10) * 0.8 : 0;
       for (let i = 0; i < n; i++) report.youth.push(makeYouth(W, c.id, R, year, null, golden, bonus));
     }
+    // клуби ШІ тримають щонайменше 20 гравців: бракує (закінчилися контракти) — дозаповнюють з академії
+    for (const c of W.clubs.values()) {
+      if (c.id === state.clubId) continue;
+      for (let k = W.club(c.id).players.length; k < 20; k++) report.youth.push(makeYouth(W, c.id, R, year, null, false, 2));
+    }
     // клуби ШІ тримають не більше 30 гравців: відпускають найслабших дорослих
     for (const c of W.clubs.values()) {
       if (c.id === state.clubId) continue;

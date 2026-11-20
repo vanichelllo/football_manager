@@ -35,6 +35,7 @@ test('торг із клубом: ціна, зустрічна пропозиц�
   const { W, state } = fresh();
   const S = state.season;
   const star = W.squad(club(W, 'Dynamo Kyiv').id).sort((a, b) => b.ca - a.ca)[0];
+  star.contract = S.year + 3; // ціна залежить від строку контракту — фіксуємо
   const ask = FM.market.askingPrice(W, star, S);
   assert.ok(ask > star.value * 0.9, `ціна ${ask} проти вартості ${star.value}`);
   assert.ok(FM.market.clubResponse(W, star, ask, state.clubId, S).ok);

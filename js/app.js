@@ -13,6 +13,9 @@
   }
 
   let state = await store.load();
+  // збереження з давньої бази (порядкові id) — переводимо на стабільні id
+  const upgradeIds = (st) => (st && !st.stableIds && window.FM_DB.legacyIds ? Object.assign(FM.remapIds(st, window.FM_DB.legacyIds), { stableIds: true }) : st);
+  state = upgradeIds(state);
   // Світ кар'єри: реальна база + зміни цієї кар'єри (розвиток, трансфери, редагування)
   let W = FM.createWorld(window.FM_DB, state && state.world);
   if (state && !W.club(state.clubId)) { state = null; W = FM.createWorld(window.FM_DB); } // база змінилась — клубу вже немає
@@ -150,7 +153,7 @@
     function begin() {
       if (!clubId) return;
       state = { version: 1, manager: nameInput.value.trim() || 'Новий тренер', clubId, names: 'uk', started: W.today,
-        season: FM.season.create(W, String(Date.now())), tutorial: tutInput.checked ? { step: 0 } : null };
+        season: FM.season.create(W, String(Date.now())), tutorial: tutInput.checked ? { step: 0 } : null, stableIds: true };
       FM.market.init(W, state);
       FM.board.initSeason(W, state);
       FM.club.init(W, state);
@@ -2300,11 +2303,12 @@
   async function importSave(text) {
     try {
       const data = await FM.saveio.decode(text);
-      const st = data && data.app === 'golovnyi-trener' ? data.state : null;
+      const st = upgradeIds(data && data.app === 'golovnyi-trener' ? data.state : null);
       if (!st || !st.clubId || !st.season) throw new Error('У файлі немає кар’єри цієї гри.');
       const w = FM.createWorld(window.FM_DB, st.world);
       if (!w.club(st.clubId)) throw new Error('Клуб із цього збереження не знайдено в базі.');
       state = st; W = w; pre = null; tableLeague = null; browseLeague = null;
+      FM.market.init(W, state); FM.club.init(W, state); FM.career.init(W, state);
       saveGame();
       ioMsg = ['ok', `Завантажено: ${state.manager}, ${clubName(W.club(state.clubId))}, сезон ${seasonLabel()}.`];
     } catch (e) {
@@ -2400,4 +2404,9 @@
   }
 
   render();
+
+  // офлайн-режим: працює, коли гра відкрита з сайту (https), а не з файлу
+  if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.FM_BUNDLED) {
+    try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (_) { /* у пісочниці може бути заборонено */ }
+  }
 })();

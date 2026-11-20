@@ -238,6 +238,25 @@
   /** CA/PA → зірки 0,5–5 (як у жанрі): 190+ — п'ять зірок. */
   const stars = (v) => Math.max(0.5, Math.min(5, Math.round(((v - 55) / 27) * 2) / 2));
 
-  Object.assign(FM, { augment, TRAITS, HIDDEN, createWorld, roleLabel, positions, stars, caFromAttrs, marketValue, ROLE_NAME, ROLE_LINE, ATTRS, ATTR_GROUPS, ROLE_ORDER });
+  /**
+   * Перейменувати в збереженні давні порядкові id (c12, p345) на стабільні за таблицею бази (db.legacyIds).
+   * Замінює рядки-значення й ключі об'єктів, що точно збігаються з давнім id; решту не чіпає.
+   */
+  function remapIds(obj, map) {
+    const re = /^[cp]\d+$/;
+    const walk = (x) => {
+      if (typeof x === 'string') return re.test(x) && map[x] ? map[x] : x;
+      if (Array.isArray(x)) return x.map(walk);
+      if (x && typeof x === 'object') {
+        const out = {};
+        for (const [k, v] of Object.entries(x)) out[re.test(k) && map[k] ? map[k] : k] = walk(v);
+        return out;
+      }
+      return x;
+    };
+    return walk(obj);
+  }
+
+  Object.assign(FM, { remapIds, augment, TRAITS, HIDDEN, createWorld, roleLabel, positions, stars, caFromAttrs, marketValue, ROLE_NAME, ROLE_LINE, ATTRS, ATTR_GROUPS, ROLE_ORDER });
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);
