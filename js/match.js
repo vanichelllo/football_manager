@@ -625,7 +625,7 @@
       if (e.m % 5 === 0) { compute(H); compute(A); }
       if (R.chance(cr.h)) chance(H, A, e.label);
       if (R.chance(cr.a)) chance(A, H, e.label);
-      for (const t of sides) if (R.chance(1.9 / 94 * (1 + 0.2 * t.pressing))) card(t, e.label);
+      for (const t of sides) if (R.chance(1.9 / 94 * (1 + 0.2 * t.pressing) * (opts.derby ? 1.35 : 1))) card(t, e.label); // у дербі — більше карток
       for (const t of sides) if (R.chance(0.0045 * WX.rate)) freekick(t, sides[1 - t.k], e.label);
       for (const t of sides) if (R.chance(0.003 * (1 + 0.3 * t.pressing))) injury(t, e.label);
       if (R.chance(0.035)) {

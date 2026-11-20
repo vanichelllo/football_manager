@@ -129,3 +129,42 @@ test('7. спонсори й ФФП: виплати, бонус за перем�
   state.season.week = 20;
   assert.ok(!FM.finance.embargoed(state), 'зимове вікно вже відкрите');
 });
+
+test('8. медіа: заголовки після матчу, пости, тиск після серії поразок', () => {
+  require('../js/media.js');
+  const { W, state } = fresh('Shakhtar Donetsk');
+  const S = state.season;
+  for (let w = 0; w < 4; w++) { // чотири поразки поспіль
+    S.week = w;
+    for (const f of FM.season.fixturesOfWeek(S, w)) f.s = f.h === state.clubId ? [0, 3] : f.a === state.clubId ? [3, 0] : [1, 1];
+    S.week = w + 1;
+    FM.media.week(W, state);
+  }
+  assert.ok(state.media.press.length >= 4);
+  assert.ok(state.media.press.some((h) => /поразок поспіль|криза|штопорі/i.test(h.text)));
+  assert.ok(state.media.posts.some((p) => p.kind === 'angry'));
+  assert.ok(FM.media.pressure(W, state) > 50);
+});
+
+test('9. дербі: справжні протистояння знаходяться в базі, більше карток, подвійна реакція', () => {
+  require('../js/rivals.js');
+  const { W, state } = fresh('Dynamo Kyiv');
+  const shak = byName(W, 'Shakhtar Donetsk').id;
+  assert.strictEqual(FM.rivals.derby(W, state.clubId, shak), 'Класичне дербі України');
+  assert.ok(FM.rivals.isDerby(W, byName(W, 'Real Madrid').id, byName(W, 'Barcelona').id));
+  assert.ok(FM.rivals.of(W, byName(W, 'Liverpool').id).length >= 2);
+  const found = FM.rivals.LIST.filter(([a, b]) => FM.rivals.isDerby(W, (byName(W, a) || {}).id, (byName(W, b) || {}).id)).length;
+  assert.ok(found >= 25, `знайдено дербі: ${found}`);
+  // більше карток у дербі
+  const team = (c) => ({ club: c, players: W.squad(c.id) });
+  let y0 = 0, y1 = 0;
+  for (let i = 0; i < 120; i++) {
+    const a = FM.match.play({ home: team(W.club(state.clubId)), away: team(W.club(shak)), seed: 'd' + i });
+    const b = FM.match.play({ home: team(W.club(state.clubId)), away: team(W.club(shak)), seed: 'd' + i, derby: 'x' });
+    y0 += a.stats[0].yellow + a.stats[1].yellow; y1 += b.stats[0].yellow + b.stats[1].yellow;
+  }
+  assert.ok(y1 > y0 * 1.15, `${y0} → ${y1}`);
+  const fans0 = FM.club.fans(W, state.clubId).mood;
+  assert.ok(FM.rivals.after(W, state, shak, 1));
+  assert.strictEqual(FM.club.fans(W, state.clubId).mood, fans0 + 6);
+});
