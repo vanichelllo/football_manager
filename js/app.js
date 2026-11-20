@@ -34,8 +34,9 @@
   /** Зберегти кар'єру разом зі змінами світу. */
   function saveGame() {
     state.world = W.export();
-    store.save(state).then((ok) => { if (!ok) console.warn('Не вдалося зберегти гру в браузері'); });
+    store.save(state, { club: clubName(W.club(state.clubId)) }).then((ok) => { if (!ok) console.warn('Не вдалося зберегти гру в браузері'); slotMeta = null; });
   }
+  let slotMeta = null; // описи слотів збереження (завантажуються асинхронно)
   /** Почати з чистого аркуша: свіжий світ з реальної бази. */
   function resetCareer() {
     store.clear(); state = null; W = FM.createWorld(window.FM_DB);
@@ -97,7 +98,7 @@
     let view = location.hash.slice(1) || 'overview';
     if (state.sacked && !['sacked', 'options'].includes(view.split('-')[0])) view = 'sacked';
     const [name, arg] = view.split(/-(.+)/);
-    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
+    const screens = { overview: screenOverview, squad: screenSquad, player: screenPlayer, leagues: screenLeagues, club: screenClub, match: screenMatch, tactics: screenTactics, transfers: screenTransfers, office: screenOffice, cups: screenCups, help: screenHelp, board: screenBoard, sacked: screenSacked, training: screenTraining, report: screenReport, history: screenHistory, coach: screenCoach, inbox: screenInbox, calendar: screenCalendar, compare: screenCompare, nations: screenNations, edit: screenEditPlayer, editclub: screenEditClub, fixtures: screenSeason, table: screenTable, options: screenSettings };
     const body = (screens[name] || screenOverview)(arg);
     app.replaceChildren(shell(name, body));
     window.scrollTo(0, 0);
@@ -112,14 +113,14 @@
       el('aside.side', [
         el('div.club-head', [badge(my), el('b', clubName(my))]),
         el('nav.nav', { 'aria-label': 'Меню' }, [
-          item('overview', 'Огляд'), item('squad', 'Склад'), item('leagues', 'Ліги й клуби'),
-          item('fixtures', 'Сезон'), item('table', 'Таблиця'), item('cups', 'Кубки'), item('match', 'Товариський'),
+          item('overview', 'Огляд'), item('inbox', (() => { const n = FM.market.unread(state); return n ? ['Повідомлення ', el('span.count', { 'aria-label': `${n} непрочитаних` }, String(n))] : 'Повідомлення'; })()), item('squad', 'Склад'), item('leagues', 'Ліги й клуби'),
+          item('fixtures', 'Сезон'), item('calendar', 'Календар'), item('table', 'Таблиця'), item('cups', 'Кубки'), item('match', 'Товариський'),
           item('tactics', 'Тактика'), item('training', 'Тренування'), item('transfers', 'Трансфери'), item('office', 'Клуб'), item('board', 'Правління'), item('coach', 'Тренер'), item('nations', 'Збірна'), item('history', 'Історія'), item('help', 'Довідка'),
           item('options', 'Налаштування'),
         ]),
         el('div.foot', [`Тренер: ${state.manager}`, el('br'), `Сезон ${seasonLabel()}`]),
       ]),
-      el('main.main', body),
+      el('main.main', [tutorialBox(active), ...[].concat(body)]),
     ]);
   }
 
@@ -129,6 +130,7 @@
     const grid = el('div.club-grid');
     const tabs = el('div.tabs', { role: 'group', 'aria-label': 'Ліга' });
     const nameInput = el('input', { id: 'manager-name', type: 'text', value: 'Новий тренер', maxlength: 40, autocomplete: 'off' });
+    const tutInput = el('input', { id: 'tutorial', type: 'checkbox', checked: true });
     const startBtn = el('button.btn.primary', { type: 'button', disabled: true, onclick: begin }, 'Почати кар’єру');
     const picked = el('span.muted', 'Оберіть клуб');
 
@@ -148,7 +150,7 @@
     function begin() {
       if (!clubId) return;
       state = { version: 1, manager: nameInput.value.trim() || 'Новий тренер', clubId, names: 'uk', started: W.today,
-        season: FM.season.create(W, String(Date.now())) };
+        season: FM.season.create(W, String(Date.now())), tutorial: tutInput.checked ? { step: 0 } : null };
       FM.market.init(W, state);
       FM.board.initSeason(W, state);
       FM.club.init(W, state);
@@ -158,17 +160,54 @@
       go('overview');
     }
     drawTabs(); drawClubs();
+    // інші кар'єри в слотах збереження
+    const startSlots = el('div');
+    Promise.all(store.SLOTS.map((n) => store.meta(n))).then((list) => {
+      const act = store.active();
+      const other = store.SLOTS.filter((n, i) => n !== act && list[i]);
+      if (other.length) startSlots.replaceChildren(el('div.panel', [el('b', `Слот ${act} порожній. Інші кар’єри: `),
+        ...other.map((n) => { const m = list[n - 1]; return el('button.btn', { type: 'button', onclick: () => { store.setActive(n); location.reload(); } }, m.legacy ? `Слот ${n}` : `Слот ${n}: ${m.club}, ${m.year}/${String(m.year + 1).slice(2)}`); })]));
+    });
     app.replaceChildren(el('div.start', [
       el('div.hero', [
         el('h1', 'Головний тренер'),
-        el('p', `Реальні клуби й гравці шести ліг, сезон 2026/27. Оберіть команду, яку очолите.`),
+        el('p', `Реальні клуби й гравці ${W.db.leagues.length} ліг, сезон 2026/27. Оберіть команду, яку очолите.`),
       ]),
+      startSlots,
       el('div.field', [el('label', { for: 'manager-name' }, 'Ваше ім’я'), nameInput]),
+      el('label.check', [tutInput, ' Показувати підказки для новачка']),
       tabs,
       grid,
       el('div.panel.confirm', [picked, startBtn]),
       el('p.note', `Дані: ${W.db.source}. Знімок від ${fmt.date(W.db.snapshot)}. Атрибути вирахувані з реальних фактів і можуть не збігатися з вашим уявленням про гравця.`),
     ]));
+  }
+
+  // ---------------- Навчання для новачка (крок 48) ----------------
+  const TUTORIAL = [
+    ['overview', 'Огляд клубу', 'Тут головне: найсильніші гравці й молодь, новини, гроші, найближчий матч. Сюди варто зазирати щотижня.'],
+    ['squad', 'Склад', 'Натисніть на гравця — відкриється картка: атрибути 1–20, форма, контракт, характер. Зі своїми гравцями там же можна поговорити й дати обіцянку.'],
+    ['tactics', 'Тактика', 'Схема, ролі, ментальність, пресинг, передачі. Нова схема спершу працює гірше: команді треба кілька тижнів, щоб звикнути. Можна зберегти до трьох тактик.'],
+    ['training', 'Тренування', 'План тижня: навантаження проти відновлення. Втомлені гравці грають гірше й частіше травмуються — ротуйте склад.'],
+    ['fixtures', 'Сезон', '«Грати з трансляцією» — ви керуєте замінами, тактикою й промовою в перерві. «Одразу результат» — швидко. Кубкові матчі з’являються тут же.'],
+    ['transfers', 'Трансфери', 'Пошук гравців за лігою й позицією, шортлист, скаути. Купувати й продавати можна, коли відкрите трансферне вікно (початок сезону й зима).'],
+    ['board', 'Правління', 'Ціль на сезон, довіра й довгострокове бачення. Якщо довіра впаде нижче 15 — звільнять. Тут же — вакансії й пропозиції роботи.'],
+    ['coach', 'Тренер', 'Ваші навички, ліцензія (від неї залежить, які клуби вас візьмуть) і досягнення.'],
+    ['inbox', 'Повідомлення', 'Усі новини кар’єри за розділами. Число в меню — скільки непрочитаних. Ось і все — успіхів! Підказки можна ввімкнути знову в «Налаштуваннях».'],
+  ];
+  function tutorialBox(active) {
+    const t = state && state.tutorial;
+    if (!t || t.step >= TUTORIAL.length) return null;
+    const [scr, title, text] = TUTORIAL[t.step];
+    const off = () => { state.tutorial = null; saveGame(); render(); };
+    if (scr !== active) {
+      return el('div.tutorial.small', [el('span', [`Підказка ${t.step + 1} з ${TUTORIAL.length}: `, el('b', title)]),
+        el('button.btn', { type: 'button', onclick: () => go(scr) }, 'Відкрити'), el('button.btn.link', { type: 'button', onclick: off }, 'Вимкнути підказки')]);
+    }
+    return el('div.tutorial', { role: 'note' }, [el('b', `${t.step + 1}/${TUTORIAL.length} · ${title}`), el('p', text),
+      el('div.actions', [
+        el('button.btn.primary', { type: 'button', onclick: () => { t.step++; saveGame(); if (t.step < TUTORIAL.length) go(TUTORIAL[t.step][0]); else { state.tutorial = null; saveGame(); render(); } } }, t.step + 1 < TUTORIAL.length ? 'Далі' : 'Готово'),
+        el('button.btn', { type: 'button', onclick: off }, 'Вимкнути підказки')])]);
   }
 
   // ---------------- Огляд ----------------
@@ -292,7 +331,11 @@
           el('h1', nameOf(p)),
           el('div.muted', [c.id ? el('a', { href: c.id === state.clubId ? '#squad' : '#club-' + c.id }, clubName(c)) : (p.retired ? 'завершив кар’єру' : 'вільний агент'), ` · ${FM.ROLE_NAME[p.roles[0]]} (${FM.positions(p)})`]),
         ]),
-        el('a.btn.edit-btn', { href: '#edit-' + p.id }, p.edited ? 'Редагувати (змінено)' : 'Редагувати'),
+        el('div.actions', [
+          el('button.btn', { type: 'button', 'aria-pressed': String((state.compare || []).includes(p.id)), onclick: () => { toggleCompare(p.id); render(); } }, (state.compare || []).includes(p.id) ? '✓ У порівнянні' : 'Порівняти'),
+          (state.compare || []).length >= 2 && (state.compare || []).includes(p.id) ? el('a.btn', { href: '#compare' }, `Порівняння (${state.compare.length})`) : null,
+          el('a.btn.edit-btn', { href: '#edit-' + p.id }, p.edited ? 'Редагувати (змінено)' : 'Редагувати'),
+        ]),
       ]),
       el('div.grid', [
         el('div.panel', [el('h3', 'Особисте'), el('dl.facts', [
@@ -1382,7 +1425,8 @@
         el('dt', 'Трансферне вікно'), el('dd', FM.market.windowOpen(state.season) ? el('a', { href: '#transfers' }, 'відкрите') : 'закрите'),
         el('dt', 'Настрій команди'), el('dd', FM.morale.label({ morale: FM.morale.teamMorale(W, me.id) })),
       ])]),
-      el('div.panel', [el('h3', 'Новини'), N.length ? el('ul.news', N.map((n) => el('li', [el('small.muted', `тиждень ${n.w + 1}`), ' ', n.text]))) : el('p.muted', 'Поки тихо.')]),
+      el('div.panel', [el('h3', 'Новини'), N.length ? el('ul.news', N.map((n) => el('li' + (n.id > (state.newsRead || 0) ? '.unread' : ''), [el('small.muted', `тиждень ${n.w + 1}`), ' ', n.text]))) : el('p.muted', 'Поки тихо.'),
+        el('a', { href: '#inbox' }, 'Усі повідомлення →')]),
     ]);
   }
 
@@ -1804,6 +1848,117 @@
     ];
   }
 
+  // ---------------- Порівняння гравців (крок 46) ----------------
+  function toggleCompare(id) {
+    const c = (state.compare = state.compare || []);
+    const i = c.indexOf(id);
+    if (i >= 0) c.splice(i, 1); else { c.push(id); if (c.length > 3) c.shift(); }
+    saveGame();
+  }
+  function screenCompare() {
+    const ps = (state.compare || []).map((id) => W.player(id)).filter(Boolean);
+    if (ps.length < 2) return [el('header', [el('h1', 'Порівняння')]), el('p', 'Додайте щонайменше двох гравців кнопкою «Порівняти» на їхніх картках (до трьох).'),
+      ps.length ? el('p', ['Зараз у порівнянні: ', el('a', { href: '#player-' + ps[0].id }, nameOf(ps[0])), '.']) : null];
+    const S = state.season;
+    const gk = ps.every((p) => p.roles[0] === 'GK');
+    const groups = FM.ATTR_GROUPS[gk ? 'gk' : 'outfield'];
+    // значення атрибута, яке бачить тренер: точно — для своїх і розвіданих, інакше — орієнтовно
+    const seen = (p, k) => (known(p) ? p.attrs[k] : p.attrs[k] + fuzz(p, k + 'm', 1));
+    const st = (p) => S.ps[p.id] || [0, 0, 0, 0, 0, 0];
+    const rowsNum = [
+      ['Вік', (p) => W.age(p), -1], ['Рівень (зірки)', (p) => (known(p) ? p.ca : null), 1, (p) => starsEl(known(p) ? p.ca : p.ca + fuzz(p, 'ca', 8), 'Рівень')],
+      ['Потенціал', (p) => (known(p) ? p.pa : null), 1, (p) => starsEl(known(p) ? p.pa : p.pa + fuzz(p, 'pa', 12), 'Потенціал')],
+      ['Ціна', (p) => p.value, 0, (p) => FM.market.fmtM(p.value)], ['Зарплата, тис. €/тиж.', (p) => p.wage, -1],
+      ['Контракт до', (p) => p.contract, 0], ['Форма', (p) => FM.career.formAvg(p), 1, (p) => (FM.career.formAvg(p) != null ? FM.career.formAvg(p).toFixed(1).replace('.', ',') : '—')],
+      ['Матчі сезону', (p) => st(p)[0], 1], ['Голи', (p) => st(p)[1], 1], ['Передачі', (p) => st(p)[2], 1],
+      ['Середня оцінка', (p) => (st(p)[0] ? st(p)[3] / st(p)[0] / 10 : null), 1, (p) => (st(p)[0] ? (st(p)[3] / st(p)[0] / 10).toFixed(2).replace('.', ',') : '—')],
+    ];
+    const best = (vals, dir) => { if (!dir) return null; const v = vals.filter((x) => x != null); if (v.length < 2) return null; const b = dir > 0 ? Math.max(...v) : Math.min(...v); return v.filter((x) => x === b).length === v.length ? null : b; };
+    const tr = (label, vals, cells, dir) => { const b = best(vals, dir); return el('tr', [el('th', { scope: 'row' }, label), ...cells.map((c, i) => el('td' + (b != null && vals[i] === b ? '.best' : ''), c))]); };
+    const body = [];
+    for (const [label, f, dir, show] of rowsNum) { const vals = ps.map(f); body.push(tr(label, vals, ps.map((p, i) => (show ? show(p) : vals[i] == null ? '—' : String(vals[i]))), dir)); }
+    for (const [g, keys] of groups) {
+      body.push(el('tr.group', el('th', { colspan: ps.length + 1 }, g)));
+      for (const k of keys) { const vals = ps.map((p) => seen(p, k)); body.push(tr(FM.ATTRS[k], vals, ps.map((p, i) => (known(p) ? String(vals[i]) : `≈${vals[i]}`)), 1)); }
+    }
+    return [
+      el('header', [el('h1', 'Порівняння'), el('button.btn', { type: 'button', onclick: () => { state.compare = []; saveGame(); go('squad'); } }, 'Очистити')]),
+      el('div.table-wrap', el('table.compare', [
+        el('thead', el('tr', [el('th', ''), ...ps.map((p) => el('th', [el('a', { href: '#player-' + p.id }, nameOf(p)), el('small.muted', ` ${FM.positions(p)}, ${p.club ? clubName(W.club(p.club)) : 'без клубу'}`)]))])),
+        el('tbody', body),
+      ])),
+      el('p.note', 'Найкраще значення в рядку виділено. «≈» — гравця не розвідано, значення приблизне.'),
+    ];
+  }
+
+  // ---------------- Календар сезону (крок 45) ----------------
+  const MONTHS = ['січень', 'лютий', 'березень', 'квітень', 'травень', 'червень', 'липень', 'серпень', 'вересень', 'жовтень', 'листопад', 'грудень'];
+  function screenCalendar() {
+    const S = state.season, me = state.clubId, nW = FM.season.weeks(S);
+    const ev = Array.from({ length: nW }, () => []);
+    const vs = (h, a) => (h === me ? `${clubName(W.club(a))} (вдома)` : `${clubName(W.club(h))} (виїзд)`);
+    const res = (sc, h) => (sc ? ` — ${(h === me ? sc : [sc[1], sc[0]]).join(':')}` : '');
+    for (const f of FM.season.clubFixtures(S, me)) ev[f.w].push({ k: 'league', t: `Ліга, ${f.w + 1}-й тур: ${vs(f.h, f.a)}${res(f.s, f.h)}` });
+    for (const cup of Object.values(state.cups || {})) {
+      if (cup.phase) for (const f of cup.phase.fixtures) if ((f.h === me || f.a === me) && ev[f.w]) ev[f.w].push({ k: 'cup', t: `${cup.name}, етап ліги: ${vs(f.h, f.a)}${res(f.s, f.h)}` });
+      if (!cup.teams.includes(me)) continue;
+      for (const [ri, r] of cup.rounds.entries()) {
+        if (r.skipped) continue;
+        const tie = r.ties && r.ties.find((t) => t.a === me || t.b === me);
+        const out = r.ties && !tie && cup.rounds.slice(0, ri).some((x) => x.ties && x.ties.some((t) => (t.a === me || t.b === me) && t.winner && t.winner !== me));
+        if (out) continue;
+        r.weeks.forEach((w, leg) => {
+          if (!ev[w]) return;
+          if (tie) { const [h, a] = leg === 1 ? [tie.b, tie.a] : [tie.a, tie.b]; const L = tie.legs[leg]; ev[w].push({ k: 'cup', t: `${cup.name}, ${r.name.toLowerCase()}: ${vs(h, a)}${L ? ' — ' + (tie.a === me ? L : [L[1], L[0]]).join(':') : ''}` }); }
+          else if (!r.ties) ev[w].push({ k: 'cup', t: `${cup.name}, ${r.name.toLowerCase()} (якщо пройдете)`, maybe: true });
+        });
+      }
+    }
+    for (const w of FM.nations.WINDOWS) if (ev[w]) ev[w].push({ k: 'intl', t: 'Міжнародне вікно: гравці їдуть у збірні' });
+    for (const [a, b] of FM.market.WINDOWS) { if (ev[a]) ev[a].push({ k: 'window', t: 'Відкривається трансферне вікно' }); if (ev[b]) ev[b].push({ k: 'window', t: 'Останній тиждень трансферного вікна' }); }
+    if (ev[nW - 1]) ev[nW - 1].push({ k: 'end', t: 'Останній тур. Далі — підсумки сезону, підвищення й виліт' });
+    let month = -1;
+    const rows = [];
+    for (let w = 0; w < nW; w++) {
+      const d = FM.season.dateOf(w, S), m = Number(d.slice(5, 7)) - 1;
+      if (m !== month) { month = m; rows.push(el('li.day', `${MONTHS[m]} ${d.slice(0, 4)}`)); }
+      rows.push(el('li.cal' + (w === S.week ? '.now' : w < S.week ? '.past' : ''), [el('span.cal-d', [el('b', `Тиждень ${w + 1}`), el('small.muted', fmt.date(d))]),
+        el('span.cal-e', ev[w].length ? ev[w].map((e) => el('span.ev.ev-' + e.k + (e.maybe ? '.maybe' : ''), e.t)) : el('span.muted', '—'))]));
+    }
+    return [
+      el('header', [el('h1', 'Календар'), el('span.muted', `Сезон ${seasonLabel()} · зараз тиждень ${Math.min(S.week + 1, nW)} з ${nW}`)]),
+      el('div.legend', [['league', 'Ліга'], ['cup', 'Кубки'], ['intl', 'Збірні'], ['window', 'Трансфери']].map(([k, l]) => el('span.ev.ev-' + k, l))),
+      el('div.panel', el('ul.news.inbox.calendar', rows)),
+    ];
+  }
+
+  // ---------------- Центр повідомлень (крок 44) ----------------
+  let inboxCat = 'all';
+  function screenInbox() {
+    const all = (state.news || []).slice().reverse();
+    const lastRead = state.newsRead || 0;
+    const counts = {};
+    for (const n of all) { const c = n.c || FM.market.newsCat(n.text); counts[c] = (counts[c] || 0) + 1; }
+    const list = all.filter((n) => inboxCat === 'all' || (n.c || FM.market.newsCat(n.text)) === inboxCat);
+    // прочитано — усе, що зараз показано (позначка оновиться після виходу з екрана)
+    const maxId = all.reduce((m, n) => Math.max(m, n.id || 0), 0);
+    if (maxId > lastRead) { state.newsRead = maxId; saveGame(); }
+    let prevKey = null;
+    const rows = [];
+    for (const n of list) {
+      const key = `${n.s}-${n.w}`;
+      if (key !== prevKey) { rows.push(el('li.day', `${n.s}/${String(n.s + 1).slice(2)}, тиждень ${n.w + 1} · ${fmt.date(FM.season.dateOf(n.w, n.s === state.season.year ? state.season : { start: FM.season.firstSaturday(n.s) }))}`)); prevKey = key; }
+      rows.push(el('li' + (n.id > lastRead ? '.unread' : ''), [el('span.tag', FM.market.NEWS_CATS[n.c || FM.market.newsCat(n.text)]), ' ', n.text]));
+    }
+    return [
+      el('header', [el('h1', 'Повідомлення'), el('span.muted', `Усього ${all.length}${maxId > lastRead ? ` · нових ${all.filter((n) => n.id > lastRead).length}` : ''}`)]),
+      el('div.tabs', [['all', `Усі (${all.length})`], ...Object.entries(FM.market.NEWS_CATS).filter(([k]) => counts[k]).map(([k, l]) => [k, `${l} (${counts[k]})`])].map(([k, l]) =>
+        el('button', { type: 'button', 'aria-pressed': String(inboxCat === k), onclick: () => { inboxCat = k; render(); } }, l))),
+      el('div.panel', list.length ? el('ul.news.inbox', rows) : el('p.muted', 'Повідомлень немає.')),
+      el('p.note', 'Зберігаються останні 200 повідомлень. Нові позначено кольором, доки ви не відкриєте цей екран.'),
+    ];
+  }
+
   function screenNations() {
     const N = FM.nations, st = (state.intl = state.intl || {});
     const pool = N.pools(W).UKR || [];
@@ -2188,6 +2343,34 @@
 
   // ---------------- Налаштування ----------------
   let confirmReset = false;
+  // ---------------- Слоти збереження й відкат (крок 47) ----------------
+  let slotConfirm = null;
+  function slotsPanel() {
+    if (!slotMeta) {
+      Promise.all(store.SLOTS.map((n) => store.meta(n))).then((list) => { slotMeta = list; if (location.hash === '#options') render(); });
+      return el('div.panel', [el('h3', 'Слоти збереження'), el('p.muted', 'Завантаження…')]);
+    }
+    const act = store.active();
+    const desc = (m) => (!m ? 'порожній' : m.legacy ? 'збереження попередньої версії гри' : `${m.manager}, ${m.club}, сезон ${m.year}/${String(m.year + 1).slice(2)}, тиждень ${m.week + 1} · ${new Date(m.saved).toLocaleString('uk-UA')}`);
+    const backs = ((slotMeta[act - 1] || {}).backs || []).slice().reverse();
+    const cur = `${state.season.year}-${String(state.season.week).padStart(2, '0')}`;
+    return el('div.panel', [el('h3', 'Слоти збереження'),
+      el('ul.plist', store.SLOTS.map((n, i) => el('li', [el('span', [el('b', `Слот ${n}${n === act ? ' (зараз)' : ''}`), el('small.muted', ' ' + desc(slotMeta[i]))]),
+        n === act ? null : el('span.actions', [
+          el('button.btn', { type: 'button', onclick: () => { store.setActive(n); location.hash = ''; location.reload(); } }, slotMeta[i] ? 'Відкрити' : 'Нова кар’єра тут'),
+          slotMeta[i] ? (slotConfirm === n
+            ? el('button.btn', { type: 'button', onclick: () => { slotConfirm = null; store.clear(n).then(() => { slotMeta = null; render(); }); } }, 'Точно видалити')
+            : el('button.btn', { type: 'button', onclick: () => { slotConfirm = n; render(); } }, 'Видалити')) : null,
+        ])]))),
+      el('h3', 'Відкат'),
+      backs.filter((t) => t !== cur).length ? el('div.actions', backs.filter((t) => t !== cur).map((t) => { const [y, w] = t.split('-').map(Number); return el('button.btn', { type: 'button', onclick: () => {
+        store.rollback(act, t).then((ok) => { if (ok) { location.hash = ''; location.reload(); } });
+      } }, `До початку тижня ${w + 1} (${y}/${String(y + 1).slice(2)})`); }))
+        : el('p.muted', 'Контрольні точки з’являться з наступного тижня: гра запам’ятовує початок кожного з останніх чотирьох тижнів.'),
+      el('p.note', 'Кожен слот — окрема кар’єра. Відкат повертає поточний слот до початку вибраного тижня; пізніші зміни зникнуть.'),
+    ]);
+  }
+
   function screenSettings() {
     const setNames = (v) => { state.names = v; saveGame(); render(); };
     return [
@@ -2203,6 +2386,9 @@
             el('button.btn.primary', { type: 'button', onclick: () => { resetCareer(); confirmReset = false; location.hash = ''; render(); } }, 'Так, почати заново'),
             el('button.btn', { type: 'button', onclick: () => { confirmReset = false; render(); } }, 'Скасувати')])
           : el('button.btn', { type: 'button', onclick: () => { confirmReset = true; render(); } }, 'Почати нову кар’єру')]),
+      el('div.panel', [el('h3', 'Підказки для новачка'), state.tutorial ? el('p', `Увімкнено: підказка ${state.tutorial.step + 1} з ${TUTORIAL.length}.`) : null,
+        el('button.btn', { type: 'button', onclick: () => { state.tutorial = state.tutorial ? null : { step: 0 }; saveGame(); state.tutorial ? go('overview') : render(); } }, state.tutorial ? 'Вимкнути' : 'Пройти навчання знову')]),
+      slotsPanel(),
       savePanel(),
       el('div.panel', [el('h3', 'Про базу'), el('dl.facts', [
         el('dt', 'Знімок'), el('dd', fmt.date(W.db.snapshot)),

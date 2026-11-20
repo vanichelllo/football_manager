@@ -157,10 +157,27 @@
     return { ok: false, demand, reason: `Замало. Гравець розраховує приблизно на ${demand} тис. € на тиждень.` };
   }
 
-  function news(state, text) {
-    text = text.replace(/\.\.$/, '.'); // «€550 тис..» → «€550 тис.»
-    state.news = (state.news || []).concat([{ s: state.season.year, w: state.season.week, text }]).slice(-60);
+  // Центр повідомлень: кожна новина має номер (для непрочитаних) і розділ
+  const NEWS_CATS = {
+    match: 'Матчі', cups: 'Кубки', transfers: 'Трансфери', players: 'Гравці', club: 'Клуб і правління', intl: 'Збірна', ach: 'Досягнення', world: 'Світ',
+  };
+  function newsCat(text) {
+    if (/^Досягнення|^Досвід/.test(text)) return 'ach';
+    if (/Збірна|збірн/.test(text)) return 'intl';
+    if (/Кубок|Ліга чемпіонів|Ліга Європи|етап ліги|фінал|ТРОФЕЙ/i.test(text)) return 'cups';
+    if (/обіцян|незадоволен|продажу|травм|завершив кар|настрій|розчарован/i.test(text)) return 'players';
+    if (/купи|прода|трансфер|оренд|пропозиц|вікно|відступн|скаут|шортлист|підписав/i.test(text)) return 'transfers';
+    if (/правлін|звільн|ліцензі|курс|Завершено|очолили|стадіон|академі|вилітає|виходить до/i.test(text)) return 'club';
+    if (/тренер|звільнив/i.test(text)) return 'world';
+    return 'match';
   }
+  function news(state, text, cat) {
+    text = text.replace(/\.\.$/, '.'); // «€550 тис..» → «€550 тис.»
+    state.newsSeq = (state.newsSeq || 0) + 1;
+    state.news = (state.news || []).concat([{ id: state.newsSeq, s: state.season.year, w: state.season.week, text, c: cat || newsCat(text) }]).slice(-200);
+  }
+  /** Скільки непрочитаних. */
+  const unread = (state) => (state.news || []).filter((n) => n.id && n.id > (state.newsRead || 0)).length;
   const fmtM = (v) => (v >= 1 ? '€' + (Math.round(v * 10) / 10).toString().replace('.', ',') + ' млн' : '€' + Math.round(v * 1000) + ' тис.');
 
   /** Завершити трансфер: гроші, контракт, перехід, запис в історію. */
@@ -443,7 +460,7 @@
     return { ok: true, demand };
   }
 
-  FM.market = { rival, agentFee, clauseDiscount, loanable, loanFee, loanIn, loanOffers, returnLoans, scouts, hireScout, scoutWage, scoutAccuracy, ensureKeepers, init, fairWage, wageBill, windowOpen, nextWindow, askingPrice, clubResponse, wageDemand, playerResponse,
+  FM.market = { WINDOWS, NEWS_CATS, newsCat, unread, rival, agentFee, clauseDiscount, loanable, loanFee, loanIn, loanOffers, returnLoans, scouts, hireScout, scoutWage, scoutAccuracy, ensureKeepers, init, fairWage, wageBill, windowOpen, nextWindow, askingPrice, clubResponse, wageDemand, playerResponse,
     complete, release, releaseCost, weekly, endSeason, renewDemand, renew, rankInClub, news, fmtM, WINDOWS };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

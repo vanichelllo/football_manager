@@ -456,3 +456,41 @@ ul.ach li { border: 1px dashed var(--line); border-radius: var(--radius); paddin
 ul.ach li b { font-weight: 600; }
 ul.ach li.got { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--fg); }
 ul.ach li.got b::before { content: "★ "; color: var(--accent); }
+
+/* Центр повідомлень */
+.nav .count { display: inline-block; min-width: 1.4em; padding: 0 0.35em; margin-left: 0.2em; border-radius: 999px; background: var(--accent); color: var(--accent-fg); font-size: 0.75rem; font-weight: 700; text-align: center; line-height: 1.4; }
+ul.news li.unread { font-weight: 600; }
+ul.news li.unread::before { content: "● "; color: var(--accent); }
+ul.inbox li.day { list-style: none; margin-top: 0.8rem; font: 600 0.78rem/1.2 var(--font-body); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border: 0; }
+ul.inbox li.day:first-child { margin-top: 0; }
+.tag { display: inline-block; font-size: 0.72rem; padding: 0 0.45em; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+
+/* Календар сезону */
+ul.calendar li.cal { display: grid; grid-template-columns: 7.5rem 1fr; gap: 0.6rem; align-items: start; padding: 0.35rem 0; border-bottom: 1px dashed var(--line); }
+ul.calendar li.cal.past { opacity: 0.6; }
+ul.calendar li.cal.now { background: var(--accent-soft); border-radius: 6px; padding-inline: 0.4rem; opacity: 1; }
+.cal-d { display: grid; }
+.cal-e { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.ev { display: inline-block; font-size: 0.85rem; padding: 0.1rem 0.5rem; border-radius: 6px; border-left: 3px solid var(--line); background: var(--panel-2); }
+.ev-league { border-left-color: var(--accent); }
+.ev-cup { border-left-color: #c9a227; }
+.ev-intl { border-left-color: #2f6fd6; }
+.ev-window, .ev-end { border-left-color: var(--warn); }
+.ev.maybe { opacity: 0.7; font-style: italic; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.8rem; }
+@media (max-width: 520px) { ul.calendar li.cal { grid-template-columns: 1fr; gap: 0.2rem; } }
+
+/* Порівняння гравців */
+.player-top > .actions { margin-left: auto; }
+.player-top > .actions .edit-btn { margin-left: 0; }
+table.compare th[scope="row"] { text-transform: none; letter-spacing: 0; font: 500 0.9rem/1.3 var(--font-body); color: var(--muted); background: transparent; position: static; text-align: left; }
+table.compare td { font-variant-numeric: tabular-nums; }
+table.compare td.best { color: var(--accent); font-weight: 700; }
+table.compare tr.group th { background: var(--panel-2); text-align: left; }
+
+/* Навчання для новачка */
+.tutorial { border: 2px solid var(--accent); background: var(--accent-soft); border-radius: var(--radius); padding: 0.8rem 1rem; margin-bottom: 1rem; display: grid; gap: 0.4rem; }
+.tutorial p { margin: 0; }
+.tutorial.small { border-width: 1px; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 0.8rem; }
+.btn.link { background: transparent; border-color: transparent; text-decoration: underline; color: var(--muted); }
+label.check { display: flex; align-items: center; gap: 0.4rem; margin: 0.4rem 0 0.8rem; cursor: pointer; }
