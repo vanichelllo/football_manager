@@ -992,6 +992,10 @@
     return [
       el('header', [el('h1', 'Клуб'), el('span.muted', `Персонал коштує ${String(Math.round(FM.club.staffBill(state) * 10) / 10).replace(".", ",")} тис. € на тиждень`)]),
       officeMsg ? el('p.msg-ok', officeMsg) : null,
+      el('div.panel', [el('h3', 'Доручення асистентові'), el('p.muted', 'Що асистент робить сам, щоб ви займалися головним.'),
+        el('ul.plist.deleg', Object.entries(FM.routine.DELEGATE).map(([k, d]) => el('li', [el('label.check', [
+          el('input', { type: 'checkbox', checked: FM.routine.delegated(state, k) || null, onchange: (e) => { state.deleg = { ...(state.deleg || {}), [k]: e.target.checked }; saveGame(); } }),
+          ' ', el('b', d.label)]), el('small.muted', d.hint)])))]),
       el('div.panel', [el('h3', 'Персонал'), el('ul.staff', rows)]),
       el('div.grid', [
         el('div.panel', [el('h3', 'Інфраструктура'), el('dl.facts', [
@@ -1177,7 +1181,8 @@
     t.roles = t.roles || {}; t.variants = t.variants || {}; t.instr = t.instr || {}; t.takers = t.takers || {};
     return t;
   }
-  const USER = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity(), boost: FM.dressing.matchBoost(state), reserve: FM.youth.set(state) });
+  const USER = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity(), reserve: FM.youth.set(state),
+    boost: FM.dressing.matchBoost(state) * FM.routine.prepBoost(weekSchedule(), (curEvent() || { day: 6 }).day) }); // збори + підготовка напередодні
 
   function mySide() {
     const t = myTactics();
@@ -1950,7 +1955,7 @@
     const pend = FM.cups.pendingTie(state, me);
     if (pend) out.push({ day: FM.cal.cupDay(pend.cup.id), kind: 'cup', pend, opp: pend.f.h === me ? pend.f.a : pend.f.h, home: pend.f.h === me });
     const fr = weekFriendly();
-    if (fr && !out.some((e) => e.day === 6)) out.push({ day: 6, kind: 'friendly', fr, opp: fr.opp, home: fr.home });
+    if (fr && !out.some((e) => e.day === 6) && !FM.routine.delegated(state, 'friendlies')) out.push({ day: 6, kind: 'friendly', fr, opp: fr.opp, home: fr.home });
     return out.sort((a, b) => a.day - b.day);
   }
   const curEvent = () => myEvents()[0] || null;
@@ -2213,8 +2218,9 @@
     const M = FM.match.create(opts);
     showLive('fixtures', hs, as, M, myK, (r) => {
       FM.season.record(S, f, r);
-      FM.season.advance(S, W);
-      FM.dev.weekly(W, S, devOpts());
+      const dv = devOpts();
+      FM.season.advance(S, W, { recovery: dv.recovery, myClub: state.clubId });
+      FM.dev.weekly(W, S, dv);
       FM.market.weekly(W, state);
       boardWeek();
       state.day = 0;
@@ -2283,6 +2289,7 @@
     const key = `${state.season.year}-${state.season.week}`;
     if (state.pressDone === key) return pressMsg ? el('p.msg-ok', pressMsg) : null;
     const q = FM.morale.pressQuestion(state.season);
+    if (FM.routine.delegated(state, 'press')) { FM.morale.answerPress(W, state, 1); saveGame(); return el('p.muted', `Прес-конференцію провів асистент: «${q.a[1][0]}»`); }
     return el('div.press', [el('b', 'Прес-конференція'), el('p', q.q), el('div.press-opts', q.a.map(([text], i) => el('button.btn', { type: 'button', onclick: () => {
       const e = FM.morale.answerPress(W, state, i);
       pressMsg = e.morale > 0.9 ? 'Гравцям сподобалися ваші слова.' : e.morale < 0 ? 'Дехто в роздягальні сприйняв ваші слова болісно.' : 'Відповідь сприйняли спокійно.';
@@ -2322,6 +2329,10 @@
     }
     FM.finance.week(W, state, wonAny);
     for (const t of FM.career.weekly(W, state)) FM.market.news(state, t);
+    // рутина: вихідні дні піднімають настрій, наставники, доручення асистентові
+    if (lastPlan && lastPlan.morale) for (const p of W.squad(state.clubId)) p.morale = Math.min(100, FM.morale.get(p) + lastPlan.morale);
+    for (const t of FM.routine.mentorWeek(W, state)) FM.market.news(state, t, 'players');
+    for (const t of FM.routine.delegateWeek(W, state)) FM.market.news(state, t);
     // історія для графіків: баланс і рівень ваших гравців
     state.balHist = (state.balHist || []).concat([[S.year, S.week, Math.round(W.club(state.clubId).balance * 100) / 100]]).slice(-150);
     state.caLog = state.caLog || {};
@@ -2342,13 +2353,39 @@
     if (!state.training.plan) state.training.plan = 'balanced';
     return state.training;
   }
-  const devOpts = () => ({ training: training(), myClub: state.clubId,
-    recovery: FM.dev.PLANS[training().plan || 'balanced'].recovery + (FM.club.lvl(state, 'fitness') - 10) * 0.4,
-    growthMult: (p) => FM.club.growthMult(state, W, p) * ((W.age(p) ?? 24) <= 21 ? 1 + (FM.career.attr(state, 'youth') - 10) * 0.015 : 1) * FM.youth.growth(state, p), injuryMult: 1.2 - FM.club.lvl(state, 'fitness') * 0.02 });
+  // ---------------- Розклад тижня по днях (як у FM) ----------------
+  /** Дні матчів вашого клубу цього тижня (запам’ятовуються на початку тижня, щоб зіграні теж рахувалися). */
+  function weekMatchDays() {
+    const S = state.season, tr = training(), key = `${S.year}-${S.week}`;
+    if (tr.md && tr.md.key === key) return tr.md.days;
+    const days = [...new Set(myEvents().map((e) => e.day))];
+    tr.md = { key, days };
+    return days;
+  }
+  /** Розклад пн–пт: доручено асистентові — під матчі тижня; інакше — шаблон тренера; правки цього тижня — поверх. */
+  function weekSchedule() {
+    const S = state.season, tr = training(), key = `${S.year}-${S.week}`;
+    const md = weekMatchDays();
+    const kind = FM.cal.weekKind(S, W.club(state.clubId).league, S.week);
+    const base = FM.routine.auto(md, kind === 'preseason' ? 'preseason' : md.length ? null : 'free', FM.routine.delegated(state, 'training') ? null : tr.plan || 'balanced');
+    const own = tr.sched && tr.sched.key === key ? tr.sched.days : {};
+    for (const d of FM.routine.DAYS) if (own[d] && base[d] !== 'match') base[d] = own[d];
+    return base;
+  }
+  let lastPlan = null;
+  /** Тижневий підсумок розкладу (відновлення, розвиток, тактика, ризик травм). */
+  const curPlan = () => FM.routine.aggregate(weekSchedule());
+  const devOpts = () => {
+    const plan = (lastPlan = curPlan());
+    return { training: training(), myClub: state.clubId, plan,
+      recovery: plan.recovery + (FM.club.lvl(state, 'fitness') - 10) * 0.4,
+      growthMult: (p) => FM.club.growthMult(state, W, p) * ((W.age(p) ?? 24) <= 21 ? 1 + (FM.career.attr(state, 'youth') - 10) * 0.015 : 1) * FM.youth.growth(state, p) * FM.routine.growthMult(state, p),
+      injuryMult: 1.2 - FM.club.lvl(state, 'fitness') * 0.02 };
+  };
   /** Після тижня: знайомство зі схемою росте від матчів і підготовки, без практики — забувається. */
   function familiarityWeek(played) {
     const fam = familiarity(), cur = myTactics().formation;
-    const plan = FM.dev.PLANS[training().plan || 'balanced'];
+    const plan = lastPlan || curPlan(); // розклад тижня, що минув
     for (const f of Object.keys(fam)) {
       if (f === cur) fam[f] = Math.min(100, fam[f] + (played ? 8 : 0) + plan.fam + (FM.club.lvl(state, 'assistant') - 10) * 0.3 + (FM.career.attr(state, 'tac') - 10) * 0.3);
       else fam[f] = Math.max(20, fam[f] - 1);
@@ -3040,6 +3077,53 @@
     ];
   }
 
+  /** Розклад тижня: неділя — вихідний, пн–пт — заняття, дні матчів — позначені. */
+  function schedulePanel() {
+    const S = state.season, tr = training(), key = `${S.year}-${S.week}`;
+    const days = weekSchedule(), agg = FM.routine.aggregate(days), ev = myEvents();
+    const setDay = (d, v) => { tr.sched = tr.sched && tr.sched.key === key ? tr.sched : { key, days: {} }; tr.sched.days[d] = v; saveGame(); render(); };
+    const cell = (d) => {
+      const date = fmt.date(FM.season.dayDate(S, S.week, d)).slice(0, 5);
+      const e = ev.find((x) => x.day === d);
+      const head = el('div.sd-head', [el('b', FM.routine.DAY_UK[d]), el('small.muted', date)]);
+      if (d === 0) return el('div.sd.rest', [head, el('span', 'Вихідний')]);
+      if (days[d] === 'match' || (d === 6 && weekMatchDays().includes(6))) return el('div.sd.match', [head, el('b', 'Матч'), e ? el('small', clubName(W.club(e.opp))) : null]);
+      if (d === 6) return el('div.sd.rest', [head, el('span', 'Вихідний')]);
+      const cur = FM.routine.SESSIONS[days[d]];
+      return el('div.sd', [head, el('select.tiny', { 'aria-label': `Заняття: ${FM.routine.DAY_UK[d]}`, onchange: (x) => setDay(d, x.target.value) },
+        Object.entries(FM.routine.SESSIONS).map(([k, v]) => el('option', { value: k, selected: days[d] === k || null }, v.label))), el('small.muted', cur ? cur.hint : '')]);
+    };
+    const own = tr.sched && tr.sched.key === key && Object.keys(tr.sched.days).length;
+    const bar = (label, v, max, bad) => el('div.crow.single', [el('div', [el('small', label), el('div.cbar', el('span.ch' + (bad ? '.bad' : ''), { style: { width: Math.min(100, (v / max) * 100) + '%' } }))]), el('b', String(v).replace('.', ','))]);
+    return el('div.panel', [el('h3', `Розклад тижня · ${fmt.date(FM.season.dayDate(S, S.week, 1)).slice(0, 5)}–${fmt.date(FM.season.dayDate(S, S.week, 6)).slice(0, 5)}`),
+      el('div.schedule', [0, 1, 2, 3, 4, 5, 6].map(cell)),
+      el('div.compare.sched-sum', [bar('Відновлення свіжості', agg.recovery, 40), bar('Розвиток', agg.growth, 1.6), bar('Засвоєння схеми', agg.fam, 4), bar('Ризик травм', agg.injury, 1.6, agg.injury > 1.1)]),
+      el('p.note', [own ? 'Ви змінили розклад цього тижня. ' : FM.routine.delegated(state, 'training') ? 'Розклад склав асистент під матчі тижня. ' : 'Розклад — за вашим шаблоном (нижче), з урахуванням матчів. ',
+        'Напередодні матчу «Підготовка» додає +1% до гри; після матчу — «Відновлення». ', own ? el('button.btn.link', { type: 'button', onclick: () => { tr.sched = null; saveGame(); render(); } }, 'Скинути правки') : null]),
+    ]);
+  }
+
+  /** Наставництво: досвідчений гравець бере молодого (до 21) — той росте швидше й переймає характер. */
+  function mentorPanel() {
+    const pairs = FM.routine.pairs(W, state), sq = W.squad(state.clubId);
+    const young = sq.filter((p) => FM.routine.canLearn(W, p) && !state.mentor[p.id]);
+    const mentors = sq.filter((p) => FM.routine.canMentor(W, p));
+    const sug = FM.routine.suggest(W, state);
+    let msg = null;
+    const ys = el('select', { id: 'mt-y', 'aria-label': 'Учень' }, young.map((p) => el('option', { value: p.id }, `${nameOf(p)} (${W.age(p)})`)));
+    const ms = el('select', { id: 'mt-m', 'aria-label': 'Наставник' }, mentors.map((p) => el('option', { value: p.id }, `${nameOf(p)} (${W.age(p)})`)));
+    const trait = (p) => { const h = p.h || {}; return `проф. ${Math.round(h.pro || 11)}, стаб. ${Math.round(h.con || 11)}, лідер. ${p.attrs.lea || 10}`; };
+    return el('div.panel', [el('h3', 'Наставництво'),
+      el('p.muted', `Наставник (від 26 років, професіонал або лідер) бере до ${FM.routine.MAX_PER_MENTOR} учнів до 21 року. Учень росте на 8% швидше й поступово переймає професіоналізм, стабільність і характер у великих матчах.`),
+      pairs.length ? el('ul.plist', pairs.map(({ young: y, mentor: o }) => el('li', [
+        el('span', [el('a', { href: '#player-' + y.id }, nameOf(y)), ' ← ', el('a', { href: '#player-' + o.id }, nameOf(o)), el('small.muted', ` · наставник: ${trait(o)}`)]),
+        el('button.btn.link', { type: 'button', onclick: () => { delete state.mentor[y.id]; saveGame(); render(); } }, 'Завершити')]))) : el('p.muted', 'Пар ще немає.'),
+      young.length && mentors.length ? el('div.pre-row', [el('div.field', [el('label', { for: 'mt-y' }, 'Учень'), ys]), el('div.field', [el('label', { for: 'mt-m' }, 'Наставник'), ms]),
+        el('button.btn', { type: 'button', onclick: () => { const r = FM.routine.assign(W, state, ys.value, ms.value); if (!r.ok) alert(r.reason); saveGame(); render(); } }, 'Призначити')]) : null,
+      sug.length ? el('div.actions', [el('button.btn', { type: 'button', onclick: () => { for (const x of sug) FM.routine.assign(W, state, x.young.id, x.mentor.id); saveGame(); render(); } }, `Пари за порадою асистента (${sug.length})`)]) : null,
+    ]);
+  }
+
   function screenTraining() {
     const t = training();
     const save = () => { saveGame(); render(); };
@@ -3047,12 +3131,14 @@
     const seg = (obj, key, defs) => el('div.tabs', Object.entries(defs).map(([k, d]) => el('button', { type: 'button', 'aria-pressed': String(t[key] === k), onclick: () => { t[key] = k; save(); } }, d.label)));
     const attrOptions = (p) => [['', 'Як у всієї команди'], ...FM.ATTR_GROUPS[p.roles[0] === 'GK' ? 'gk' : 'outfield'].flatMap(([, ks]) => ks.map((k) => [k, FM.ATTRS[k]]))];
     return [
-      el('header', [el('h1', 'Тренування'), el('span.muted', 'Діє щотижня на всіх гравців клубу')]),
+      el('header', [el('h1', 'Тренування'), el('span.muted', 'Розклад на кожен день тижня; діє на всіх гравців клубу')]),
+      schedulePanel(),
       el('div.panel', [el('div.instr', [
-        el('div.field', [el('b', 'План тижня'), seg(t, 'plan', FM.dev.PLANS), el('small.muted', FM.dev.PLANS[t.plan || 'balanced'].hint)]),
+        el('div.field', [el('b', 'Шаблон тижня'), seg(t, 'plan', FM.dev.PLANS), el('small.muted', FM.routine.delegated(state, 'training') ? 'Розклад складає асистент — шаблон не діє. Змінити — у «Клуб» → «Доручення асистентові».' : FM.dev.PLANS[t.plan || 'balanced'].hint)]),
         el('div.field', [el('b', 'Наголос'), seg(t, 'focus', FM.dev.FOCUS), el('small.muted', 'Які атрибути ростуть першими.')]),
         el('div.field', [el('b', 'Інтенсивність'), seg(t, 'intensity', FM.dev.INTENSITY), el('small.muted', 'Інтенсивне — швидший ріст, але більше травм; легке — навпаки.')]),
       ])]),
+      mentorPanel(),
       el('div.panel', [el('h3', 'Гравці'), el('div.table-wrap.flat', el('table', [
         el('thead', el('tr', [el('th', 'Гравець'), el('th', 'Поз.'), el('th.num', 'Вік'), el('th', 'Рівень'), el('th', 'Потенціал'), el('th.num', 'За сезон'), el('th', 'Індивідуально'), el('th', 'Стан')])),
         el('tbody', sq.map((p) => {

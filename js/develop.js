@@ -92,7 +92,7 @@
       const age = W.age(p) ?? 24;
       const mine = p.club && p.club === opts.myClub;
       const inten = INTENSITY[(mine && tr.intensity) || 'normal'];
-      const plan = PLANS[(mine && tr.plan) || 'balanced'];
+      const plan = mine && opts.plan ? opts.plan : PLANS[(mine && tr.plan) || 'balanced']; // розклад по днях (js/routine.js) або план
       // травма на тренуванні
       if (p.club && !p.injury && R.chance(0.006 * k * inten.injury * plan.injury * (mine && opts.injuryMult ? opts.injuryMult : 1))) { p.injury = Math.min(4, injuryWeeks(R)); hurt.push({ id: p.id, weeks: p.injury }); }
       const clubGames = p.club ? games[p.club] || 0 : 0;

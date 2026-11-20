@@ -614,3 +614,19 @@ li.act { align-items: center; }
 .reacts { margin-bottom: 0.6rem; }
 .reacts summary { cursor: pointer; font-weight: 600; }
 .reacts .plist li, .post-talk .plist li { display: flex; justify-content: space-between; gap: 0.5rem; }
+
+/* Розклад тижня, наставництво, доручення */
+.schedule { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.4rem; margin-bottom: 0.8rem; }
+.sd { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; background: var(--panel); }
+.sd select { width: 100%; }
+.sd small { font-size: 0.75rem; line-height: 1.25; }
+.sd-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.3rem; }
+.sd.match { background: var(--accent-soft); border-color: var(--accent); }
+.sd.rest { background: var(--panel-2); color: var(--muted); }
+.cbar .ch.bad { background: var(--warn); }
+.sched-sum { max-width: 40rem; }
+.deleg li { display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; }
+@media (max-width: 760px) {
+  .schedule { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sd small.muted:last-child { display: none; }
+}
