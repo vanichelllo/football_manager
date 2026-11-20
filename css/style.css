@@ -690,3 +690,6 @@ th[aria-sort] { color: var(--fg); }
 .control-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 .control-head h3 { margin: 0; }
 .pause-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.match-tactic { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin: 0.8rem 0; display: grid; gap: 0.5rem; }
+.match-tactic .instr { grid-template-columns: minmax(0, 1fr); gap: 0.4rem; }
+.match-tactic .tabs button { padding: 0.2rem 0.6rem; font-size: 0.85rem; }
