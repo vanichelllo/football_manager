@@ -1348,6 +1348,13 @@
   let liveSpeed = (() => { try { const v = localStorage.getItem(SPEED_KEY); return v === 'key' ? 'key' : SPEEDS.some(([x]) => String(x) === v) ? Number(v) : 1950; } catch (_) { return 1950; } })();
   const setSpeed = (v) => { liveSpeed = v; try { localStorage.setItem(SPEED_KEY, String(v)); } catch (_) { /* приватне вікно */ } };
   let activeLive = null; // поточна трансляція: якщо піти з неї — матч догравається й записується
+  // Виділення моментів, як у FM: які удари показувати смугою над полем з паузою
+  const HL_MODES = [['goals', 'Лише голи'], ['key', 'Небезпечні моменти'], ['all', 'Усі удари'], ['none', 'Без виділення']];
+  let hlMode = (() => { try { const v = localStorage.getItem('golovnyi-trener:hl'); return HL_MODES.some(([k]) => k === v) ? v : 'key'; } catch (_) { return 'key'; } })();
+  const setHl = (v) => { hlMode = v; try { localStorage.setItem('golovnyi-trener:hl', v); } catch (_) { /* приватне вікно */ } };
+  const HL_OUT = { goal: 'ГОЛ!', saved: 'Сейв воротаря', wide: 'Повз ворота', blocked: 'Блок захисника', post: 'Штанга!', pen: 'Пенальті не забито' };
+  /** Чи виділяти подію: голи — завжди (якщо не вимкнено), небезпечні — xG ≥ 0,12, штанги й пенальті. */
+  const shouldHl = (e) => !!e.hl && hlMode !== 'none' && (e.hl.out === 'goal' || (hlMode === 'all') || (hlMode === 'key' && (e.hl.xg >= 0.12 || e.hl.out === 'post' || e.hl.out === 'pen')));
 
   function teamSide(clubId) {
     if (clubId === state.clubId) return mySide();
@@ -1535,6 +1542,29 @@
     const control = el('div.panel.control');
     // міні-поле: м'яч біля воріт того, хто атакує (господарі атакують праворуч)
     const ball = el('i.ball');
+    const hlBar = el('div.hl-bar', { 'aria-live': 'assertive', hidden: true });
+    let hlTimers = [];
+    /** Виділити момент: смуга «Небезпечна атака» → результат; м'яч летить до місця удару. */
+    function highlight(e) {
+      hlTimers.forEach(clearTimeout); hlTimers = [];
+      const k = e.team, team = k === 0 ? hs.club : as.club, ours = myK == null || k === myK;
+      const atk = k === 0 ? 1 : -1;
+      const sx = k === 0 ? e.hl.x : 100 - e.hl.x, sy = (k === 0 ? e.hl.y : 100 - e.hl.y);
+      hlBar.hidden = false; hlBar.className = 'hl-bar hl-attack';
+      hlBar.style.borderLeftColor = team.colors[0];
+      hlBar.replaceChildren(el('b', `⚡ ${e.hl.out === 'pen' || e.hl.kind === 'pen' ? 'Пенальті' : 'Небезпечна атака'} — ${clubName(team)}`), el('span.muted', ` ${e.min}′`));
+      moveBall(50 + atk * 18, 50 + (sy - 50) * 0.4);
+      hlTimers.push(setTimeout(() => moveBall(Math.max(4, Math.min(96, sx)), Math.max(8, Math.min(92, sy))), 450));
+      hlTimers.push(setTimeout(() => {
+        const out = e.hl.out;
+        hlBar.className = 'hl-bar ' + (out === 'goal' ? (ours ? 'hl-goal' : 'hl-goal-against') : 'hl-' + out);
+        hlBar.replaceChildren(el('b', HL_OUT[out] || 'Момент'), el('span.muted', ` ${clubName(team)} · ${e.min}′${e.hl.xg != null ? ` · xG ${String(e.hl.xg).replace('.', ',')}` : ''}`));
+        if (out === 'goal') moveBall(k === 0 ? 98 : 2, 50);
+        else if (out === 'wide') moveBall(k === 0 ? 99 : 1, sy < 50 ? 30 : 70);
+        else if (out === 'post') moveBall(k === 0 ? 97 : 3, 44);
+      }, 1000));
+      hlTimers.push(setTimeout(() => { hlBar.hidden = true; }, e.hl.out === 'goal' ? 4200 : 3000));
+    }
     const dots = el('div.mp-dots');
     const miniPitch = el('div.mini-pitch', { 'aria-hidden': 'true' }, [el('span.mp-half'), el('span.mp-box.l'), el('span.mp-box.r'), dots, ball]);
     // гравці: позиції зі схеми, обидві команди зсуваються за м'ячем
@@ -1568,6 +1598,8 @@
       el('button', { type: 'button', disabled: finished || null, 'aria-pressed': String(paused), onclick: () => { paused = !paused; drawSpeed(); drawControl(); } }, paused ? 'Продовжити' : 'Пауза'),
       el('label.speed', [el('span.muted', 'Швидкість '), el('select', { 'aria-label': 'Швидкість трансляції', disabled: finished || null, onchange: (e) => { setSpeed(e.target.value === 'key' ? 'key' : Number(e.target.value)); paused = false; drawSpeed(); } },
         SPEEDS.map(([v, label, hint]) => el('option', { value: String(v), selected: String(liveSpeed) === String(v) || null }, `${label} (${hint})`)))]),
+      el('label.speed', [el('span.muted', 'Моменти '), el('select', { 'aria-label': 'Виділення моментів', disabled: finished || null, onchange: (e) => { setHl(e.target.value); drawSpeed(); } },
+        HL_MODES.map(([v, label]) => el('option', { value: v, selected: hlMode === v || null }, label)))]),
       el('button', { type: 'button', disabled: finished || null, onclick: () => { M.result(); flush(); finish(); } }, 'Одразу результат'),
       el('button', { type: 'button', 'aria-pressed': String(FM.sound.on), title: 'Свисток, трибуни, гол (звук синтезується в браузері)', onclick: () => {
         FM.sound.set(!FM.sound.on); if (FM.sound.on) { FM.sound.whistle(1); FM.sound.ambient(!finished); } drawSpeed();
@@ -1578,7 +1610,9 @@
       while (shown < M.events.length) {
         const e = M.events[shown++];
         const team = e.team == null ? null : e.team === 0 ? hs.club : as.club;
-        feed.prepend(el('li.ev.ev-' + e.type + (myK != null && e.team === myK ? '.ours' : '') + (e.type === 'goal' ? '.flash' : ''), [el('span.min', e.min + '′'), team ? badge(team) : el('span.dot'), el('span', e.text)]));
+        const big = e.hl && e.hl.xg >= 0.25 && e.type !== 'goal';
+        feed.prepend(el('li.ev.ev-' + e.type + (myK != null && e.team === myK ? '.ours' : '') + (e.type === 'goal' ? '.flash' : '') + (big ? '.big' : ''), [el('span.min', e.min + '′'), team ? badge(team) : el('span.dot'), el('span', (big ? '⚡ ' : '') + e.text)]));
+        if (shouldHl(e) && !finished) { highlight(e); hold = Math.max(hold, e.hl.out === 'goal' ? 3800 : 2600); moveBall.last = e; }
         scoreEl.textContent = e.score.join(':');
         // звук і анімація
         if (e.type === 'goal') { hold = liveSpeed === 'key' ? 4000 : 1800; FM.sound.goal(myK == null || e.team === myK); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
@@ -1729,6 +1763,7 @@
         el('div.sb-team.away', [badge(as.club, true), el('b', clubName(as.club))]),
       ]),
       el('div.live-controls', speedBtns),
+      hlBar,
       el('div.live-grid', [
         el('div.panel.feed-wrap', feed),
         el('div.live-side', [el('div.panel', [el('h3', 'Статистика наживо'), miniPitch, statsBox]), control]),
@@ -2379,6 +2414,7 @@
           'Час зупиняється, коли потрібне ваше рішення: день матчу, пропозиція за гравця, незадоволений гравець, вибір спонсора, останній день трансферного вікна.',
           'Листи з дією — нагорі «Повідомлень»: прийняти чи відхилити пропозицію, поговорити з гравцем. Будь-який можна відкласти («Пізніше»).',
           'Трансляція: шість швидкостей — від «Дуже повільно» (≈10 хв на матч) до «Дуже швидко» (≈30 с), а також «Лише ключові моменти». Вибір запам’ятовується.',
+          'Небезпечні моменти виділяються, як у FM: смуга «⚡ Небезпечна атака», м’яч летить на полі, потім результат — гол, сейв, штанга, блок чи удар повз (з xG), і трансляція на мить пригальмовує. Режим «Моменти»: лише голи, небезпечні моменти (xG від 0,12, штанги, пенальті), усі удари або без виділення.',
           '«Відпустка» — асистент сам веде тижні до обраної дати й відповідає на листи за вашими правилами. «Швидкий режим» — те саме, але зупиняється на кожному важливому рішенні.',
           'Клавіші: пробіл — «Продовжити», Esc — назад.',
         ]),

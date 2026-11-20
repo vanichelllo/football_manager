@@ -328,10 +328,12 @@
     const homeAdv = opts.neutral ? 1 : 1.12;
     const events = [];
     const score = () => `${H.club.name} ${H.stats.goals}:${A.stats.goals} ${A.club.name}`;
-    const say = (min, type, team, key, vars = {}) => {
+    // meta — для виділення моментів у трансляції: { xg, out: goal|saved|wide|blocked|post|pen, x, y } (x, y — місце удару, 100 — ворота суперника)
+    const say = (min, type, team, key, vars = {}, meta = null) => {
       const text = Array.isArray(key) ? key.join('') : fill(R.pick(T[key]), { home: H.club.name, away: A.club.name, ...vars });
-      events.push({ min, type, team: team == null ? null : team.k, text, score: [H.stats.goals, A.stats.goals] });
+      events.push({ min, type, team: team == null ? null : team.k, text, score: [H.stats.goals, A.stats.goals], ...(meta ? { hl: meta } : {}) });
     };
+    const shotMeta = (out) => { const sh = shotLog[shotLog.length - 1]; return sh ? { xg: sh.xg, out, x: sh.x, y: sh.y, kind: sh.kind } : { out }; };
 
     function compute(t) {
       t.units = unitsFrom(t.onPitch, t.marked);
@@ -408,10 +410,10 @@
         if (goal) {
           t.stats.goals++; t.stats.onTarget++; tPerf.goals++;
           if (gkX) o.perf.get(gkX.p.id).conceded++;
-          say(min, 'goal', t, 'penGoal', { p: name(tk.p) });
+          say(min, 'goal', t, 'penGoal', { p: name(tk.p) }, shotMeta('goal'));
         } else {
           if (gkX) o.perf.get(gkX.p.id).saves++;
-          say(min, 'miss', t, 'penMiss', { p: name(tk.p), gk: gkName });
+          say(min, 'miss', t, 'penMiss', { p: name(tk.p), gk: gkName }, shotMeta('pen'));
         }
         return;
       }
@@ -439,7 +441,7 @@
         t.stats.goals++; t.stats.onTarget++; sPerf.goals++;
         if (assister) t.perf.get(assister.p.id).assists++;
         if (gkX) o.perf.get(gkX.p.id).conceded++;
-        say(min, 'goal', t, [lead, ' ', fill(R.pick(usable(T.goal, vars)), vars), assister ? fill(R.pick(usable(T.goalAssist, vars)), vars) : '']);
+        say(min, 'goal', t, [lead, ' ', fill(R.pick(usable(T.goal, vars)), vars), assister ? fill(R.pick(usable(T.goalAssist, vars)), vars) : ''], {}, shotMeta('goal'));
       } else {
         const out = R.weighted(['saved', 'wide', 'blocked', 'post'], (k) => ({ saved: 0.4 * (o.units.gk / 12), wide: 0.36, blocked: 0.18, post: 0.06 }[k]));
         if (out === 'saved') { t.stats.onTarget++; if (gkX) o.perf.get(gkX.p.id).saves++; }
@@ -447,7 +449,7 @@
           const bl = R.weighted(o.onPitch.filter((x) => !x.out && x.slot.role !== 'GK'), (x) => ({ CB: 3, DM: 2, FB: 1.5, CM: 1 }[x.slot.role] || 0.3) * x.p.attrs.pos);
           if (bl) o.perf.get(bl.p.id).blocks = (o.perf.get(bl.p.id).blocks || 0) + 1;
         }
-        say(min, 'chance', t, [lead, ' ', fill(R.pick(usable(T[out], vars)), vars)]);
+        say(min, 'chance', t, [lead, ' ', fill(R.pick(usable(T[out], vars)), vars)], {}, shotMeta(out));
         // кутовий після сейву чи блоку
         if ((out === 'saved' || out === 'blocked' || out === 'wide') && R.chance(out === 'wide' ? 0.15 : 0.7)) corner(t, o, min);
       }
