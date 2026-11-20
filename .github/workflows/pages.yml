@@ -38,6 +38,7 @@ jobs:
           node-version: 22
       - name: Сайт і окремий офлайн-файл
         run: |
+          node tools/version.js "GitHub Pages"
           npm run bundle
           mkdir -p _site
           cp -r index.html sw.js manifest.webmanifest css js data icons _site/
