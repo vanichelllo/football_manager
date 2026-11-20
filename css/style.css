@@ -685,3 +685,11 @@ th[aria-sort] { color: var(--fg); }
 .totw li { display: flex; justify-content: space-between; gap: 0.5rem; }
 .awards-line p { margin: 0.3rem 0; }
 .backup-card { border-color: var(--warn); }
+.feed-box > summary { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.feed-box > summary .pause-btn, .control-head .pause-btn { text-transform: none; letter-spacing: 0; margin-top: 0; }
+.control-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.control-head h3 { margin: 0; }
+.pause-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.match-tactic { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin: 0.8rem 0; display: grid; gap: 0.5rem; }
+.match-tactic .instr { grid-template-columns: minmax(0, 1fr); gap: 0.4rem; }
+.match-tactic .tabs button { padding: 0.2rem 0.6rem; font-size: 0.85rem; }
