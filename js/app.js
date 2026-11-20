@@ -1194,10 +1194,45 @@
       svg('polyline', { points: toP(L0.pts), style: `fill:none;stroke:${col(0)};stroke-width:1.2` }),
     ]);
     const f2 = (v) => String(Math.round(v * 100) / 100).replace('.', ',');
-    return el('div.grid', [
+    // середні позиції й активність: де стояв гравець (за схемою) і скільки дій зробив
+    const posMap = svg('svg', { viewBox: '0 0 100 64', class: 'shotmap', role: 'img', 'aria-label': 'Середні позиції й активність гравців' }, [
+      svg('rect', { x: 0.5, y: 0.5, width: 99, height: 63, rx: 1, class: 'sm-pitch' }),
+      svg('line', { x1: 50, y1: 0.5, x2: 50, y2: 63.5, class: 'sm-line' }),
+      svg('rect', { x: 0.5, y: 17, width: 14, height: 30, class: 'sm-line' }), svg('rect', { x: 85.5, y: 17, width: 14, height: 30, class: 'sm-line' }),
+      ...[0, 1].flatMap((k) => {
+        const rs = m.ratings.filter((r) => r.team === k && r.slot && !r.on && r.st);
+        const xy = layoutXY(rs.map((r) => r.slot));
+        const push = (k === 0 ? m.stats[0].poss - 50 : m.stats[1].poss - 50) * 0.12; // хто володів — вище на полі
+        return rs.map((r, i) => {
+          const depth = 100 - xy[i][1];
+          let x = 6 + depth * 0.85 + push; if (k === 1) x = 100 - x;
+          const y = (k === 0 ? xy[i][0] : 100 - xy[i][0]) * 0.64;
+          const act = r.st.passes + r.st.tackles * 3 + r.st.dribbles * 2 + r.st.shots * 3;
+          const c = svg('circle', { cx: Math.max(3, Math.min(97, x)), cy: y, r: 1.4 + Math.sqrt(act) * 0.28, style: `fill:${col(k)};fill-opacity:0.35;stroke:${col(k)}` });
+          c.append(svg('title', {}, [document.createTextNode(`${nameOf(r.player)} · оцінка ${String(r.rating).replace('.', ',')} · передач ${r.st.passes}`)]));
+          return c;
+        });
+      }),
+    ]);
+    const keyEv = m.events.filter((e) => ['goal', 'red', 'injury', 'miss'].includes(e.type));
+    const statRow = (r) => el('tr', [el('td', [el('a', { href: '#player-' + r.id }, nameOf(r.player)), el('small.muted', ` ${FM.roleLabel(r.role, r.slot && r.slot.side)}`)]),
+      el('td.num', String(r.rating).replace('.', ',')), el('td.num', r.st.min), el('td.num', r.goals || ''), el('td.num', r.assists || ''), el('td.num', r.st.shots || ''),
+      el('td.num', r.st.keyPasses || ''), el('td.num', r.st.passes ? `${r.st.passOk}/${r.st.passes}` : ''), el('td.num', r.st.tackles || ''), el('td.num', r.st.interceptions || ''),
+      el('td.num', r.st.dribbles || ''), el('td.num', r.role === 'GK' ? r.st.saves : r.st.blocks || '')]);
+    const statTable = (k, club) => el('div.table-wrap', el('table.mstats', [
+      el('caption', clubName(club)),
+      el('thead', el('tr', ['Гравець', 'Оц.', 'Хв', 'Г', 'П', 'Уд', 'Кл. п.', 'Передачі', 'Відб.', 'Перех.', 'Дриб.', 'Блок/сейв'].map((h, i) => el(i ? 'th.num' : 'th', h)))),
+      el('tbody', m.ratings.filter((r) => r.team === k && r.st).map(statRow)),
+    ]));
+    return el('div', [el('div.grid', [
       el('div.panel', [el('h3', 'Карта ударів'), map, el('div.legend', [el('span', [el('i', { style: { background: 'var(--accent)' } }), clubName(hs.club)]), el('span', [el('i', { style: { background: 'var(--warn)' } }), clubName(as.club)]), el('span', 'коло більше — момент кращий; заповнене — гол')])]),
       el('div.panel', [el('h3', 'Очікувані голи (xG) за матч'), chart, el('p.muted', `${clubName(hs.club)} ${f2(L0.acc)} · ${clubName(as.club)} ${f2(L1.acc)} · вертикальна лінія — перерва${m.weather ? ' · погода: ' + FM.WEATHER[m.weather].label.toLowerCase() : ''}`)]),
-    ]);
+      el('div.panel', [el('h3', 'Середні позиції й активність'), posMap, el('p.muted', 'Більше коло — більше дій (передачі, відбори, дриблінг, удари). Наведіть на коло, щоб побачити гравця.')]),
+      el('div.panel', [el('h3', 'Ключові моменти'), keyEv.length ? el('ol.feed.compact', keyEv.map((e) => el('li.ev-' + e.type, [el('b', e.min + '′ '), e.text]))) : el('p.muted', 'Без яскравих моментів.'),
+        el('dl.facts', [el('dt', 'Передачі (точність)'), el('dd', `${m.stats[0].passes} (${m.stats[0].passPct}%) — ${m.stats[1].passes} (${m.stats[1].passPct}%)`),
+          el('dt', 'Відбори'), el('dd', `${m.stats[0].tackles} — ${m.stats[1].tackles}`)])]),
+    ]), el('div.panel', [el('h3', 'Статистика гравців'), statTable(0, hs.club), statTable(1, as.club),
+      el('p.note', 'Г — голи, П — гольові передачі, Уд — удари, Кл. п. — ключові передачі (з яких був удар), Відб. — відбори, Перех. — перехоплення, Дриб. — успішний дриблінг.')])]);
   }
 
   /**
