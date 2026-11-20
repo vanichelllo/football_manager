@@ -22,7 +22,7 @@
   // давніші збереження (до етапу 3) — створюємо сезон
   if (state && !state.season) { state.season = FM.season.create(W, String(Date.now())); saveGame(); }
 
-  if (state) { FM.market.init(W, state); if (!state.board) FM.board.initSeason(W, state); FM.club.init(W, state); FM.career.init(W, state); }
+  if (state) { FM.market.init(W, state); if (!state.board) FM.board.initSeason(W, state); FM.club.init(W, state); FM.career.init(W, state); FM.nations.ensurePools(W, state); }
 
   /** Кубки сезону; у старому збереженні — створити й догнати пропущені тижні. */
   function ensureCups() {
@@ -170,6 +170,7 @@
       FM.club.init(W, state);
       FM.career.init(W, state);
       if (challenge) FM.challenges.start(state, challenge);
+      FM.nations.ensurePools(W, state); // гравці для збірних, яких немає в базі
       ensureCups();
       saveGame();
       go('overview');
@@ -346,7 +347,7 @@
         shirt,
         el('div', { style: { minWidth: 0 } }, [
           el('h1', nameOf(p)),
-          el('div.muted', [c.id ? el('a', { href: c.id === state.clubId ? '#squad' : '#club-' + c.id }, clubName(c)) : (p.retired ? 'завершив кар’єру' : 'вільний агент'), ` · ${FM.ROLE_NAME[p.roles[0]]} (${FM.positions(p)})`]),
+          el('div.muted', [c.id ? el('a', { href: c.id === state.clubId ? '#squad' : '#club-' + c.id }, clubName(c)) : (p.retired ? 'завершив кар’єру' : p.virtual ? `грає на батьківщині (${FM.countries.name(p.nat)}) · згенерований гравець збірної` : 'вільний агент'), ` · ${FM.ROLE_NAME[p.roles[0]]} (${FM.positions(p)})`]),
         ]),
         el('div.actions', [
           el('button.btn', { type: 'button', 'aria-pressed': String((state.compare || []).includes(p.id)), onclick: () => { toggleCompare(p.id); render(); } }, (state.compare || []).includes(p.id) ? '✓ У порівнянні' : 'Порівняти'),
@@ -375,7 +376,7 @@
             el('dt', 'Статус'), el('dd', FM.morale.STATUS[FM.morale.status(W, p)])] : []),
           ...(p.injury ? [el('dt', 'Травма'), el('dd', `ще ${p.injury} тиж.`)] : []),
           ...(p.retired ? [el('dt', 'Кар\u2019єра'), el('dd', `завершив у ${p.retired}/${String(p.retired + 1).slice(2)}`)] : []),
-          ...(!p.club && !p.retired ? [el('dt', 'Клуб'), el('dd', 'вільний агент')] : []),
+          ...(!p.club && !p.retired ? [el('dt', 'Клуб'), el('dd', p.virtual ? 'клуб на батьківщині (поза лігами гри)' : 'вільний агент')] : []),
           ...((p.hist && p.hist.length) ? [el('dt', 'Рівень за сезонами'), el('dd', p.hist.map(([y, v]) => `${y}/${String(y + 1).slice(2)}: ${v}`).concat([`зараз: ${p.ca}`]).join(' · '))] : []),
           ...(() => {
             const st = pstat(p.id);
@@ -481,6 +482,7 @@
   function transferPanel(p) {
     const S = state.season, me = W.club(state.clubId);
     if (!deal || deal.pid !== p.id) deal = { pid: p.id, stage: p.club ? 'club' : 'player', fee: p.club ? FM.market.askingPrice(W, p, S) : 0, msg: null };
+    if (p.virtual) return el('div.panel', [el('h3', 'Трансфер'), el('p.muted', 'Цей гравець згенерований для збірної й грає в лізі поза грою — купити його не можна.')]);
     const open = FM.market.windowOpen(S) || !p.club;
     const scouting = (state.scouting || []).includes(p.id);
     const cap = 2 + FM.market.scouts(state).length;
@@ -824,7 +826,7 @@
     let res = [];
     for (const p of W.players.values()) {
       if (p.retired || p.club === state.clubId) continue;
-      if (sf.free ? p.club : !p.club && !p.talent) continue;
+      if (p.virtual || (sf.free ? p.club : !p.club && !p.talent)) continue;
       if (sf.listed && !p.listed) continue;
       if (sf.league !== 'all' && (!p.club || W.club(p.club).league !== sf.league)) continue;
       if (sf.nat !== 'all' && p.nat !== sf.nat) continue;
@@ -2094,15 +2096,37 @@
       const Q = st.qual && st.qual.year === S.year + 1 ? FM.nations.qualTable(state) : null;
       const ukr = Q ? (Q.slice(0, 2).some((r) => r.c === 'UKR') ? 'in' : 'out') : null;
       if (Q) FM.market.news(state, ukr === 'in' ? `Україна виходить на ${st.qual.name.replace('Відбір: ', '')}!` : `Україна не пройшла відбір (${Q.findIndex((r) => r.c === 'UKR') + 1}-е місце в групі).`, 'intl');
-      if (st.coach && ukr === 'in') { // турнір — на екрані «Збірна», матчі України наживо
+      const big = FM.nations.tournamentFor(S.year + 1);
+      if (big && st.coach && ukr === 'in') { // турнір — на екрані «Збірна», матчі України наживо
         st.tourney = FM.nations.createTournament(W, S.year + 1, S.seed, 'in');
         if (st.tourney) state.lastReport.tour = { name: st.tourney.name, pending: true };
-      } else {
+      } else if (big) {
         const tour = FM.nations.tournament(W, S.year + 1, S.seed, ukr);
         if (tour) { state.lastReport.tour = tour; st.tours = (st.tours || []).concat([{ name: tour.name, winner: tour.winner, ukr: tour.ukr }]); }
+      } else {
+        // літо без Євро/ЧС: підсумок Ліги націй, фінал чотирьох, континентальні турніри
+        const nl = FM.nations.nlEnd(W, state);
+        if (nl) FM.market.news(state, nl.text, 'intl');
+        FM.nations.invalidate();
+        const euRank = Object.keys(FM.nations.pools(W)).filter((c) => FM.nations.EUROPE.has(c)).map((c) => [c, FM.nations.strength(W, c)]).sort((a, b) => b[1] - a[1]).map((x) => x[0]);
+        const Aeu = euRank.slice(0, 16).filter((c) => c !== 'UKR' && !(st.nl && st.nl.group.includes(c)));
+        const four = (nl && nl.finals ? ['UKR', ...Aeu.slice(0, 3)] : Aeu.slice(0, 4)).sort((a, b) => FM.nations.strength(W, b) - FM.nations.strength(W, a));
+        const finals = four.length === 4 ? FM.nations.createKO(W, { name: `Фінал чотирьох Ліги націй ${S.year + 1}`, year: S.year + 1, seed: S.seed, teams: four }) : null;
+        if (finals && st.coach && four.includes('UKR')) { st.tourney = finals; state.lastReport.tour = { name: finals.name, pending: true }; }
+        else if (finals) {
+          FM.nations.playUntil(W, finals, null);
+          const sm = FM.nations.summary(finals);
+          st.tours = (st.tours || []).concat([{ name: sm.name, winner: sm.winner, ukr: four.includes('UKR') ? sm.ukr : 'не грала' }]);
+          FM.market.news(state, `${sm.name}: переможець — ${FM.countries.name(sm.winner)}.`, 'intl');
+        }
+        const cont = FM.nations.continental(W, S.year + 1, S.seed);
+        for (const c of cont) { st.tours = (st.tours || []).concat([{ name: c.name, winner: c.winner, ukr: '—' }]); FM.market.news(state, `${c.name}: переможець — ${FM.countries.name(c.winner)}.`, 'intl'); }
+        state.lastReport.worldCups = cont.map((c) => `${c.name}: ${FM.countries.name(c.winner)}`);
       }
+      st.tours = (st.tours || []).slice(-40);
     }
     FM.dev.newSeason(W, state);
+    FM.nations.ensurePools(W, state); // замість тих, хто завершив кар'єру, — нові гравці збірних
     FM.market.init(W, state);
     FM.club.init(W, state);
     for (const c of W.clubs.values()) delete c.vacancy;
@@ -2134,6 +2158,7 @@
     return [
       el('header', [el('h1', `Новий сезон ${seasonLabel()}`), el('span.muted', `Підсумки сезону ${R.year}/${String(R.year + 1).slice(2)}`)]),
       R.moves && R.moves.length ? el('div.panel', [el('h3', 'Підвищення й пониження'), el('ul.plist', R.moves.map((m) => el('li', [el('span', [el('b', clubName(W.club(m.club))), el('small.muted', ` ${m.up ? '↑' : '↓'} ${W.league(m.to).name}`)])])))]) : null,
+      R.worldCups && R.worldCups.length ? el('div.panel', [el('h3', 'Турніри збірних світу'), el('ul.plain', R.worldCups.map((t) => el('li', t)))]) : null,
       R.tour && R.tour.pending ? el('div.panel', [el('h3', R.tour.name), el('p', ['Україна на турнірі, а ви — її тренер! Матчі збірної — на екрані ', el('a', { href: '#nations' }, '«Збірна»'), '.'])]) : R.tour ? el('div.panel', [el('h3', R.tour.name), el('p', `Переможець — ${FM.countries.name(R.tour.winner)}${R.tour.final ? ` (фінал ${FM.countries.name(R.tour.final.a)} — ${FM.countries.name(R.tour.final.b)} ${R.tour.final.score.join(':')})` : ''}.`),
         el('p.muted', `Україна: ${R.tour.ukr || 'не кваліфікувалася'}.`)]) : null,
       R.verdict ? el('div.panel', [el('h3', 'Оцінка правління'), el('p', R.verdict), R.prize ? el('p.muted', `Призові за місце й кубки: ${FM.market.fmtM(R.prize)}`) : null,
@@ -2433,13 +2458,24 @@
         el('button.btn', { type: 'button', onclick: () => playTourMatch(false) }, 'Одразу результат')]),
       out ? el('button.btn', { type: 'button', onclick: () => { finishTourney(); saveGame(); render(); } }, 'Дограти турнір') : null]);
   }
+  /** Тренери збірних групи (суперників). */
+  const coachesLine = (group) => el('p.muted', 'Тренери суперників: ' + group.filter((c) => c !== 'UKR').map((c) => { const k = FM.nations.coachOf(W, c); return `${FM.countries.name(c)} — ${k.name} (${k.label})`; }).join('; ') + '.');
+  function nlPanel() {
+    const NL = state.intl && state.intl.nl;
+    if (!NL || NL.year !== state.season.year) return null;
+    const tab = FM.nations.groupTableOf(NL, state.intl.played || [], 'nl');
+    return el('div.panel', [el('h3', NL.name), el('table.mini', [el('thead', el('tr', ['Група', 'І', 'РМ', 'О'].map((h, i) => el(i ? 'th.num' : 'th', h)))),
+      el('tbody', tab.map((r, i) => el('tr' + (r.c === 'UKR' ? '.me' : ''), [el('td', `${i + 1}. ${FM.countries.name(r.c)}`), el('td.num', r.p), el('td.num', r.gd), el('td.num', r.pts)])))]),
+      el('small.muted', `Перше місце — підвищення${NL.tier === 'A' ? ' й фінал чотирьох улітку' : ''}, останнє — пониження. Матчі — у міжнародні вікна (6, 13 і 27-й тижні).`),
+      coachesLine(NL.group)]);
+  }
   function qualPanel() {
     const Q = state.intl && state.intl.qual;
     if (!Q || Q.year !== state.season.year + 1) return null;
     const tab = FM.nations.qualTable(state);
     return el('div.panel', [el('h3', Q.name), el('table.mini', [el('thead', el('tr', ['Група', 'І', 'РМ', 'О'].map((h, i) => el(i ? 'th.num' : 'th', h)))),
       el('tbody', tab.map((r, i) => el('tr' + (r.c === 'UKR' ? '.me' : ''), [el('td', `${i + 1}. ${FM.countries.name(r.c)}`), el('td.num', r.p), el('td.num', r.gd), el('td.num', r.pts)])))]),
-      el('small.muted', 'Двоє перших виходять на турнір. Матчі — у міжнародні вікна (6, 13 і 27-й тижні).')]);
+      el('small.muted', 'Двоє перших виходять на турнір. Матчі — у міжнародні вікна (6, 13 і 27-й тижні).'), coachesLine(Q.group)]);
   }
 
   function screenNations() {
@@ -2457,7 +2493,8 @@
     };
     return [
       el('header', [el('h1', 'Збірна України'), el('span.muted', `Рівень ${Math.round(N.strength(W, 'UKR'))} · ${next ? `наступне вікно — ${next}-й тиждень` : 'цього сезону вікон більше немає'}`)]),
-      tourneyPanel(), qualPanel(),
+      tourneyPanel(), qualPanel(), nlPanel(),
+      el('p.muted', st.coach ? 'Головний тренер — ви.' : (() => { const c = FM.nations.coachOf(W, 'UKR'); return `Головний тренер: ${c.name} (${c.label}).`; })()),
       st.lastTour && !st.tourney ? el('p.muted', `Останній турнір: ${st.lastTour.name}, переможець — ${FM.countries.name(st.lastTour.winner)}; Україна — ${st.lastTour.ukr}.`) : null,
       el('div.panel', [
         el('p', coach ? 'Ви тренуєте збірну паралельно з клубом: склад обираєте самі (16–26 гравців), результати впливають на вашу репутацію.'
@@ -2473,7 +2510,7 @@
           el('span.num', String(p.ca))])))]),
         el('div.panel', [el('h3', 'Останні матчі'), played.length ? el('ul.plist', played.map((x) => el('li', [el('span', `${x.s}/${String(x.s + 1).slice(2)} · ${x.home ? 'вдома' : 'виїзд'} — ${FM.countries.name(x.opp)}`), el('b', x.score.join(':'))])))
           : el('p.muted', 'Ще не грали.'),
-        el('h3', 'Турніри'), (st.tours || []).length ? el('ul.plist', st.tours.slice().reverse().map((t) => el('li', [el('span', `${t.name}: переможець — ${FM.countries.name(t.winner)}`), el('small.muted', 'Україна: ' + (t.ukr || '—'))])))
+        el('h3', 'Турніри'), (st.tours || []).length ? el('ul.plist', st.tours.slice().reverse().map((t) => el('li', [el('span', `${t.name}: переможець — ${FM.countries.name(t.winner)}`), t.ukr && t.ukr !== '—' ? el('small.muted', 'Україна: ' + t.ukr) : null])))
           : el('p.muted', 'Найближчий — Чемпіонат Європи 2028 (після сезону 2027/28).')]),
       ]),
     ];

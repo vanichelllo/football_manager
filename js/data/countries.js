@@ -57,6 +57,8 @@
     ['MSR', 'Монтсеррат', 'Montserrat'], ['BER', 'Бермуди', 'Bermuda'], ['CTA', 'ЦАР', 'Central African Republic', 'CAR'],
     ['CHA', 'Чад', 'Chad'], ['DJI', 'Джибуті', 'Djibouti'], ['MWI', 'Малаві', 'Malawi'], ['GIB', 'Гібралтар', 'Gibraltar'],
     ['REU', 'Реюньйон', 'Réunion'], ['MYT', 'Майотта', 'Mayotte'], ['SOM', 'Сомалі', 'Somalia'], ['ATG', 'Антигуа і Барбуда', 'Antigua and Barbuda'],
+    ['MTN', 'Мавританія', 'Mauritania'], ['OMA', 'Оман', 'Oman'], ['BHR', 'Бахрейн', 'Bahrain'], ['KGZ', 'Киргизстан', 'Kyrgyzstan'],
+    ['KUW', 'Кувейт', 'Kuwait'], ['PRK', 'КНДР', 'North Korea'], ['GUA', 'Гватемала', 'Guatemala'], ['NCA', 'Нікарагуа', 'Nicaragua'],
   ];
   const NAME = {};
   const ALIAS = {};

@@ -246,3 +246,32 @@ test('18. збірна: відбір у групі з 4 (6 матчів Укра
   const groupOf = (c) => T.groups.findIndex((g) => g.includes(c));
   assert.ok(T.ko[0].filter((m) => groupOf(m.a) === groupOf(m.b)).length <= 1, 'суперники з однієї групи — не в 1/8 (майже ніколи)');
 });
+
+test('збірні: згенеровані гравці, Ліга націй з підвищенням, континентальні турніри, тренери', () => {
+  const { W, state } = fresh();
+  const made = FM.nations.ensurePools(W, state);
+  assert.ok(made > 500, `згенеровано ${made}`);
+  assert.strictEqual(FM.nations.ensurePools(W, state), 0, 'повторно — нічого');
+  const P = FM.nations.pools(W);
+  for (const k of ['conmebol', 'caf', 'afc', 'concacaf']) assert.ok(FM.nations.CONFED[k].every((c) => P[c] && P[c].length >= 23), k);
+  const v = [...W.players.values()].find((p) => p.virtual);
+  assert.ok(v && !v.club && v.gen, 'згенерований — без клубу й позначений');
+  // Ліга націй у сезон без турніру наступного літа (2026/27 → літо 2027)
+  const S = state.season;
+  const NL = FM.nations.nlGroup(W, state);
+  assert.ok(NL && NL.group.length === 4 && ['A', 'B', 'C'].includes(NL.tier));
+  for (const w of FM.nations.WINDOWS) { S.week = w; FM.nations.weekly(W, state, {}); }
+  assert.ok(FM.nations.groupTableOf(NL, state.intl.played, 'nl').every((r) => r.p === 6));
+  const end = FM.nations.nlEnd(W, state);
+  assert.ok(end && /Ліга націй/.test(end.text) && state.intl.nlTier);
+  // континентальні турніри
+  const cont = FM.nations.continental(W, 2027, 's');
+  assert.deepStrictEqual(cont.map((c) => c.name.replace(/ \d+$/, '')), ['Кубок Америки', 'Кубок африканських націй', 'Кубок Азії', 'Золотий кубок КОНКАКАФ']);
+  assert.ok(cont.every((c) => c.winner));
+  const caf = FM.nations.CONFED.caf;
+  assert.ok(caf.includes(cont[1].winner), 'Кубок Африки виграє африканська збірна');
+  // тренер і стиль
+  const k = FM.nations.coachOf(W, 'BRA');
+  assert.ok(k.name && k.label);
+  assert.ok(FM.nations.side(W, 'BRA').mentality);
+});
