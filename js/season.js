@@ -100,13 +100,15 @@
     // ШІ дає відпочити втомленим (свіжість < 72), якщо є кому їх замінити
     const fresh = available.filter((p) => (p.fitness ?? 100) >= 72);
     const pool = fresh.length >= 15 && fresh.filter((p) => p.roles[0] === 'GK').length ? fresh : available;
-    const formation = FM.bestFormation(pool);
-    let mentality = 'balanced';
+    let mentality = 'balanced', diff = 0;
     if (oppId) {
-      const diff = W.clubLevel(clubId) - W.clubLevel(oppId) + (home ? 3 : -3);
+      diff = W.clubLevel(clubId) - W.clubLevel(oppId) + (home ? 3 : -3);
       mentality = diff > 12 ? 'attacking' : diff > 5 ? 'positive' : diff < -12 ? 'defensive' : diff < -5 ? 'cautious' : 'balanced';
     }
-    const st = FM.club ? FM.club.aiStyle(W.club(clubId), mentality) : { mentality }; // стиль тренера ШІ
+    // тренер ШІ: улюблена схема й настрій на матч (команди грають по-різному від матчу до матчу)
+    const RA = FM.rng(`ai-${S.seed}-${S.week}-${clubId}-${oppId || ''}`);
+    const formation = FM.club && FM.club.aiFormation ? FM.club.aiFormation(W.club(clubId), pool, diff, RA) : FM.bestFormation(pool);
+    const st = FM.club ? FM.club.aiStyle(W.club(clubId), mentality, RA) : { mentality }; // стиль тренера ШІ
     return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(pool, formation), mentality: st.mentality, pressing: st.pressing, passing: st.passing };
   }
 

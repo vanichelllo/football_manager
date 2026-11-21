@@ -179,12 +179,41 @@
     }
     return out;
   }
+  // Улюблені схеми за стилем тренера: кожен тренер ШІ має свою (команди грають по-різному)
+  const STYLE_FORMS = {
+    attack: ['4-3-3', '4-2-3-1', '3-4-3', '4-3-1-2'], possession: ['4-3-3', '4-2-3-1', '4-1-4-1'], balanced: ['4-4-2', '4-2-3-1', '4-3-3', '4-4-1-1'],
+    counter: ['4-4-2', '4-4-1-1', '4-1-4-1', '3-5-2'], defence: ['4-1-4-1', '5-3-2', '4-4-1-1', '4-4-2'],
+  };
+  const hashN = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
+  /** Улюблена схема тренера клубу (з'являється, коли вперше потрібна). */
+  function favForm(c) {
+    if (!c.manager) return null;
+    if (!c.manager.form) { const list = STYLE_FORMS[c.manager.style] || STYLE_FORMS.balanced; c.manager.form = list[Math.floor(hashN(c.manager.name + c.id) * list.length)]; }
+    return c.manager.form;
+  }
+  /**
+   * Схема ШІ на матч: улюблена схема тренера, якщо склад під неї не набагато гірший за найкращу;
+   * проти значно сильнішого суперника обережні тренери іноді ставлять п'ятьох захисників. R — випадковість матчу.
+   */
+  function aiFormation(c, players, gap, R) {
+    const best = FM.bestFormation(players);
+    const val = (f) => FM.pickLineup(players, f).xi.reduce((s, x) => s + FM.slotValue(x.player, x.slot), 0);
+    const st = c && c.manager ? c.manager.style : 'balanced';
+    if (gap < -12 && ['defence', 'counter', 'balanced'].includes(st) && R && R.chance(0.35)) {
+      const f = R.chance(0.5) ? '5-3-2' : '4-1-4-1';
+      if (val(f) >= val(best) * 0.92) return f;
+    }
+    const fav = favForm(c);
+    if (fav && fav !== best && val(fav) >= val(best) * 0.95) return fav;
+    return best;
+  }
   /** Тактика ШІ за стилем тренера (поверх розрахунку за силою). */
-  function aiStyle(c, mentality) {
+  function aiStyle(c, mentality, R) {
     const st = c && c.manager && STYLES[c.manager.style];
     if (!st) return { mentality };
     const order = ['defensive', 'cautious', 'balanced', 'positive', 'attacking'];
-    const i = Math.max(0, Math.min(4, order.indexOf(mentality) + st.mentality));
+    const mood = R && R.chance(0.25) ? (R.chance(0.5) ? 1 : -1) : 0; // настрій тренера на конкретний матч
+    const i = Math.max(0, Math.min(4, order.indexOf(mentality) + st.mentality + mood));
     return { mentality: order[i], pressing: st.pressing, passing: st.passing };
   }
 
@@ -197,7 +226,7 @@
     managers(W, state);
   }
 
-  FM.club = { addExPlayers, ROLES, PRICES, UPGRADES, STYLES, init, initStaff, lvl, candidates, staffWage, staffBill, growthMult, facilities, requestUpgrade, buildWeek,
+  FM.club = { addExPlayers, ROLES, PRICES, UPGRADES, STYLES, STYLE_FORMS, favForm, aiFormation, init, initStaff, lvl, candidates, staffWage, staffBill, growthMult, facilities, requestUpgrade, buildWeek,
     fans, attendance, ticketFactor, fansWeek, managers, managersWeek, aiStyle };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

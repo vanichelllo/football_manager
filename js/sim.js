@@ -420,6 +420,13 @@
         if (!pst.noted && age < 9 && pst.u < 50 && u > 68) { pst.noted = true; note(t, 'counter', {}); }
         else if (age > 14 && u > 70 && R.chance(0.3)) note(t, 'pressure', {});
       }
+      // груба помилка під тиском біля своїх воріт: м'яч — суперникові
+      const nr0 = U(t, x) < 30 ? nearestOpp(t, x.px, x.py) : null;
+      if (nr0 && nr0.d < 2.5 && R.chance(0.012 * (1 + (12 - at(x, 'dec')) / 5))) {
+        const o2 = sides[1 - t.k];
+        note(o2, 'howler', { p: x }, true);
+        nr0.y.px = x.px; nr0.y.py = x.py; give(nr0.y, o2); return;
+      }
       const op = decide(t, x);
       if (x.slot.role === 'GK' && op.kind === 'long' && R.chance(0.12)) note(t, 'keeperLong', { gk: x });
       dbg('opt_' + op.kind);
@@ -504,7 +511,10 @@
         ctx.foul(o, y, t, x);
         if (x.out) return true;
         const u = U(t, x), v = V(t, x);
-        if (u > L - 16.5 && Math.abs(v - WD / 2) < 20.16) return after(ctx.penalty(t, o, x), t, o);
+        if (u > L - 16.5 && Math.abs(v - WD / 2) < 20.16) {
+          if (!R.chance(Math.min(1, 0.55 + 0.4 * (ctx.refK ? ctx.refK() : 1)))) { give(x, t); return true; } // арбітр не побачив — гра триває
+          return after(ctx.penalty(t, o, x), t, o);
+        }
         if (Math.hypot(L - u, v - WD / 2) < 27 && R.chance(0.6)) return after(ctx.freekick(t, o), t, o); // штрафний у зоні удару
         deadBall('fk', t, x.px, x.py, 6 + R.int(5));
         return true;
