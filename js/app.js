@@ -99,7 +99,7 @@
   function render() {
     clearTimeout(liveTimer); // пішли з трансляції — матч догравається миттєво й записується
     if (activeLive) activeLive.finish();
-    if (!state) return renderStart();
+    if (!state) { applySkin(null); return renderStart(); }
     if (!state.cups) { ensureCups(); saveGame(); } // старе збереження без кубків
     let view = location.hash.slice(1) || 'inbox'; // як у FM: головний екран — пошта
     if (FM.duo.on(state) && state.duo.handoff) view = 'duo'; // гра на двох: передати телефон
@@ -126,8 +126,26 @@
     lastView = view;
   }
 
+  // ---------------- Оформлення: «Класичний менеджер» (темне, кольори клубу) або світле ----------------
+  const SKIN_KEY = 'golovnyi-trener:skin';
+  let skin = (() => { try { return localStorage.getItem(SKIN_KEY) === 'light' ? 'light' : 'classic'; } catch (_) { return 'classic'; } })();
+  const setSkin = (v) => { skin = v; try { localStorage.setItem(SKIN_KEY, v); } catch (_) { /* приватне вікно */ } };
+  const lum = (hex) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return 0.5; const n = parseInt(m[1], 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+  /** Кольори клубу в оформленні: тло шапки, смуга, помітний на темному акцент. */
+  function applySkin(club) {
+    const r = document.documentElement;
+    r.dataset.skin = skin;
+    const c = (club && club.colors) || ['#2b5c8a', '#ffffff'];
+    const [a, b] = [c[0], c[1] || '#ffffff'];
+    r.style.setProperty('--club', a); r.style.setProperty('--club-2', b); r.style.setProperty('--club-fg', readableOn(a));
+    // акцент на темному тлі: світліший з кольорів клубу, якщо він не надто темний; інакше — блакитний гри
+    const hi = [a, b].filter((x) => lum(x) > 0.28 && lum(x) < 0.97).sort((x, y) => Math.abs(lum(x) - 0.6) - Math.abs(lum(y) - 0.6))[0] || (lum(a) >= 0.97 || lum(b) >= 0.97 ? '#e8edf2' : '#5fb0ff');
+    r.style.setProperty('--club-hi', hi); r.style.setProperty('--club-hi-fg', readableOn(hi));
+  }
+
   function shell(active, body) {
     const my = W.club(state.clubId);
+    applySkin(my);
     const item = (id, label, disabled) => el('button', {
       type: 'button', 'aria-current': active === id ? 'page' : null, disabled: disabled || null, onclick: () => go(id),
     }, disabled ? [label, el('span.soon', 'скоро')] : label);
@@ -466,6 +484,10 @@
     const groups = FM.ATTR_GROUPS[p.roles[0] === 'GK' ? 'gk' : 'outfield'];
     const shirt = el('div.shirt', p.number ?? '—');
     shirt.style.background = c.colors[0]; shirt.style.color = readableOn(c.colors[0]);
+    const mineP = p.club === state.clubId && !p.retired;
+    const TABS = [['profile', 'Профіль'], ['stats', 'Статистика'], ['deal', mineP ? 'Контракт' : 'Трансфер'], ...(mineP && !(p.loan && p.loan.to === state.clubId) ? [['talk', 'Розмова']] : [])];
+    if (!TABS.some(([k]) => k === playerTab)) playerTab = 'profile';
+    const sec = (k, ...kids) => (playerTab === k ? kids : []);
     return [
       el('div.player-top', [
         shirt,
@@ -479,7 +501,10 @@
           el('a.btn.edit-btn', { href: '#edit-' + p.id }, p.edited ? 'Редагувати (змінено)' : 'Редагувати'),
         ]),
       ]),
-      el('div.grid', [
+      el('div.ptabs', { role: 'tablist' }, TABS.map(([k, l]) => el('button', { type: 'button', role: 'tab', 'aria-selected': String(playerTab === k), onclick: () => { playerTab = k; render(); } }, l))),
+      ...sec('profile', el('div.panel', [el('h3', 'Атрибути'), el('div.attr-pitch', [el('div.attrs', ATTR_BLOCKS(p, groups)), el('div', [posMap(p), el('small.muted', 'Зелене — рідна позиція, жовте — може грати, бліде — освоює.')])]),
+        known(p) ? null : el('p.note', 'Гравця не розвідано: атрибути приблизні. Відправте скаута, щоб дізнатися точно.')])),
+      ...sec('profile', el('div.grid', [
         el('div.panel', [el('h3', 'Особисте'), el('dl.facts', [
           el('dt', 'Дата народження'), el('dd', p.born ? [`${fmt.date(p.born)} (${W.age(p)} р.)`, genMark(p, 'born')] : '—'),
           el('dt', 'Країна'), el('dd', [FM.countries.name(p.nat), genMark(p, 'nat')]),
@@ -510,23 +535,50 @@
               el('dt', 'Картки'), el('dd', `${st[4]} жовтих, ${st[5]} червоних` + (banned(p.id) ? ' · пропускає наступний матч' : ''))];
           })(),
         ]), p.wiki ? el('p.note', ['Факти: ', el('a', { href: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(p.wiki.replace(/ /g, '_')), target: '_blank', rel: 'noopener' }, 'Wikipedia')]) : null]),
-      ]),
-      el('div.panel', [el('div.attrs', groups.map(([title, keys]) => el('div', [
-        el('h3', title),
-        el('ul', keys.map((k) => {
-          if (known(p)) return el('li', [FM.ATTRS[k], el('b.' + attrClass(p.attrs[k]), p.attrs[k])]);
-          const d = 1 + Math.abs(fuzz(p, k, 2)), mid = p.attrs[k] + fuzz(p, k + 'm', 1);
-          const lo = Math.max(1, mid - d), hi = Math.min(20, mid + d);
-          return el('li', [FM.ATTRS[k], el('b.' + attrClass(mid), `${lo}–${hi}`)]);
-        })),
-      ]))), known(p) ? null : el('p.note', 'Гравця не розвідано: атрибути приблизні. Відправте скаута, щоб дізнатися точно.')]),
-      playerExtras(p),
-      awardsLine(p),
-      devChart(p),
-      !p.retired && p.club !== state.clubId && !p.virtual ? scoutPanel(p) : null,
-      p.retired ? null : p.club === state.clubId ? myPlayerPanel(p) : transferPanel(p),
-      !p.retired && p.club === state.clubId && !(p.loan && p.loan.to === state.clubId) ? talkPanel(p) : null,
+      ])),
+      ...sec('profile', playerExtras(p)),
+      ...sec('stats', awardsLine(p), devChart(p), seasonStatsPanel(p)),
+      ...sec('deal', !p.retired && p.club !== state.clubId && !p.virtual ? scoutPanel(p) : null, p.retired ? el('p.muted', 'Гравець завершив кар’єру.') : p.club === state.clubId ? myPlayerPanel(p) : transferPanel(p)),
+      ...sec('talk', talkPanel(p)),
     ];
+  }
+  let playerTab = 'profile';
+  /** Атрибути групами (точні — для розвіданих, діапазон — для інших). */
+  function ATTR_BLOCKS(p, groups) {
+    return groups.map(([title, keys]) => el('div', [
+      el('h3', title),
+      el('ul', keys.map((k) => {
+        if (known(p)) return el('li', [FM.ATTRS[k], el('b.' + attrClass(p.attrs[k]), p.attrs[k])]);
+        const d = 1 + Math.abs(fuzz(p, k, 2)), mid = p.attrs[k] + fuzz(p, k + 'm', 1);
+        const lo = Math.max(1, mid - d), hi = Math.min(20, mid + d);
+        return el('li', [FM.ATTRS[k], el('b.' + attrClass(mid), `${lo}–${hi}`)]);
+      })),
+    ]));
+  }
+  /** Позиції на полі: рідна, можливі, ті, що освоює. */
+  function posMap(p) {
+    const XY = { GK: [50, 92], CB: [50, 77], FB: [13, 70], DM: [50, 62], CM: [50, 48], AM: [50, 33], W: [13, 28], ST: [50, 14] };
+    const dots = [];
+    const put = (role, cls, side) => {
+      const [x, y] = XY[role] || [50, 50];
+      const xs = role === 'FB' || role === 'W' ? (side === 'R' ? [100 - x] : side === 'L' ? [x] : [x, 100 - x]) : [x];
+      for (const xx of xs) dots.push(el('i.' + cls, { style: { left: xx + '%', top: y + '%' }, title: FM.roleLabel(role, side) }, FM.roleLabel(role, side)));
+    };
+    p.roles.forEach((r, i) => put(r, i === 0 ? 'nat' : 'alt', p.side));
+    for (const r of Object.keys(p.posExp || {})) put(r, 'lrn', p.side);
+    return el('div.posmap', { role: 'img', 'aria-label': 'Позиції: ' + FM.positions(p) }, dots);
+  }
+  /** Статистика сезону на окремій вкладці. */
+  function seasonStatsPanel(p) {
+    const st = pstat(p.id);
+    if (!st) return el('div.panel', [el('h3', 'Сезон'), el('p.muted', 'Цього сезону ще не грав.')]);
+    return el('div.panel', [el('h3', `Сезон ${seasonLabel()}`), el('dl.facts', [
+      el('dt', 'Матчі'), el('dd', String(st[0])), el('dt', 'Голи'), el('dd', String(st[1])), el('dt', 'Гольові передачі'), el('dd', String(st[2])),
+      el('dt', 'Середня оцінка'), el('dd', (st[3] / st[0] / 10).toFixed(2).replace('.', ',')),
+      el('dt', 'Картки'), el('dd', `${st[4]} жовтих, ${st[5]} червоних`),
+      ...(p.form && p.form.length ? [el('dt', 'Останні оцінки'), el('dd', p.form.map((x) => String(x).replace('.', ',')).join(' · '))] : []),
+      ...(p.fg && p.fg.length ? [el('dt', 'Голи в останніх матчах'), el('dd', p.fg.join(' · '))] : []),
+    ])]);
   }
 
   // ---------------- Розмови з гравцем (крок 42) ----------------
@@ -4858,6 +4910,10 @@
         } }, 'Перезавантажити гру')]),
         el('p.note', 'Після злиття PR процес «Публікація» за 2–3 хвилини викладає нову версію. Натисніть «Перезавантажити гру» — тут з’явиться її дата. Кар’єра збережена й нікуди не зникне.')]),
       phonePanel(),
+      el('div.panel', [el('h3', 'Оформлення'), el('div.tabs', { style: { marginTop: '0.5rem' } }, [
+        el('button', { type: 'button', 'aria-pressed': String(skin === 'classic'), onclick: () => { setSkin('classic'); render(); } }, 'Класичний менеджер'),
+        el('button', { type: 'button', 'aria-pressed': String(skin === 'light'), onclick: () => { setSkin('light'); render(); } }, 'Світле'),
+      ]), el('p.note', 'Класичний менеджер: темні панелі, щільні таблиці, кольори вашого клубу в меню й заголовках.')]),
       el('div.panel', [el('h3', 'Рушій матчу'), el('div.tabs', { style: { marginTop: '0.5rem' } }, [
         el('button', { type: 'button', 'aria-pressed': String(engineMode === 'sim'), onclick: () => { setEngine('sim'); render(); } }, 'Детальний: 22 гравці на полі'),
         el('button', { type: 'button', 'aria-pressed': String(engineMode === 'classic'), onclick: () => { setEngine('classic'); render(); } }, 'Класичний: швидкий'),

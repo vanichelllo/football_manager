@@ -782,3 +782,56 @@ th[aria-sort] { color: var(--fg); }
 /* перебіг гри в стрічці матчу (детальний рушій) */
 .ev-play { color: var(--muted); font-size: 0.9em; }
 .ev-play .badge { opacity: 0.7; }
+
+/* ======================================================================
+   Тема «Класичний менеджер» (data-skin="classic"): темні графітові панелі, кольори вашого клубу
+   в меню й заголовках, смуги-заголовки панелей, щільні таблиці з чергуванням рядків.
+   --club / --club-fg задає гра з кольорів клубу.
+   ====================================================================== */
+:root[data-skin="classic"] {
+  --bg: #15191e; --panel: #20262d; --panel-2: #29313a; --fg: #e9edf1; --muted: #98a4b0; --line: #343e48;
+  --accent: #5fb0ff; --accent-fg: #07121d; --accent-soft: #1f3550; --warn: #f0b44c;
+  --attr-1: #7b858f; --attr-2: #d3d9df; --attr-3: #8fd46c; --attr-4: #ffd34d; --star: #ffcc33;
+  --radius: 3px;
+  color-scheme: dark;
+}
+[data-skin="classic"] body { background: radial-gradient(ellipse at top, #1d232a 0%, var(--bg) 60%) fixed; }
+[data-skin="classic"] .side { background: #181d23; }
+[data-skin="classic"] .side .club-head {
+  margin: -1rem -0.75rem 0; padding: 0.9rem 0.9rem; border-bottom: 3px solid var(--club-2, #fff);
+  background: linear-gradient(135deg, var(--club, #2b5c8a) 0%, color-mix(in srgb, var(--club, #2b5c8a) 70%, #000) 100%); color: var(--club-fg, #fff);
+}
+[data-skin="classic"] .nav button { border-radius: 2px; border-left: 3px solid transparent; }
+[data-skin="classic"] .nav button[aria-current="page"] { background: var(--panel-2); border-left-color: var(--club-hi, var(--accent)); }
+[data-skin="classic"] .main > header { border-bottom: 2px solid var(--club-hi, var(--accent)); padding-bottom: 0.5rem; }
+[data-skin="classic"] .panel { border-color: #2f3841; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 2px 6px rgba(0, 0, 0, 0.25); }
+[data-skin="classic"] .panel > h3:first-child {
+  margin: -1rem -1rem 0.75rem; padding: 0.5rem 1rem; color: var(--fg); font-size: 0.95rem;
+  background: linear-gradient(180deg, #2e3740, #262d35); border-bottom: 2px solid var(--club-hi, var(--accent)); border-radius: var(--radius) var(--radius) 0 0;
+}
+[data-skin="classic"] th { background: #2b333c; color: #b9c3cc; }
+[data-skin="classic"] tbody tr:nth-child(even) td { background: rgba(255, 255, 255, 0.025); }
+[data-skin="classic"] tbody tr.row-link:hover td { background: var(--accent-soft); }
+[data-skin="classic"] th, [data-skin="classic"] td { padding: 0.36rem 0.55rem; }
+[data-skin="classic"] .btn.primary { background: linear-gradient(180deg, #4aa0f5, #2f7fd0); color: #fff; border-color: #2f7fd0; }
+[data-skin="classic"] .topbar { background: #1a2027; border-color: var(--line); }
+[data-skin="classic"] .tabs button[aria-pressed="true"] { background: var(--club-hi, var(--accent)); color: var(--club-hi-fg, #07121d); }
+@media (max-width: 760px) {
+  [data-skin="classic"] .side .club-head { margin: 0; padding: 0.3rem; border-bottom: 0; border-radius: 3px; }
+}
+
+/* Профіль гравця з вкладками */
+.ptabs { display: flex; gap: 2px; border-bottom: 2px solid var(--club-hi, var(--accent)); overflow-x: auto; }
+.ptabs button { border: 0; background: var(--panel-2); color: var(--muted); padding: 0.5rem 0.9rem; cursor: pointer; border-radius: var(--radius) var(--radius) 0 0; white-space: nowrap; font-weight: 600; }
+.ptabs button[aria-selected="true"] { background: var(--club-hi, var(--accent)); color: var(--club-hi-fg, var(--accent-fg)); }
+.attr-pitch { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 15rem); gap: 1rem; align-items: start; }
+@media (max-width: 760px) { .attr-pitch { grid-template-columns: minmax(0, 1fr); } }
+.posmap { position: relative; aspect-ratio: 68 / 105; background: repeating-linear-gradient(0deg, #2e7d4f 0 10%, #2a7449 10% 20%); border-radius: var(--radius); border: 2px solid rgba(255,255,255,.35); }
+.posmap i { position: absolute; width: 18%; aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; font: 700 0.7rem/1 var(--font-body); color: #fff; }
+.posmap i.nat { background: #2fbf5b; box-shadow: 0 0 0 2px rgba(255,255,255,.8); }
+.posmap i.alt { background: #e0b43a; color: #1d1d1d; }
+.posmap i.lrn { background: rgba(255,255,255,.25); }
+[data-skin="classic"] input, [data-skin="classic"] select, [data-skin="classic"] textarea { background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); }
+[data-skin="classic"] .btn { background: #2a323b; border-color: #3a4550; color: var(--fg); }
+[data-skin="classic"] .btn:hover { background: #333d47; }
+[data-skin="classic"] .posmap::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px solid rgba(255,255,255,.35); }
