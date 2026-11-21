@@ -965,9 +965,10 @@
           const gkX = o.onPitch.find((y) => !y.out && y.slot.role === 'GK');
           shotAt = pos;
           if (o.oppi.weakFoot) q *= 0.97;
-          const g0 = t.stats.goals;
+          const g0 = t.stats.goals, n0 = events.length;
           finishChance(t, o, current, kind, x, assist, q, gkX, gkX ? name(gkX.p) : 'воротар');
-          return t.stats.goals > g0;
+          const ev = events.slice(n0).find((e) => e.hl);
+          return { goal: t.stats.goals > g0, out: ev ? ev.hl.out : 'saved' };
         },
         corner: (t, o) => scored(() => corner(t, o, current)),
         freekick: (t, o) => scored(() => freekick(t, o, current)),
