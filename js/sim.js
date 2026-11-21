@@ -593,11 +593,11 @@
     /** Одна хвилина гри. kickoff — хто розпочинає (на 1-й і 46-й хвилині). Повертає частку володіння господарів. */
     function minute(m) {
       for (const t of sides) { anchors(t); for (const x of live(t)) x._m = ctx.mul(x); }
-      if (m === 1 || m === 46) {
-        const t = m === 1 ? H : A;
+      if (m === 1 || m === 46 || m === 91 || m === 106) {
+        const t = m === 1 || m === 91 ? H : A;
         for (const s of sides) for (const x of live(s)) { const p = base(s, x, false, L / 2, WD / 2); x.px = s.k === 0 ? Math.min(p[0], L / 2 - 1) : Math.max(p[0], L / 2 + 1); x.py = p[1]; x.run = null; x.carry = null; }
         ball.x = L / 2; ball.y = WD / 2; deadBall('kick', t, L / 2, WD / 2, 0.5);
-        if (m === 46) clock = Math.max(clock, 45 * 60);
+        if (m > 1) clock = Math.max(clock, (m - 1) * 60);
         kicked = true;
       }
       frames = [];
@@ -610,8 +610,26 @@
       const tot = possT[0] + possT[1];
       return tot ? possT[0] / tot : 0.5;
     }
+    /** Кадри удару серії пенальті: виконавець біля точки, воротар на лінії, решта — у центральному колі. */
+    function penFrames(x, gk, out) {
+      const all = [...live(H), ...live(A)];
+      const rest = all.filter((y) => y !== x && y !== gk);
+      rest.forEach((y, i) => { const a = (i / rest.length) * Math.PI * 2; y.px = L / 2 + Math.cos(a) * 7; y.py = WD / 2 + Math.sin(a) * 7; });
+      const spotX = L - 11, ty = out === 'wide' ? (R.chance(0.5) ? WD / 2 - 5.5 : WD / 2 + 5.5) : out === 'post' ? WD / 2 - G : WD / 2 + (R.next() - 0.5) * 6;
+      const gkTo = out === 'saved' ? ty : WD / 2 + (R.chance(0.5) ? -3 : 3);
+      frames = [];
+      for (let i = 0; i < 16; i++) {
+        const k = i / 15;
+        x.px = spotX - 4 + Math.min(1, k * 2.5) * 3.5; x.py = WD / 2;
+        if (gk) { gk.px = L - 0.6; gk.py = WD / 2 + (k > 0.45 ? (gkTo - WD / 2) * Math.min(1, (k - 0.45) * 3) : 0); }
+        const bk = Math.max(0, (k - 0.45) / 0.55);
+        ball.hold = null; ball.x = spotX + (L - 0.2 - spotX) * Math.min(1, bk * 1.3); ball.y = WD / 2 + (ty - WD / 2) * Math.min(1, bk * 1.3);
+        if (out === 'saved' && bk > 0.75) { ball.x = L - 3; ball.y = gkTo + 2; }
+        frames.push(snap());
+      }
+    }
     return {
-      minute,
+      minute, penFrames,
       get frames() { return frames; },
       replays,
       get clock() { return clock; },

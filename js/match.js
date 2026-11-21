@@ -998,11 +998,74 @@
     const seg = Array.from({ length: 6 }, () => [0, 0]); // володіння господарів по 15 хвилин
     let scoreHT = null;
 
+    // ---- додатковий час і серія пенальті: вирішальний матч кубкової пари (opts.ko.base — голи господарів і гостей у попередніх матчах пари) ----
+    let et = false, so = null;
+    const aggLevel = () => !!opts.ko && (opts.ko.base[0] + H.stats.goals) === (opts.ko.base[1] + A.stats.goals);
+    function startET() {
+      et = true;
+      const add2 = [R.int(2), 1 + R.int(2)];
+      for (let m = 91; m <= 105 + add2[0]; m++) timeline.push({ m, pi: 2, label: m > 105 ? `105+${m - 105}` : m, extra: m > 105 });
+      for (let m = 106; m <= 120 + add2[1]; m++) timeline.push({ m, pi: 3, label: m > 120 ? `120+${m - 120}` : m, extra: m > 120 });
+      for (const t of sides) { t.subsLeft += 1; t.subWindows += 1; } // у додатковий час — ще одна заміна
+      const two = opts.ko.base[0] + opts.ko.base[1] > 0 || opts.ko.two;
+      say(current, 'half', null, [`Основний час завершено — ${score()}.${two ? ' За сумою двох матчів — нічия.' : ''} Буде додатковий час: два тайми по 15 хвилин!`]);
+    }
+    const penSkill = (x) => (x.p.attrs.fin || 8) * 0.55 + (x.p.attrs.set || 8) * 0.3 + (x.p.attrs.dec || 10) * 0.25 + ((x.p.h && x.p.h.big) || 10) * 0.1;
+    function startShootout() {
+      const order = (t) => {
+        const live = t.onPitch.filter((x) => !x.out);
+        const first = live.find((x) => x.p.id === t.takers.pen);
+        const rest = live.filter((x) => x !== first && x.slot.role !== 'GK').sort((a, b) => penSkill(b) - penSkill(a));
+        return [...(first ? [first] : []), ...rest, ...live.filter((x) => x.slot.role === 'GK')];
+      };
+      so = { k: [0, 0], n: [0, 0], order: [order(H), order(A)], turn: R.chance(0.5) ? 0 : 1, winner: null, log: [] };
+      say(current, 'half', null, [`Додатковий час не виявив переможця — ${score()}. Серія пенальті! Першим б’є ${sides[so.turn].club.name}.`]);
+      timeline.push({ m: 121, pi: 4, label: 'Пен.', pen: true });
+    }
+    /** Один удар серії пенальті. */
+    function kick() {
+      const k = so.turn, t = sides[k], o = sides[1 - k];
+      const list = so.order[k], x = list[so.n[k] % list.length];
+      const gk = o.onPitch.find((y) => !y.out && y.slot.role === 'GK');
+      const gq = gk ? ((gk.p.attrs.ref || 10) + (gk.p.attrs.one || 10)) / 2 : 8;
+      const sudden = so.n[0] >= 5 && so.n[1] >= 5;
+      const p = Math.max(0.55, Math.min(0.92, 0.76 + (penSkill(x) / 1.2 - 10) * 0.012 - (gq - 11) * 0.012 - (sudden ? 0.02 : 0) - (100 - (x.cond ?? 100)) * 0.001));
+      const goal = R.chance(p);
+      const miss = goal ? null : R.chance(0.6) ? 'saved' : R.chance(0.65) ? 'wide' : 'post';
+      so.n[k]++; if (goal) so.k[k]++;
+      so.log.push([k, x.p.id, goal]);
+      const tally = `${so.k[0]}:${so.k[1]}`;
+      const gkN = gk ? name(gk.p) : 'воротар';
+      const text = goal ? RC.pick([`${name(x.p)} (${t.club.name}) — ГОЛ! Серія: ${tally}.`, `Б’є ${name(x.p)}… впевнено в кут! ${tally}.`, `${name(x.p)} розводить воротаря — забито. ${tally}.`])
+        : miss === 'saved' ? RC.pick([`Б’є ${name(x.p)}… ${gkN} ТЯГНЕ! ${tally}.`, `${gkN} вгадує кут і відбиває удар ${G(x.p) || name(x.p)}! ${tally}.`])
+        : miss === 'wide' ? `${name(x.p)} б’є повз ворота! ${tally}.` : `${name(x.p)} — у стійку! ${tally}.`;
+      evSec = 59;
+      events.push({ min: 'Пен.', type: goal ? 'pengoal' : 'penmiss', team: k, text, score: [H.stats.goals, A.stats.goals], so: so.k.slice(), sec: 59 });
+      if (sim && sim.penFrames) sim.penFrames(x, gk, goal ? 'goal' : miss);
+      // вирішено? перші п'ять ударів — якщо хтось уже не наздожене; далі — до першого промаху
+      const r0 = Math.max(0, 5 - so.n[0]), r1 = Math.max(0, 5 - so.n[1]);
+      const decided = r0 > 0 || r1 > 0 ? so.k[0] + r0 < so.k[1] || so.k[1] + r1 < so.k[0] : so.n[0] === so.n[1] && so.k[0] !== so.k[1];
+      so.turn = 1 - k;
+      if (decided) { so.winner = so.k[0] > so.k[1] ? 0 : 1; finishMatch(); }
+      else timeline.push({ m: 121, pi: 4, label: 'Пен.', pen: true });
+    }
+    function finishMatch() {
+      H.stats.poss = Math.round((possH / Math.max(1, ticks)) * 100);
+      A.stats.poss = 100 - H.stats.poss;
+      if (so) say('Пен.', 'full', null, [`Кінець! ${score()}, по пенальті ${so.k[0]}:${so.k[1]} — перемога ${sides[so.winner].club.name}!`]);
+      else if (et) say(current, 'full', null, [`Фінальний свисток після додаткового часу! ${score()}.`]);
+      else say('90+' + added[1], 'full', null, 'full', { score: score() });
+      done = true;
+    }
+
     /** Одна хвилина матчу. Повертає false, коли матч уже закінчився. */
     function step() {
       if (done) return false;
       const e = timeline[idx++];
       current = e.label; minuteNum = e.m;
+      if (e.pen) { kick(); return true; } // серія пенальті — удар за ударом
+      if (e.pi === 3 && timeline[idx - 2] && timeline[idx - 2].pi === 2) say(e.label, 'half', null, ['Почалася друга половина додаткового часу.']);
+      if ((e.m === 91 || e.m === 106) && !e.extra) { aiSubs(H, A, 80); aiSubs(A, H, 80); }
       if (e.pi === 1 && timeline[idx - 2] && timeline[idx - 2].pi === 0) say(46, 'half', null, 'second'); // перша хвилина другого тайму (не компенсація першого)
       if (e.pi === 1 && !scoreHT) { scoreHT = [H.stats.goals, A.stats.goals]; for (const t of sides) t.perfHT = new Map([...t.perf].map(([id, pf]) => [id, { ...pf }])); }
       // втома: витривалість, пресинг
@@ -1046,10 +1109,9 @@
       }
       if (e.pi === 0 && timeline[idx].pi === 1) say('45+' + added[0], 'half', null, 'half', { score: score() });
       if (idx >= timeline.length) {
-        H.stats.poss = Math.round((possH / ticks) * 100);
-        A.stats.poss = 100 - H.stats.poss;
-        say('90+' + added[1], 'full', null, 'full', { score: score() });
-        done = true;
+        if (opts.ko && !et && aggLevel()) startET();
+        else if (opts.ko && et && !so && aggLevel()) startShootout();
+        else finishMatch();
       }
       return true;
     }
@@ -1146,6 +1208,7 @@
         ratings, motm, formations: [H.formation, A.formation], units: startUnits,
         lineups: sides.map((t) => t.lineup), shots: shotLog, weather,
         possSeg: seg.map(([s, n]) => (n ? Math.round((s / n) * 100) : null)), scoreHT: scoreHT || null, ownGoals: ownGoals.slice(),
+        et, shootout: so ? { score: so.k.slice(), winner: so.winner, log: so.log } : null,
         fitness: sides.flatMap((t) => t.onPitch.map((x) => [x.p.id, Math.round(x.cond), x.subbedOn ? 93 - x.subbedOn : (x.subbedOff || 93)])),
       };
       return final;

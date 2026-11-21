@@ -835,3 +835,37 @@ th[aria-sort] { color: var(--fg); }
 [data-skin="classic"] .btn { background: #2a323b; border-color: #3a4550; color: var(--fg); }
 [data-skin="classic"] .btn:hover { background: #333d47; }
 [data-skin="classic"] .posmap::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px solid rgba(255,255,255,.35); }
+/* серія пенальті */
+.ev-pengoal { font-weight: 600; }
+.ev-pengoal .min, .ev-penmiss .min { color: var(--warn); }
+.ev-penmiss { opacity: 0.85; }
+
+/* Редактор складу */
+.lineup-editor { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.lineup-editor .lineup-squad { grid-column: 1 / -1; }
+@media (max-width: 760px) { .lineup-editor { grid-template-columns: minmax(0, 1fr); } }
+.pitch-edit .pl { border: 0; background: none; cursor: pointer; padding: 0; font: inherit; }
+.pitch-edit .pl.sel .pl-num { box-shadow: 0 0 0 4px #fff, 0 0 12px 4px rgba(255, 255, 255, 0.6); transform: scale(1.1); }
+.pitch-edit .pl:hover .pl-num { transform: scale(1.08); }
+.pl-cond { display: block; width: 70%; height: 4px; background: rgba(0, 0, 0, 0.45); border-radius: 2px; overflow: hidden; }
+.pl-cond i { display: block; height: 100%; background: #4fd18f; }
+.pl-cond i.low { background: #f0b429; }
+.lineup-picker { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.75rem; background: var(--panel-2); display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+.lineup-picker p { margin: 0; }
+.lp-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.lp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 26rem; overflow-y: auto; }
+.lp-list.compact { max-height: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); gap: 3px; }
+.lp-list button { width: 100%; display: grid; grid-template-columns: 0.8rem minmax(0, 1fr) auto auto auto auto; gap: 0.5rem; align-items: center; text-align: left;
+  padding: 0.4rem 0.5rem; border: 1px solid transparent; border-radius: var(--radius); background: var(--panel); cursor: pointer; }
+.lp-list.compact button { grid-template-columns: 2.4rem minmax(0, 1fr) auto auto; }
+.lp-list button:hover, .lp-list button[aria-pressed="true"] { border-color: var(--accent); }
+.lp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-val { font-weight: 700; min-width: 2.2rem; text-align: right; }
+.lp-cond, .lp-form { font-size: 0.85rem; color: var(--muted); min-width: 2.6rem; text-align: right; }
+.lp-cond.low { color: var(--warn); }
+.lp-st { font-size: 0.72rem; white-space: nowrap; }
+.lp-st.xi { background: var(--accent-soft); }
+.lp-st.res { opacity: 0.7; }
+@media (max-width: 520px) { .lp-list button { grid-template-columns: 0.8rem minmax(0, 1fr) auto auto; } .lp-list button .lp-form, .lp-list button .lp-st { display: none; } .lp-list.compact button .lp-st { display: inline; } }
+.plain-ol { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.slot-name { text-align: left; padding: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

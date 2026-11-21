@@ -1684,6 +1684,84 @@
     ]);
   }
 
+  // ---------------- Редактор складу (як у FM): натисни позицію на полі — обери гравця ----------------
+  let lineupSel = { slot: null, pid: null };
+  function lineupEditor(t, side, save) {
+    const xi = side.lineup.xi, xiIds = xi.map((y) => y.player.id);
+    const reserve = new Set([...FM.youth.set(state), ...FM.medical.rested(state)]);
+    const pool = availablePlayers(state.clubId).filter((p) => !reserve.has(p.id));
+    const benchIds = new Set(side.lineup.bench.map((p) => p.id));
+    const status = (p) => { const j = xiIds.indexOf(p.id); return j >= 0 ? ['xi', `основа · ${ROLE_SHORT(xi[j].slot)}`] : benchIds.has(p.id) ? ['bench', 'запас'] : ['res', 'поза заявкою']; };
+    const assign = (i, pid) => {
+      const ids = xiIds.slice(), j = ids.indexOf(pid), old = ids[i];
+      if (j >= 0) ids[j] = ids[i]; // уже в основі — міняються місцями
+      ids[i] = pid;
+      t.ids = ids;
+      if (Array.isArray(t.bench) && j < 0) t.bench = t.bench.filter((x) => x !== pid).concat(t.bench.includes(old) ? [] : [old]).slice(0, 9); // замінений — на лаву
+      lineupSel = { slot: null, pid: null };
+      save();
+    };
+    const pickSlot = (i) => {
+      if (lineupSel.pid) return assign(i, lineupSel.pid);
+      lineupSel = { slot: lineupSel.slot === i ? null : i, pid: null };
+      render();
+      setTimeout(() => { const el2 = document.getElementById('lineup-picker'); if (el2 && lineupSel.slot != null) el2.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 30);
+    };
+    const xy = layoutXY(xi.map((x) => x.slot));
+    const field = el('div.pitch.pitch-edit', { role: 'group', 'aria-label': `Склад: ${side.lineup.formation}. Натисніть позицію, щоб обрати гравця` }, [
+      el('div.pitch-lines'),
+      ...xi.map((x, i) => {
+        const fv = FM.fit(x.player, x.slot), cond = Math.round(x.player.fitness ?? 100);
+        return el('button.pl.' + fitClass(fv) + (x.auto ? '.auto' : '') + (lineupSel.slot === i ? '.sel' : ''), {
+          type: 'button', style: { left: xy[i][0] + '%', top: xy[i][1] + '%' }, 'aria-pressed': String(lineupSel.slot === i),
+          title: `${ROLE_SHORT(x.slot)}: ${nameOf(x.player)} — натисніть, щоб замінити`, onclick: () => pickSlot(i),
+        }, [el('span.pl-num', ROLE_SHORT(x.slot)), el('span.pl-name', shortName(x.player) + (x.player.id === t.takers.captain ? ' (К)' : '')),
+          el('span.pl-cond', el('i', { style: { width: cond + '%' }, class: cond < 75 ? 'low' : '' }))]);
+      }),
+    ]);
+    let picker;
+    if (lineupSel.slot != null && xi[lineupSel.slot]) {
+      const x = xi[lineupSel.slot];
+      const cands = pool.filter((p) => p.id !== x.player.id).sort((a, b) => FM.slotValue(b, x.slot) - FM.slotValue(a, x.slot));
+      picker = el('div.lineup-picker', { id: 'lineup-picker' }, [
+        el('div.lp-head', [el('b', `${ROLE_SHORT(x.slot)}: зараз ${nameOf(x.player)}`), el('button.btn.link', { type: 'button', onclick: () => { lineupSel = { slot: null, pid: null }; render(); } }, 'Скасувати')]),
+        el('p.muted', 'Оберіть, хто зіграє на цій позиції. Якщо він уже в основі — гравці поміняються місцями.'),
+        el('ul.lp-list', cands.map((p) => {
+          const fv = FM.fit(p, x.slot), [st, stl] = status(p), cond = Math.round(p.fitness ?? 100);
+          const fa = p.form && p.form.length ? p.form.reduce((a, b) => a + b, 0) / p.form.length : null;
+          return el('li', el('button', { type: 'button', onclick: () => assign(lineupSel.slot, p.id) }, [
+            el('span.fitdot.' + fitClass(fv), { title: fv >= 0.97 ? 'Рідна позиція' : fv >= 0.85 ? 'Може зіграти' : 'Не його позиція' }),
+            el('span.lp-name', [el('b', nameOf(p)), el('small.muted', ` ${FM.positions(p)}`)]),
+            el('span.lp-val', { title: 'Наскільки підходить на цю позицію (1–20)' }, String(Math.round(FM.slotValue(p, x.slot) * 10) / 10).replace('.', ',')),
+            el('span.lp-cond' + (cond < 75 ? '.low' : ''), { title: 'Свіжість' }, cond + '%'),
+            el('span.lp-form', { title: 'Форма: середня оцінка за останні матчі' }, fa ? fa.toFixed(1).replace('.', ',') : '—'),
+            el('span.chip.lp-st.' + st, stl),
+          ]));
+        })),
+      ]);
+    } else {
+      picker = el('div.lineup-picker.hint', { id: 'lineup-picker' }, [
+        el('b', 'Як змінити склад'),
+        el('ol.plain-ol', [
+          el('li', 'Натисніть на гравця на полі — з’явиться список, кого можна поставити на цю позицію (найкращі — вгорі).'),
+          el('li', 'Оберіть гравця. Якщо він уже в основі — двоє поміняються місцями, якщо був у запасі — замінений піде на лаву.'),
+          el('li', 'Колір кружечка: зелений — рідна позиція, жовтий — може зіграти, червоний — не його позиція. Смужка — свіжість.'),
+        ]),
+        lineupSel.pid ? el('p.msg-ok', `Обрано: ${nameOf(W.player(lineupSel.pid))}. Тепер натисніть позицію на полі.`) : null,
+        el('div.actions', [
+          el('button.btn', { type: 'button', onclick: () => { t.ids = FM.lineupFromIds(side.players, t.formation, null, t).xi.map((y) => y.player.id); lineupSel = { slot: null, pid: null }; save(); } }, 'Автопідбір: найкращий склад'),
+        ]),
+      ]);
+    }
+    // усі гравці: швидкий вибір «гравець → позиція»
+    const list = el('div.lineup-squad', [el('h3', 'Гравці'), el('ul.lp-list.compact', pool.slice().sort((a, b) => FM.ROLE_ORDER.indexOf(a.roles[0]) - FM.ROLE_ORDER.indexOf(b.roles[0]) || b.ca - a.ca).map((p) => {
+      const [st, stl] = status(p), cond = Math.round(p.fitness ?? 100);
+      return el('li', el('button', { type: 'button', 'aria-pressed': String(lineupSel.pid === p.id), title: 'Натисніть, потім — позицію на полі', onclick: () => { lineupSel = { slot: null, pid: lineupSel.pid === p.id ? null : p.id }; render(); } }, [
+        el('span.pos.line-' + FM.ROLE_LINE[p.roles[0]], FM.roleLabel(p.roles[0], p.side)), el('span.lp-name', nameOf(p)), el('span.lp-cond' + (cond < 75 ? '.low' : ''), cond + '%'), el('span.chip.lp-st.' + st, stl)]));
+    })), reserve.size ? el('p.note', `Не в заявці основи (молодіжна команда або відпочивають): ${[...reserve].map((id) => W.player(id)).filter(Boolean).map(nameOf).join(', ')}.`) : null]);
+    return el('div.lineup-editor', [field, picker, list]);
+  }
+
   function segmented(group, value, onPick) {
     return el('div.tabs', { role: 'group' }, Object.keys(TUK[group]).map((k) => el('button', {
       type: 'button', 'aria-pressed': String(k === value), onclick: () => onPick(k),
@@ -1707,19 +1785,6 @@
     const resetSlots = () => { t.roles = {}; t.variants = {}; t.instr = {}; };
 
     const rows = side.lineup.xi.map((x, i) => {
-      const options = [...avail].sort((a, b) => FM.slotValue(b, x.slot) - FM.slotValue(a, x.slot));
-      const sel = el('select', {
-        id: 'slot-' + i, 'aria-label': `Гравець на позиції ${ROLE_SHORT(x.slot)}`,
-        onchange: (e) => {
-          const id = e.target.value;
-          const ids = side.lineup.xi.map((y) => y.player.id);
-          const j = ids.indexOf(id);
-          if (j >= 0) ids[j] = ids[i]; // гравець уже в складі — міняємо місцями
-          ids[i] = id;
-          t.ids = ids; save();
-        },
-      }, options.map((p) => el('option', { value: p.id, selected: p.id === x.player.id || null },
-        `${nameOf(p)} · ${f1(FM.slotValue(p, x.slot))}${(p.fitness ?? 100) < 85 ? ` · ${Math.round(p.fitness)}%` : ''}${side.lineup.xi.some((y) => y.player.id === p.id) && p.id !== x.player.id ? ' (у складі)' : ''}`)));
       const roleSel = i === 0 ? el('span.pos.line-gk', 'ВР') : el('select.tiny', { id: 'role-' + i, 'aria-label': 'Роль на позиції', onchange: (e) => {
         t.roles[i] = e.target.value; delete t.variants[i]; save();
       } }, ROLES_ALL.map((r) => el('option', { value: r, selected: r === x.slot.role || null }, FM.roleLabel(r, x.slot.side))));
@@ -1730,7 +1795,7 @@
         Object.entries(FM.INSTR).map(([k, v]) => el('option', { value: k, selected: (x.slot.instr || 'none') === k || null }, v.label)));
       const fv = FM.fit(x.player, x.slot);
       return el('li.slot-row', [
-        el('div.slot-main', [roleSel, sel, el('span.fitdot.' + fitClass(fv), { title: fv >= 0.97 ? 'Рідна позиція' : fv >= 0.85 ? 'Може зіграти' : 'Не його позиція' })]),
+        el('div.slot-main', [roleSel, el('button.btn.link.slot-name', { type: 'button', title: 'Змінити гравця', onclick: () => { lineupSel = { slot: i, pid: null }; render(); setTimeout(() => { const el2 = document.getElementById('lineup-picker'); if (el2) el2.scrollIntoView({ block: 'nearest' }); }, 30); } }, nameOf(x.player)), el('span.fitdot.' + fitClass(fv), { title: fv >= 0.97 ? 'Рідна позиція' : fv >= 0.85 ? 'Може зіграти' : 'Не його позиція' })]),
         el('div.slot-extra', [varSel, insSel]),
       ]);
     });
@@ -1756,11 +1821,12 @@
         el('p.note', `Знайомство зі схемою ${t.formation}: ${Math.round(familiarity()[t.formation] || 0)}%. Незнайома схема працює до 5% гірше; команда звикає в матчах і на тренуваннях «Підготовка до матчу».`),
         Object.keys(t.roles).length ? el('p.note', 'Власна розстановка: ролі окремих позицій змінено.') : null,
       ]),
+      el('div.panel', [el('h3', `Склад на матч · ${t.formation}`), lineupEditor(t, side, save)]),
       el('div.tactics-grid', [
         el('div.panel', [pitch(side.lineup, t.takers.captain),
           el('div.legend', [el('span', [el('i.fit-ok'), 'рідна позиція']), el('span', [el('i.fit-mid'), 'може зіграти']), el('span', [el('i.fit-bad'), 'не його позиція'])])]),
         el('div.panel', [
-          el('h3', 'Склад, ролі й інструкції'),
+          el('h3', 'Ролі й інструкції позицій'),
           el('ol.slots', rows),
           outBanned.length ? el('p.note', 'Не можуть грати (травма чи дискваліфікація): ' + outBanned.join(', ') + '.') : null,
           el('div.actions', [
@@ -1930,7 +1996,7 @@
       el('div.instr', ['mentality', 'pressing', 'passing'].map((g) => el('div.field', [el('small.muted', { mentality: 'Ментальність', pressing: 'Пресинг', passing: 'Передачі' }[g]), segmented(g, t[g], (v) => { t[g] = v; save(); })]))),
       el('details', [el('summary', 'Проти суперника'), el('div.instr', Object.entries(OPPI).map(([k, [label, opts]]) => { t.oppi = t.oppi || {}; return el('div.field', [el('small.muted', label),
         el('div.tabs', opts.map(([v, l]) => el('button', { type: 'button', 'aria-pressed': String(String(t.oppi[k] ?? opts[0][0]) === String(v)), onclick: () => { t.oppi[k] = v; save(); } }, l)))]); }))]),
-      el('a.btn.link', { href: '#tactics' }, 'Схема, склад, ролі й запасні — у «Тактиці»')]);
+      el('div.actions', [el('a.btn', { href: '#tactics' }, '👕 Змінити склад на матч'), el('a.btn.link', { href: '#tactics' }, 'Схема, ролі й запасні — у «Тактиці»')])]);
   }
 
   function compareBarsSingle(rows) {
@@ -2428,7 +2494,7 @@
         feed.prepend(el('li.ev.ev-' + e.type + (myK != null && e.team === myK ? '.ours' : '') + (e.type === 'goal' ? '.flash' : '') + (big ? '.big' : ''), [el('span.min', e.min + '′'), team ? badge(team) : el('span.dot'), el('span', (big ? '⚡ ' : '') + e.text)]));
         if (shouldHl(e) && !finished) { highlight(e); hold = Math.max(hold, e.hl.out === 'goal' ? 3800 : 2600); moveBall.last = e; }
         else if (SIMV && e.type === 'goal' && !finished) setTimeout(() => replay(), 900);
-        scoreEl.textContent = e.score.join(':');
+        scoreEl.textContent = e.score.join(':') + (e.so ? ` (пен. ${e.so.join(':')})` : '');
         // звук і анімація
         if (e.type === 'goal') { hold = liveSpeed === 'key' ? 4000 : 1800; FM.sound.goal(myK == null || e.team === myK); if (!finished) vibe(myK == null || e.team === myK ? [90, 50, 90, 50, 160] : 250); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
         else if (e.type === 'chance' || e.type === 'miss') FM.sound.chance();
@@ -2536,7 +2602,8 @@
           segmented(g, tac[g], (v) => { M.setTactics(myK, { [g]: v }); flush(); drawControl(); }),
         ]))),
         el('div.subs', [
-          el('b', `Заміни (лишилось ${t.subsLeft} з 5)`),
+          el('b', `Заміни (лишилось ${t.subsLeft})`),
+          el('small.muted', 'Оберіть, хто йде з поля (або натисніть на гравця в списку свіжості нижче), потім — хто виходить, і натисніть «Замінити».'),
           t.subsLeft > 0 && t.bench.length ? el('div.pre-row', [
             el('div.field', [el('label', { for: 'sub-out' }, 'З поля'), outSel]),
             el('div.field', [el('label', { for: 'sub-in' }, 'На поле'), inSel]),
@@ -2544,7 +2611,7 @@
           ]) : el('p.muted', 'Замін більше немає.'),
           el('label.check', [el('input', { type: 'checkbox', checked: t.autoSubs || null, onchange: (e) => { t.autoSubs = e.target.checked; } }), ' Заміни на розсуд помічника']),
         ]),
-        el('ul.fitness', live.map((x) => el('li', [
+        el('ul.fitness', live.map((x) => el('li', { title: 'Натисніть, щоб замінити', style: { cursor: t.subsLeft > 0 ? 'pointer' : null }, onclick: () => { const o = app.querySelector('#sub-out'); if (o) { o.value = x.p.id; o.dispatchEvent(new Event('change')); o.scrollIntoView({ block: 'nearest' }); } } }, [
           el('span.pos.line-' + FM.ROLE_LINE[x.slot.role], ROLE_SHORT(x.slot)),
           el('span.fn', nameOf(x.p) + (x.yellow ? ' ▮' : '')),
           el('span.cond', el('i', { style: { width: Math.round(x.cond) + '%' }, class: x.cond < 65 ? 'low' : '' })),
@@ -2570,7 +2637,7 @@
             acc = frames.length ? Math.max(0, acc - 1) : 0;
             M.step();
             frames = M.sim.frames; shownMin = M.minute;
-            clock.textContent = shownMin + '′';
+            clock.textContent = String(shownMin).startsWith('Пен') ? 'Пенальті' : shownMin + '′';
             if (myK != null && M.minuteNum % 5 === 0) drawControl();
           }
           fIdx = Math.min(frames.length - 1, Math.floor(acc * frames.length));
@@ -2599,7 +2666,7 @@
             if (myK != null && M.halftime && !M.sides[myK].talked && !talkAsked) { talkAsked = true; paused = true; drawSpeed(); drawControl(); }
             const m = M.minute;
             const ht = M.events.length && M.events[M.events.length - 1].type === 'half' && String(M.events[M.events.length - 1].min).startsWith('45');
-            clock.textContent = ht ? 'Перерва' : m + '′';
+            clock.textContent = ht ? 'Перерва' : String(m).startsWith('Пен') ? 'Пенальті' : m + '′';
             if (myK != null && M.minuteNum % 5 === 0) drawControl();
           }
           else if (++idle % 7 === 0) flush(); // повільна швидкість: між хвилинами м'яч і гравці трохи рухаються
@@ -2720,6 +2787,7 @@
     if (!pend) return go('fixtures');
     const { hs, as, opts } = FM.season.prepare(state.season, W, pend.f, NAMES, USER());
     if (pend.neutral) opts.neutral = true;
+      if (pend.ko) opts.ko = pend.ko; // вирішальний матч: додатковий час і пенальті
     const myK = pend.f.h === state.clubId ? 0 : 1;
     const finishCup = (r) => {
       cupNews(FM.cups.finishPending(W, state, pend, r));
@@ -2980,6 +3048,7 @@
     if (pend) {
       const { opts } = FM.season.prepare(S, W, pend.f, NAMES, USER());
       if (pend.neutral) opts.neutral = true;
+      if (pend.ko) opts.ko = pend.ko; // вирішальний матч: додатковий час і пенальті
       cupNews(FM.cups.finishPending(W, state, pend, FM.match.play(opts)));
       cupsWeek();
     }
@@ -3120,6 +3189,7 @@
     if (pend) {
       const { opts } = FM.season.prepare(S, W, pend.f, NAMES, USER());
       if (pend.neutral) opts.neutral = true;
+      if (pend.ko) opts.ko = pend.ko; // вирішальний матч: додатковий час і пенальті
       cupNews(FM.cups.finishPending(W, state, pend, FM.match.play(opts)));
       cupsWeek();
     }
@@ -3184,7 +3254,7 @@
   /** Новина про кубковий матч вашого клубу + запис у статистику тренера. */
   function cupNews(e) {
     const tail = e.winner ? (e.winner === state.clubId ? ' — ви йдете далі!' : ' — виліт.') : '';
-    FM.market.news(state, `${e.cupName}, ${e.round.toLowerCase()}: ${clubName(W.club(e.h))} ${e.score.join(':')} ${clubName(W.club(e.a))}${e.pens ? ' (пенальті)' : ''}${tail}`);
+    FM.market.news(state, `${e.cupName}, ${e.round.toLowerCase()}: ${clubName(W.club(e.h))} ${e.score.join(':')} ${clubName(W.club(e.a))}${e.et && !e.pens ? ' (після додаткового часу)' : ''}${e.pens ? (e.so ? ` (пенальті ${e.so.join(':')})` : ' (пенальті)') : ''}${tail}`);
     const home = e.h === state.clubId;
     for (const t of FM.career.match(W, state, home ? e.score : [e.score[1], e.score[0]], home ? e.a : e.h, e.cup)) FM.market.news(state, t);
     for (const t of FM.awards.match(W, state, home ? e.score[0] : e.score[1], home ? e.score[1] : e.score[0], home ? e.a : e.h, e.cup)) FM.market.news(state, t, 'club');
