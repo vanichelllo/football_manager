@@ -2234,6 +2234,7 @@
       const hb = h[1] || '#000', away = far(h[0], a[0]) ? [a[0], a[1] || '#000'] : far(h[0], a[1]) && a[1] ? [a[1], a[0]] : ['#f07a2a', '#222'];
       return [[h[0], hb], away];
     })();
+    let possK = 0, carrier = null, hlActive = false, replaying = false;
     const trail = []; let lastGoal = null;
     const R2 = FM.rng(`2d-${Date.now()}`);
     /** Позиції гравців команди k: база — схема, блок зсувається за м'ячем, атака/оборона за володінням. */
