@@ -869,3 +869,12 @@ th[aria-sort] { color: var(--fg); }
 @media (max-width: 520px) { .lp-list button { grid-template-columns: 0.8rem minmax(0, 1fr) auto auto; } .lp-list button .lp-form, .lp-list button .lp-st { display: none; } .lp-list.compact button .lp-st { display: inline; } }
 .plain-ol { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.3rem; }
 .slot-name { text-align: left; padding: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 3D-вид матчу */
+.view-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: space-between; margin-bottom: 0.4rem; }
+.view-bar .tabs { margin: 0; }
+.view-bar .tabs button { padding: 0.25rem 0.7rem; font-size: 0.85rem; }
+.v3d-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 64vh; border-radius: var(--radius); overflow: hidden; background: #0d1116; margin-bottom: 0.8rem; }
+@media (max-width: 760px) { .v3d-wrap { aspect-ratio: 4 / 3; } }
+.v3d-canvas { display: block; width: 100%; height: 100%; }
+.v3d-wrap.replaying::after { content: "ПОВТОР"; position: absolute; top: 0.5rem; left: 0.6rem; font: 700 0.8rem/1 var(--font-display); letter-spacing: 0.1em; color: #fff; background: #d93a3a; padding: 0.25rem 0.5rem; border-radius: 3px; }

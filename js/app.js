@@ -2408,7 +2408,47 @@
     }
     /** Кадр детального рушія: позиції всіх гравців і м'яча (у відсотках поля). */
     const shirt = new Map();
+    // ---- 3D-вид (js/view3d.js): ті самі кадри в перспективі; перемикач 2D/3D і камери ----
+    const VIEW_KEY = 'golovnyi-trener:view';
+    const can3d = SIMV && FM.view3d && FM.view3d.supported();
+    let mode3 = can3d && (() => { try { return localStorage.getItem(VIEW_KEY) !== '2d'; } catch (_) { return true; } })();
+    let v3 = null, cam3 = (() => { try { return localStorage.getItem(VIEW_KEY + ':cam') || 'tv'; } catch (_) { return 'tv'; } })();
+    const v3wrap = el('div.v3d-wrap', { hidden: true });
+    const info3 = (id) => {
+      for (const k of [0, 1]) {
+        const x = M.sides[k].onPitch.find((y) => y.p.id === id);
+        if (x) return { k, num: x.p.number ?? ROLE_SHORT(x.slot), gk: x.slot.role === 'GK' };
+      }
+      return { k: 0, num: '', gk: false };
+    };
+    function ensure3d() { if (!v3 && can3d) { try { v3 = FM.view3d.create(v3wrap, { kit, info: info3 }); v3.setCamera(cam3); } catch (err) { console.warn('3D недоступне', err); mode3 = false; } } }
+    const viewBar = el('div.view-bar');
+    function drawViewBar() {
+      if (!can3d) return viewBar.replaceChildren();
+      miniPitch.hidden = mode3; v3wrap.hidden = !mode3;
+      viewBar.replaceChildren(
+        el('div.tabs.view-mode', [['2d', '2D'], ['3d', '3D']].map(([v, l]) => el('button', { type: 'button', 'aria-pressed': String((v === '3d') === mode3), onclick: () => {
+          mode3 = v === '3d'; try { localStorage.setItem(VIEW_KEY, v); } catch (_) { /* приватне вікно */ }
+          if (mode3) ensure3d();
+          drawViewBar(); if (frames.length) drawFrame(frames[Math.min(frames.length - 1, fIdx)]);
+        } }, l))),
+        mode3 ? el('div.tabs.view-cam', [['tv', 'ТВ'], ['top', 'Згори'], ['goal', 'З-за воріт']].map(([v, l]) => el('button', { type: 'button', 'aria-pressed': String(cam3 === v), onclick: () => {
+          cam3 = v; try { localStorage.setItem(VIEW_KEY + ':cam', v); } catch (_) { /* приватне вікно */ } if (v3) v3.setCamera(v); drawViewBar();
+        } }, l))) : null);
+    }
+    if (mode3) ensure3d();
+    drawViewBar();
     function drawFrame(f) {
+      if (!f) return;
+      if (mode3 && v3) {
+        v3.show(f);
+        const hp = f.h && (shirt.get(f.h) || (() => { const x = info3(f.h); const pl = M.sides[x.k].onPitch.find((y) => y.p.id === f.h); if (pl) shirt.set(f.h, pl.p); return pl && pl.p; })());
+        holderEl.textContent = hp ? `⚽ ${nameOf(hp)}` : ' ';
+        return;
+      }
+      draw2d(f);
+    }
+    function draw2d(f) {
       if (!f) return;
       const seen = new Set();
       for (let i = 0; i < f.pos.length; i += 4) {
@@ -2434,10 +2474,11 @@
       if (SIMV) { // повтор — останні секунди перед голом
         const rp = M.sim.replays[M.sim.replays.length - 1];
         if (!rp || replaying) return;
-        replaying = true; replayTag.hidden = false; miniPitch.classList.add('replaying');
+        replaying = true; replayTag.hidden = false; miniPitch.classList.add('replaying'); v3wrap.classList.add('replaying');
+        if (v3 && mode3) v3.replay(true);
         let i = 0;
         const stepR = () => {
-          if (i >= rp.length) { setTimeout(() => { replaying = false; replayTag.hidden = true; miniPitch.classList.remove('replaying'); if (frames.length) drawFrame(frames[Math.min(frames.length - 1, fIdx)]); }, 700); return; }
+          if (i >= rp.length) { setTimeout(() => { replaying = false; replayTag.hidden = true; miniPitch.classList.remove('replaying'); v3wrap.classList.remove('replaying'); if (v3) v3.replay(false); if (frames.length) drawFrame(frames[Math.min(frames.length - 1, fIdx)]); }, 700); return; }
           drawFrame(rp[i++]); setTimeout(stepR, 160);
         };
         stepR();
@@ -2724,7 +2765,7 @@
       el('div.live-controls', speedBtns),
       ticker ? ticker.box : null,
       hlBar,
-      el('div.pitch-panel', [miniPitch, SIMV ? holderEl : null]),
+      el('div.pitch-panel', [viewBar, miniPitch, v3wrap, SIMV ? holderEl : null]),
       el('div.live-grid', [
         el('details.panel.feed-box', { open: true }, [el('summary', [el('span', 'Стрічка подій'), feedPause]), el('div.feed-wrap', feed)]),
         el('div.live-side', [el('div.panel', [el('h3', 'Статистика наживо'), statsBox]), control]),
