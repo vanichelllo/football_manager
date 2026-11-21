@@ -2428,7 +2428,7 @@
         feed.prepend(el('li.ev.ev-' + e.type + (myK != null && e.team === myK ? '.ours' : '') + (e.type === 'goal' ? '.flash' : '') + (big ? '.big' : ''), [el('span.min', e.min + '′'), team ? badge(team) : el('span.dot'), el('span', (big ? '⚡ ' : '') + e.text)]));
         if (shouldHl(e) && !finished) { highlight(e); hold = Math.max(hold, e.hl.out === 'goal' ? 3800 : 2600); moveBall.last = e; }
         else if (SIMV && e.type === 'goal' && !finished) setTimeout(() => replay(), 900);
-        scoreEl.textContent = e.score.join(':');
+        scoreEl.textContent = e.score.join(':') + (e.so ? ` (пен. ${e.so.join(':')})` : '');
         // звук і анімація
         if (e.type === 'goal') { hold = liveSpeed === 'key' ? 4000 : 1800; FM.sound.goal(myK == null || e.team === myK); if (!finished) vibe(myK == null || e.team === myK ? [90, 50, 90, 50, 160] : 250); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
         else if (e.type === 'chance' || e.type === 'miss') FM.sound.chance();
@@ -2570,7 +2570,7 @@
             acc = frames.length ? Math.max(0, acc - 1) : 0;
             M.step();
             frames = M.sim.frames; shownMin = M.minute;
-            clock.textContent = shownMin + '′';
+            clock.textContent = String(shownMin).startsWith('Пен') ? 'Пенальті' : shownMin + '′';
             if (myK != null && M.minuteNum % 5 === 0) drawControl();
           }
           fIdx = Math.min(frames.length - 1, Math.floor(acc * frames.length));
@@ -2599,7 +2599,7 @@
             if (myK != null && M.halftime && !M.sides[myK].talked && !talkAsked) { talkAsked = true; paused = true; drawSpeed(); drawControl(); }
             const m = M.minute;
             const ht = M.events.length && M.events[M.events.length - 1].type === 'half' && String(M.events[M.events.length - 1].min).startsWith('45');
-            clock.textContent = ht ? 'Перерва' : m + '′';
+            clock.textContent = ht ? 'Перерва' : String(m).startsWith('Пен') ? 'Пенальті' : m + '′';
             if (myK != null && M.minuteNum % 5 === 0) drawControl();
           }
           else if (++idle % 7 === 0) flush(); // повільна швидкість: між хвилинами м'яч і гравці трохи рухаються
@@ -2720,6 +2720,7 @@
     if (!pend) return go('fixtures');
     const { hs, as, opts } = FM.season.prepare(state.season, W, pend.f, NAMES, USER());
     if (pend.neutral) opts.neutral = true;
+      if (pend.ko) opts.ko = pend.ko; // вирішальний матч: додатковий час і пенальті
     const myK = pend.f.h === state.clubId ? 0 : 1;
     const finishCup = (r) => {
       cupNews(FM.cups.finishPending(W, state, pend, r));
@@ -2980,6 +2981,7 @@
     if (pend) {
       const { opts } = FM.season.prepare(S, W, pend.f, NAMES, USER());
       if (pend.neutral) opts.neutral = true;
+      if (pend.ko) opts.ko = pend.ko; // вирішальний матч: додатковий час і пенальті
       cupNews(FM.cups.finishPending(W, state, pend, FM.match.play(opts)));
       cupsWeek();
     }
@@ -3120,6 +3122,7 @@
     if (pend) {
       const { opts } = FM.season.prepare(S, W, pend.f, NAMES, USER());
       if (pend.neutral) opts.neutral = true;
+      if (pend.ko) opts.ko = pend.ko; // вирішальний матч: додатковий час і пенальті
       cupNews(FM.cups.finishPending(W, state, pend, FM.match.play(opts)));
       cupsWeek();
     }
@@ -3184,7 +3187,7 @@
   /** Новина про кубковий матч вашого клубу + запис у статистику тренера. */
   function cupNews(e) {
     const tail = e.winner ? (e.winner === state.clubId ? ' — ви йдете далі!' : ' — виліт.') : '';
-    FM.market.news(state, `${e.cupName}, ${e.round.toLowerCase()}: ${clubName(W.club(e.h))} ${e.score.join(':')} ${clubName(W.club(e.a))}${e.pens ? ' (пенальті)' : ''}${tail}`);
+    FM.market.news(state, `${e.cupName}, ${e.round.toLowerCase()}: ${clubName(W.club(e.h))} ${e.score.join(':')} ${clubName(W.club(e.a))}${e.et && !e.pens ? ' (після додаткового часу)' : ''}${e.pens ? (e.so ? ` (пенальті ${e.so.join(':')})` : ' (пенальті)') : ''}${tail}`);
     const home = e.h === state.clubId;
     for (const t of FM.career.match(W, state, home ? e.score : [e.score[1], e.score[0]], home ? e.a : e.h, e.cup)) FM.market.news(state, t);
     for (const t of FM.awards.match(W, state, home ? e.score[0] : e.score[1], home ? e.score[1] : e.score[0], home ? e.a : e.h, e.cup)) FM.market.news(state, t, 'club');

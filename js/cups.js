@@ -249,6 +249,15 @@
     return R.chance(Math.max(0.3, Math.min(0.7, p))) ? a : b;
   }
 
+  /**
+   * Вирішальний матч пари (одиночний або другий): у нічию — додатковий час і серія пенальті.
+   * base — голи господарів і гостей цього матчу в попередніх матчах пари.
+   */
+  function koOf(round, tie, leg) {
+    if (!round || !round.weeks || leg !== round.weeks.length - 1) return null;
+    const ga = tie.legs.reduce((x, y) => x + y[0], 0), gb = tie.legs.reduce((x, y) => x + y[1], 0);
+    return { base: leg === 1 ? [gb, ga] : [ga, gb], two: round.weeks.length > 1 };
+  }
   /** Рахунок пари з боку tie.a після матчу leg (h — господарі цього матчу). */
   function applyLeg(W, state, cup, ri, ti, leg, m) {
     const round = cup.rounds[ri], tie = round.ties[ti];
@@ -262,8 +271,10 @@
     if (leg === round.weeks.length - 1) {
       const ga = tie.legs.reduce((x, y) => x + y[0], 0), gb = tie.legs.reduce((x, y) => x + y[1], 0);
       const R = FM.rng(`pens-${state.season.seed}-${cup.id}-${ri}-${ti}`);
-      tie.winner = ga > gb ? tie.a : gb > ga ? tie.b : shootout(W, tie.a, tie.b, R);
-      if (ga === gb) { tie.pens = true; entry.pens = true; }
+      // нічия за сумою — переможця визначила серія пенальті в матчі (або, якщо матч грали без неї, — жереб із перевагою кращого воротаря)
+      tie.winner = ga > gb ? tie.a : gb > ga ? tie.b : m.shootout ? (m.shootout.winner === 0 ? h : a) : shootout(W, tie.a, tie.b, R);
+      if (ga === gb) { tie.pens = true; entry.pens = true; if (m.shootout) { entry.so = m.shootout.score.slice(); tie.so = h === tie.a ? m.shootout.score.slice() : [m.shootout.score[1], m.shootout.score[0]]; } }
+      if (m.et) entry.et = true;
       entry.winner = tie.winner;
       const pr = PRIZE[cup.id] || [0, 0];
       const wc = W.club(tie.winner);
@@ -309,7 +320,7 @@
       if (ti < 0) continue;
       const tie = round.ties[ti];
       const [h, a] = leg === 1 ? [tie.b, tie.a] : [tie.a, tie.b];
-      return { cup, ri, ti, leg, round, tie, neutral: round.size === 2, f: { id: `${cup.id}-${ri}-${ti}-${leg}`, h, a } };
+      return { cup, ri, ti, leg, round, tie, neutral: round.size === 2, ko: koOf(round, tie, leg), f: { id: `${cup.id}-${ri}-${ti}-${leg}`, h, a } };
     }
     return null;
   }
@@ -369,6 +380,7 @@
         const { opts: mo } = FM.season.prepare(S, W, f, opts.name, opts.user);
         if (round.size === 2) mo.neutral = true;
         mo.gen = opts.gen;
+        mo.ko = koOf(round, tie, leg);
         played.push(applyLeg(W, state, cup, ri, ti, leg, FM.match.play(mo)));
       }
       advanceRound(cup, ri, state);
@@ -422,6 +434,6 @@
     z.ucl = a; z.uel = a + b; z.uecl = a + b + c;
   }
 
-  FM.cups = { superCups, phaseTable, leaguePhase, pendingTie, finishPending, create, createAll, euroQualifiers, playWeek, payParticipation, clubStatus, NAMES, EURO_SPOTS };
+  FM.cups = { koOf, superCups, phaseTable, leaguePhase, pendingTie, finishPending, create, createAll, euroQualifiers, playWeek, payParticipation, clubStatus, NAMES, EURO_SPOTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

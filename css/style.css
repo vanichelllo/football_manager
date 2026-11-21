@@ -835,3 +835,7 @@ th[aria-sort] { color: var(--fg); }
 [data-skin="classic"] .btn { background: #2a323b; border-color: #3a4550; color: var(--fg); }
 [data-skin="classic"] .btn:hover { background: #333d47; }
 [data-skin="classic"] .posmap::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px solid rgba(255,255,255,.35); }
+/* серія пенальті */
+.ev-pengoal { font-weight: 600; }
+.ev-pengoal .min, .ev-penmiss .min { color: var(--warn); }
+.ev-penmiss { opacity: 0.85; }
