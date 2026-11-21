@@ -41,6 +41,7 @@
     // перетворення координат: команда k бачить поле зі своїх воріт (u вздовж, v поперек)
     const X = (k, u) => (k === 0 ? u : L - u), Y = (k, v) => (k === 0 ? v : WD - v);
     const live = (t) => t.onPitch.filter((x) => !x.out);
+    const note = (t, key, who) => (ctx.note ? ctx.note(t, key, who) : false);
     const ball = { x: L / 2, y: WD / 2, hold: null, team: 0, fl: null, dead: 0, restart: null };
     let clock = 0; // секунд від початку матчу
     let frames = [], replay = [], recent = [];
@@ -370,11 +371,14 @@
         if (f.offside) { ctx.offside(t, f.to); return deadBall('fk', o, f.to.px, f.to.py, 6); }
         perf(t, f.from).passOk = (perf(t, f.from).passOk || 0) + 1;
         f.to.px = f.tx; f.to.py = f.ty;
+        if (f.kind === 'through' && U(t, f.to) > L - 40) note(t, 'thr', { a: f.from, p: f.to });
+        else if (Math.abs(f.ty - f.y0) > 30 && Math.hypot(f.tx - f.x0, f.ty - f.y0) > 35 && R.chance(0.5)) note(t, 'switchPlay', { a: f.from, p: f.to });
         return give(f.to, t);
       }
       dbg('land_' + f.res);
       if (f.res === 'int') {
         const y = f.inter; perf(o, y).interceptions = (perf(o, y).interceptions || 0) + 1;
+        if (f.kind === 'through' && U(o, y) < 40) note(o, 'thrInt', { d: y });
         y.px = f.tx; y.py = f.ty;
         return give(y, o);
       }
@@ -411,7 +415,13 @@
     }
     function assistOf(t, x) { return lastPass && lastPass.team === t.k && lastPass.to === x && clock - lastPass.at < 6 && lastPass.from !== x ? lastPass.from : null; }
     function act(t, x) {
+      if (pst && pst.k === t.k) {
+        const age = clock - pst.c, u = U(t, x);
+        if (!pst.noted && age < 9 && pst.u < 50 && u > 68) { pst.noted = true; note(t, 'counter', {}); }
+        else if (age > 14 && u > 70 && R.chance(0.3)) note(t, 'pressure', {});
+      }
       const op = decide(t, x);
+      if (x.slot.role === 'GK' && op.kind === 'long' && R.chance(0.12)) note(t, 'keeperLong', { gk: x });
       dbg('opt_' + op.kind);
       if (op.kind === 'shot') {
         dbg('shotDist', Math.hypot(L - U(t, x), V(t, x) - WD / 2));
@@ -439,7 +449,9 @@
         const target = op.y, defs = live(o).filter((d) => d.slot.role !== 'GK' && Math.hypot(d.px - target.px, d.py - target.py) < 5);
         const gk = live(o).find((d) => d.slot.role === 'GK');
         const claim = gk ? 0.12 + (at(gk, 'aer') - 10) * 0.012 : 0;
-        if (!R.chance(op.pS / 0.7) || R.chance(claim)) { // воротар забрав або подача невдала
+        const claimed = R.chance(claim);
+        if (!R.chance(op.pS / 0.7) || claimed) { // воротар забрав або подача невдала
+          if (claimed && gk) note(t, 'crossFail', { a: x, gk });
           if (R.chance(0.3)) return after(ctx.corner(t, o), t, o);
           ball.x = target.px; ball.y = target.py; return deadBall('gk', o, X(o.k, 6), WD / 2, 5);
         }
@@ -452,6 +464,7 @@
           const q = shotQ(t, target, U(t, target), V(t, target), defs.length ? 1.5 : 4, true);
           return shoot(t, target, { q }, 'header', x);
         }
+        if (defs[0]) note(t, 'crossClear', { a: x, d: defs[0] });
         if (R.chance(0.35)) return after(ctx.corner(t, o), t, o);
         ball.x = X(t.k, L - 22); ball.y = WD / 2 + (R.next() - 0.5) * 30; ball.hold = null; return loose();
       }
@@ -502,9 +515,11 @@
         const r = R.next();
         if (r < 0.14) return deadBall('throw', t, x.px, x.py < WD / 2 ? 0.5 : WD - 0.5, 4 + R.int(5)), true; // вибив у аут
         if (r < 0.26) { ball.hold = null; ball.x = clamp(x.px + (R.next() - 0.5) * 10, 1, L - 1); ball.y = clamp(x.py + (R.next() - 0.5) * 10, 1, WD - 1); loose(); return true; }
+        if (U(o, y) < 38) note(o, 'tackle', { d: y, p: x });
         give(y, o); return true;
       }
       perf(t, x).dribbles = (perf(t, x).dribbles || 0) + 1;
+      if (U(t, x) > 62) note(t, 'beat', { p: x, d: y });
       y.cool = clock + 3; // обіграний захисник не одразу оговтається
       // обіграв: короткий ривок уперед
       const fwd = t.k === 0 ? 2.5 : -2.5; x.px = clamp(x.px + fwd, 0.5, L - 0.5);

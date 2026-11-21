@@ -779,3 +779,6 @@ th[aria-sort] { color: var(--fg); }
 .pitch2d.sim .mp-six { top: 36.5%; bottom: 36.5%; width: 5.2%; }
 .pitch2d.sim .mp-circle { width: 17.4%; }
 .pitch2d.sim .mp-goal { top: 44.6%; bottom: 44.6%; width: 1%; }
+/* перебіг гри в стрічці матчу (детальний рушій) */
+.ev-play { color: var(--muted); font-size: 0.9em; }
+.ev-play .badge { opacity: 0.7; }

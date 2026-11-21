@@ -118,7 +118,7 @@
     // погода — за датою й країною господарів (детерміновано для матчу)
     const weather = FM.weatherFor ? FM.weatherFor(dateOf(f.w != null ? f.w : S.week, S), W.club(f.h).league, FM.rng(`wx-${S.seed}-${f.id}`)) : null;
     const derby = FM.rivals ? FM.rivals.derby(W, f.h, f.a) : null;
-    return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined, gen: name ? name.gen : undefined, weather, derby, big: !!derby } };
+    return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined, gen: name ? name.gen : undefined, stat: name ? name.stat : undefined, weather, derby, big: !!derby } };
   }
 
   function play(S, W, f, name, user) {

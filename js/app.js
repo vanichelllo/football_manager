@@ -54,7 +54,7 @@
   const clubName = (c) => (state && state.names === 'en' ? c.nameEn : c.name);
   /** Родовий відмінок для українських гравців (у трансляції: «Навіс Шевченка»). */
   const genOf = (p) => (state && state.names !== 'en' && p.nat === 'UKR' ? FM.ukGen(nameOf(p)) : null);
-  const NAMES = { club: (c) => clubName(c), player: (p) => nameOf(p), gen: genOf };
+  const NAMES = { club: (c) => clubName(c), player: (p) => nameOf(p), gen: genOf, stat: (p) => ((state && state.season.ps[p.id]) || [])[1] || 0 }; // stat — голи гравця в лізі цього сезону (для коментаря)
   const pstat = (id) => (state && state.season.ps[id]) || null; // [ігри, голи, паси, сума оцінок ×10, ЖК, ЧК]
   const banned = (id) => !!(state && state.season.bans[id]);
 
