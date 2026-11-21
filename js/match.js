@@ -104,6 +104,7 @@
   const RATIO_REF = 1;
   const BASE_Q = 0.073;
   const FINISH_K = 1.18; // калібрування реалізації відносно воротаря
+  const SIM_QK = 0.66; // калібрування реалізації в детальному рушії (js/sim.js)
 
   // ваги ролей і варіантів — масивами (рахується дуже часто: підбір складу перебирає всі схеми)
   const W_ENTRIES = new Map();
@@ -272,7 +273,31 @@
     half: ['Перерва. {score}.'],
     second: ['Почався другий тайм.'],
     full: ['Фінальний свисток! {score}.'],
-    pressure: ['{team} тисне, м’яч надовго в чужій половині.', '{team} контролює м’яч і шукає прострільну передачу.', '{team} кидається вперед!'],
+    pressure: ['{team} тисне, м’яч надовго в чужій половині.', '{team} контролює м’яч і шукає прострільну передачу.', '{team} кидається вперед!',
+      '{team} розставляє суперника біля його штрафного.', 'Облога: {team} не випускає суперника з його половини.', '{team} терпляче розігрує, шукає щілину в обороні.'],
+    // ---- перебіг гри (детальний рушій): що відбувається між ударами ----
+    thr: ['Проникаюча передача {aG}! {p} втікає за спину захисникам…', '{a} знаходить пасом {pG} у просторі!', 'Пас на хід — {p} на швидкості, віддавав {a}.', '{a} розрізає оборону передачею, адресат — {p}.', '{p} вривається в простір за спиною захисників — передача {aG}.'],
+    thrInt: ['{d} читає задум і перехоплює передачу.', 'Передача на хід — і {d} на місці.', '{d} вчасно перерізає пас.', 'Розумно зіграв {d} — передача не дійшла.'],
+    beat: ['{p} обіграє {dG} й іде далі!', '{p} в обведенні — {d} залишився позаду!', 'Фінт — і {p} проходить захисника!', '{p} протягує м’яч між ніг {dG}!', '{p} на швидкості проскакує повз {dG}.', 'Яке обведення від {pG}!'],
+    tackle: ['Чистий відбір: {d} забирає м’яч у {pG}.', '{d} вчасно ставить ногу — атака зупинена.', 'Підкат {dG} — і м’яч у {team}.', '{d} виграє єдиноборство.', 'Відбір від {dG} перед самим штрафним!'],
+    switchPlay: ['{a} переводить гру на інший фланг — там {p}.', 'Діагональ на 40 метрів від {aG}, м’яч приймає {p}.', 'Різка зміна флангу: {a} — {p}.'],
+    crossFail: ['{a} навішує… {gk} упевнено забирає м’яч.', 'Подача {aG} — воротар {gk} ловить.', '{a} подає у штрафний, але воротар {gk} на виході першим.'],
+    crossClear: ['{a} навішує… {d} вибиває головою.', 'Подача у штрафний — {d} виносить м’яч.', 'Навіс {aG} — захисники справляються, виносить {d}.'],
+    counter: ['Контратака {teamG}!', '{team} мчить у контратаку!', 'Швидкий відрив! {team} атакує в більшості.', 'Втрата — і {team} вже біля чужого штрафного!'],
+    keeperLong: ['{gk} вибиває м’яч далеко вперед.', 'Воротар {gk} починає атаку довгим ударом.'],
+    howler: ['Жахлива помилка {pG}! М’яч просто в ногах суперника біля штрафного.', '{p} віддає м’яч суперникові біля власних воріт!', 'Подарунок від {pG} — суперник перехоплює біля воріт!'],
+    foul: ['Фол: {d} збиває {pG}.', '{d} грубо зупиняє {pG}, штрафний.', 'Суддя свистить: фол {dG}.', '{p} падає після контакту — фолив {d}.'],
+    // ---- голи: контекст ----
+    brace: [' Це дубль {pG}!', ' {p} оформлює дубль!', ' Другий гол {pG} у матчі!'],
+    equal: [' Рахунок зрівняно!', ' {team} відігрується!', ' Знову нічия!'],
+    ahead: [' {team} виходить уперед!', ' {team} веде в рахунку!'],
+    late: [' На останніх хвилинах!', ' Гол на вагу золота наприкінці матчу!'],
+    rout: [' Розгром!', ' Це вже розгром.'],
+    seasonGoal: [' Для {pG} це {n}-й гол у сезоні.', ' У {pG} уже {n} голів у сезоні.'],
+    // ---- підсумки й трибуни ----
+    summary: ['{min}′: володіння {ph}% на {pa}%, удари {sh}:{sa}.', 'Позаду {min} хвилин. Удари {sh}:{sa}, володіння {ph}% — {pa}%.'],
+    crowdBoo: ['Трибуни невдоволено свистять: {home} програє вдома.', 'Вболівальники господарів нервують — команда поступається.', 'На трибунах гул невдоволення.'],
+    crowdSing: ['Стадіон співає — {home} розгромно веде!', 'На трибунах свято: вболівальники {homeG} співають.'],
   };
   const fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : m));
   /** Шаблони, для яких є всі змінні (родовий відмінок {xG} — лише для українських імен). */
@@ -307,6 +332,9 @@
   };
   /** Промова перед матчем: реакція гравця за характером (h.pro — професіоналізм, h.big — великі матчі) і хто фаворит (fav > 1). */
   const pickW = (R, w) => R.weighted(Object.keys(w), (k) => w[k]);
+  // Вигадані арбітри (імена — для атмосфери)
+  const REF_FIRST = ['Андрій', 'Олег', 'Сергій', 'Віктор', 'Ігор', 'Микола', 'Тарас', 'Павло', 'Марко', 'Лукас', 'Томас', 'Даніель', 'Жан', 'Карлос', 'Мартін', 'Енцо', 'Ян'];
+  const REF_LAST = ['Коваль', 'Мельник', 'Бойко', 'Гнатюк', 'Шевчук', 'Ткаченко', 'Кравчук', 'Ромашко', 'Беккер', 'Россетті', 'Дюпре', 'Альварес', 'Новак', 'Ланге', 'Петров', 'Гордон', 'Вілан'];
   const TEAM_TALKS = {
     calm: { label: 'Без тиску: грайте у свою гру', hint: 'Добре для андердога й нервових матчів; фаворита може розслабити.',
       react: (fav, h, R, big) => pickW(R, fav > 1.1 ? { focused: 2, neutral: 4, complacent: (14 - (h.pro || 11)) * 0.5 + 1 } : { focused: 4 + (big ? 2 : 0), neutral: 3, inspired: 1, nervous: 0.5 }) },
@@ -353,6 +381,7 @@
     });
     for (const t of sides) Object.assign(t.stats, { corners: 0, fouls: 0, spGoals: 0 });
     const ownGoals = [0, 0]; // автоголи на користь команди
+    let sim = null, evSec = null; // детальний рушій (js/sim.js) і секунда події в хвилині
     /** Дія вигуку з бровки на команду: множник ключа (rate, oppRate, ctrl, def, boost, cards, tire). */
     const shX = (t, key) => (t.shout && SHOUTS[t.shout.kind][key]) || 1;
     const [H, A] = sides;
@@ -362,7 +391,21 @@
     // meta — для виділення моментів у трансляції: { xg, out: goal|saved|wide|blocked|post|pen, x, y } (x, y — місце удару, 100 — ворота суперника)
     const say = (min, type, team, key, vars = {}, meta = null) => {
       const text = Array.isArray(key) ? key.join('') : fill(R.pick(T[key]), { home: H.club.name, away: A.club.name, ...vars });
-      events.push({ min, type, team: team == null ? null : team.k, text, score: [H.stats.goals, A.stats.goals], ...(meta ? { hl: meta } : {}) });
+      events.push({ min, type, team: team == null ? null : team.k, text, score: [H.stats.goals, A.stats.goals], ...(meta ? { hl: meta } : {}), ...(evSec != null ? { sec: evSec } : {}) });
+    };
+    // коментар перебігу гри: не частіше за раз на ~півхвилини, той самий вид для команди — раз на 2,5 хвилини
+    let playAt = -1e9; const playKind = new Map();
+    const RC = FM.rng(String(opts.seed) + ':talk'); // окремі випадковості для слів коментатора — не змінюють перебіг матчу
+    const talk = (key, v) => { const l = usable(T[key], v); return l.length ? fill(RC.pick(l), v) : ''; };
+    const play = (t, key, vars, secNow, force) => {
+      const k2 = (t ? t.k : 'n') + key, now = secNow;
+      if (!force && (now - playAt < 40 || now - (playKind.get(k2) ?? -1e9) < 150)) return false;
+      const v = { team: t ? t.club.name : '', teamG: t && opts.genClub ? opts.genClub(t.club) : null, ...vars };
+      const list = usable(T[key], v);
+      if (!list.length) return false;
+      playAt = now; playKind.set(k2, now);
+      events.push({ min: current, type: 'play', team: t ? t.k : null, text: fill(RC.pick(list), v), score: [H.stats.goals, A.stats.goals], ...(evSec != null ? { sec: evSec } : {}) });
+      return true;
     };
     const shotMeta = (out) => { const sh = shotLog[shotLog.length - 1]; return sh ? { xg: sh.xg, out, x: sh.x, y: sh.y, kind: sh.kind } : { out }; };
 
@@ -372,7 +415,9 @@
       const cap = t.onPitch.find((x) => !x.out && x.p.id === t.takers.captain) || t.onPitch.filter((x) => !x.out).sort((a, b) => (b.p.attrs.lea || 0) - (a.p.attrs.lea || 0))[0];
       if (cap) for (const k of ['att', 'mid', 'def']) t.units[k] *= 1 + ((cap.p.attrs.lea || 10) - 10) * 0.002; // лідерство капітана
       const fam = 0.95 + 0.05 * t.familiarity; // незнайома тактика — до −5%
-      for (const k of ['att', 'mid', 'def']) t.units[k] *= fam * shX(t, 'boost');
+      const mom = t.mom && t.mom.until > minuteNum ? t.mom.k : 1; // імпульс: гол окрилює, пропущений — збиває
+      for (const k of ['att', 'mid', 'def']) t.units[k] *= fam * shX(t, 'boost') * mom;
+      t.formMul = (t.boost || 1) * (cap ? 1 + ((cap.p.attrs.lea || 10) - 10) * 0.002 : 1) * fam * shX(t, 'boost') * mom; // для детального рушія
       t.units.def *= shX(t, 'def');
       // жорсткий відбір суперника заважає атаці, м'який — дає простір
       const oi = sides[1 - t.k] && sides[1 - t.k].oppi;
@@ -412,10 +457,12 @@
       return t.onPitch.filter((x) => !x.out && x.slot.role !== 'GK').sort((a, b) => key(b) - key(a))[0];
     }
     /** Записати удар для підсумку матчу (координати умовні: 100 — ворота суперника). */
+    let shotAt = null; // місце удару з детального рушія ({ x, y } у відсотках поля)
     function logShot(t, kind, q, goal) {
       const R2 = R.next(), R3 = R.next();
-      const x = kind === 'pen' ? 89 : kind === 'header' || kind === 'corner' ? 88 + R2 * 7 : kind === 'through' ? 80 + R2 * 12 : kind === 'freekick' ? 70 + R2 * 10 : 68 + R2 * 16;
-      const y = kind === 'pen' ? 50 : 50 + (R3 - 0.5) * (kind === 'header' || kind === 'corner' ? 24 : 50);
+      let x = kind === 'pen' ? 89 : kind === 'header' || kind === 'corner' ? 88 + R2 * 7 : kind === 'through' ? 80 + R2 * 12 : kind === 'freekick' ? 70 + R2 * 10 : 68 + R2 * 16;
+      let y = kind === 'pen' ? 50 : 50 + (R3 - 0.5) * (kind === 'header' || kind === 'corner' ? 24 : 50);
+      if (shotAt) { x = shotAt.x; y = shotAt.y; shotAt = null; }
       shotLog.push({ t: t.k, min: minuteNum, x: Math.round(x), y: Math.round(y), xg: Math.round(q * 100) / 100, goal, kind });
     }
     const G = (p) => gen(p) || null;
@@ -436,23 +483,7 @@
       q *= (1 - 0.06 * t.passing * (t.passing > 0 && WX.directPenalty ? 1 / WX.directPenalty : 1)) * (1 + 0.05 * o.pressing); // високий пресинг суперника лишає простір за спиною
       if (o.oppi.weakFoot) q *= 0.97; // змушують бити незручною ногою
 
-      if (R.chance(0.013)) { // пенальті (~0,3 за матч)
-        const tk = taker(t, 'pen');
-        const tPerf = t.perf.get(tk.p.id);
-        say(min, 'chance', t, 'penalty', { p: name(shooter.p), team: t.club.name });
-        t.stats.xg += 0.76;
-        const goal = R.chance(0.68 + tk.p.attrs.fin * 0.008);
-        logShot(t, 'pen', 0.76, goal);
-        if (goal) {
-          t.stats.goals++; t.stats.onTarget++; tPerf.goals++; t.stats.spGoals++;
-          if (gkX) o.perf.get(gkX.p.id).conceded++;
-          say(min, 'goal', t, 'penGoal', { p: name(tk.p) }, shotMeta('goal'));
-        } else {
-          if (gkX) o.perf.get(gkX.p.id).saves++;
-          say(min, 'miss', t, 'penMiss', { p: name(tk.p), gk: gkName }, shotMeta('pen'));
-        }
-        return;
-      }
+      if (R.chance(0.013)) return penalty(t, o, min, shooter, true); // пенальті (~0,3 за матч)
       const sp = shooter.p;
       const kind = R.weighted(['header', 'through', 'solo'], (k) => ({
         header: (1 + sp.attrs.hea / 10) * (hasT(sp, 'header') ? 1.6 : 1) * ((sp.attrs.bra || 10) / 12) ** 0.3,
@@ -464,10 +495,32 @@
       finishChance(t, o, min, kind, shooter, assister, q, gkX, gkName);
     }
 
+    /** Пенальті: б'є призначений виконавець; fouled — на кому сфолили. */
+    function penalty(t, o, min, shooter, counted) {
+      const gkX = o.onPitch.find((x) => !x.out && x.slot.role === 'GK');
+      const gkName = gkX ? name(gkX.p) : 'воротар';
+      if (!counted) { t.stats.shots++; t.perf.get(shooter.p.id).shots++; }
+      const tk = taker(t, 'pen');
+      const tPerf = t.perf.get(tk.p.id);
+      say(min, 'chance', t, 'penalty', { p: name(shooter.p), team: t.club.name });
+      t.stats.xg += 0.76;
+      const goal = R.chance(0.68 + tk.p.attrs.fin * 0.008);
+      logShot(t, 'pen', 0.76, goal);
+      if (goal) {
+        t.stats.goals++; t.stats.onTarget++; tPerf.goals++; t.stats.spGoals++;
+        if (gkX) o.perf.get(gkX.p.id).conceded++;
+        say(min, 'goal', t, 'penGoal', { p: name(tk.p) }, shotMeta('goal'));
+      } else {
+        if (gkX) o.perf.get(gkX.p.id).saves++;
+        say(min, 'miss', t, 'penMiss', { p: name(tk.p), gk: gkName }, shotMeta('pen'));
+      }
+      return goal;
+    }
+
     /** Завершення моменту: гол або сейв / повз / блок / стійка. */
     function finishChance(t, o, min, kind, shooter, assister, q, gkX, gkName, spKind) {
       const sPerf = t.perf.get(shooter.p.id);
-      const vars = { p: name(shooter.p), pG: G(shooter.p), a: assister ? name(assister.p) : '', aG: assister ? G(assister.p) : null, gk: gkName, gkG: gkX ? G(gkX.p) : null, team: t.club.name };
+      const vars = { p: name(shooter.p), pG: G(shooter.p), a: assister ? name(assister.p) : '', aG: assister ? G(assister.p) : null, gk: gkName, gkG: gkX ? G(gkX.p) : null, team: t.club.name, _p: shooter.p };
       const lead = fill(R.pick(usable(T[kind], vars)), vars);
       t.stats.xg += q;
       const goal = R.chance(q);
@@ -485,8 +538,9 @@
         else if (kind === 'header' && R.chance(0.05)) wow = ' Удар через себе! Стадіон шаленіє!';
         const meta = shotMeta('goal');
         if (wow) meta.special = spKind === 'gk' ? 'gk' : 'wonder';
-        say(min, 'goal', t, [lead, ' ', fill(R.pick(usable(T.goal, vars)), vars), assister ? fill(R.pick(usable(T.goalAssist, vars)), vars) : '', wow], {}, meta);
+        say(min, 'goal', t, [lead, ' ', fill(R.pick(usable(T.goal, vars)), vars), assister ? fill(R.pick(usable(T.goalAssist, vars)), vars) : '', wow, goalContext(t, sPerf, vars)], {}, meta);
         if (sPerf.goals === 3) say(min, 'info', t, [`ХЕТ-ТРИК! ${vars.p} забиває втретє в цьому матчі!`]);
+        momentum(t, o);
         return true;
       } else if (R.chance(0.004)) { // автогол: м'яч рикошетить від захисника у власні ворота
         const og = R.weighted(o.onPitch.filter((x) => !x.out && x.slot.role !== 'GK'), (x) => ({ CB: 3, FB: 2, DM: 1.5 }[x.slot.role] || 0.5));
@@ -506,12 +560,71 @@
           if (bl) o.perf.get(bl.p.id).blocks = (o.perf.get(bl.p.id).blocks || 0) + 1;
         }
         say(min, 'chance', t, [lead, ' ', fill(R.pick(usable(T[out], vars)), vars)], {}, shotMeta(out));
+        // детальний рушій: воротар не втримав — добивання
+        if (sim && out === 'saved' && spKind !== 'rebound' && gkX && R.chance(0.03 + Math.max(0, 12 - (gkX.p.attrs.han || 10)) * 0.008)) {
+          const rb = pickShooter(t);
+          if (rb) {
+            t.stats.shots++; t.perf.get(rb.p.id).shots++;
+            say(min, 'info', t, [`${gkName} не втримав м’яч! Відскок — і ${name(rb.p)} добиває…`]);
+            return finishChance(t, o, min, 'solo', rb, null, 0.38 * WX.q, gkX, gkName, 'rebound');
+          }
+        }
         // кутовий після сейву чи блоку
         if ((out === 'saved' || out === 'blocked' || out === 'wide') && R.chance(out === 'wide' ? 0.15 : 0.7)) corner(t, o, min);
       }
       return false;
     }
 
+    /** Тренер ШІ реагує на перебіг: програє — ризикує й перебудовується; веде наприкінці — закривається; вилучення — латає склад. */
+    const MORE = { defensive: 'cautious', cautious: 'balanced', balanced: 'positive', positive: 'attacking', attacking: 'attacking' };
+    const LESS = { attacking: 'positive', positive: 'balanced', balanced: 'cautious', cautious: 'cautious', defensive: 'defensive' };
+    function aiReact(t, o, m) {
+      const d = t.stats.goals - o.stats.goals, live = t.onPitch.filter((x) => !x.out).length;
+      t.react = t.react || {};
+      if (live < 11 && !t.react.red) { // вилучення: прибрати нападника, щільніше в середині
+        t.react.red = true;
+        if (t.formation !== '4-4-1-1') { say(current, 'info', t, [`${t.club.name} грає вдесятьох — тренер прибирає одного нападника.`]); setShape(t.k, '4-4-1-1'); }
+        return;
+      }
+      if (d < 0 && m >= 60 && !t.react.push1) { t.react.push1 = true; if (MORE[t.tactic.mentality] !== t.tactic.mentality) setTactics(t.k, { mentality: MORE[t.tactic.mentality] }); }
+      if (d < 0 && d >= -2 && m >= 76 && !t.react.push2) {
+        t.react.push2 = true;
+        const f = ['3-4-3', '4-2-3-1', '4-3-3'].find((x) => x !== t.formation);
+        say(current, 'info', t, [`Тренер ${t.club.name} іде ва-банк: усі вперед!`]);
+        setShape(t.k, f, { mentality: 'attacking' });
+      }
+      if (d === 1 && m >= 78 && !t.react.hold) {
+        t.react.hold = true;
+        setTactics(t.k, { mentality: LESS[t.tactic.mentality] });
+        if (['4-3-3', '4-2-3-1', '3-4-3', '4-3-1-2'].includes(t.formation) && (t.k * 7 + m + t.stats.shots) % 3 === 0) { say(current, 'info', t, [`${t.club.name} закривається: п’ятеро захисників, щоб утримати перемогу.`]); setShape(t.k, '5-3-2'); }
+      }
+    }
+    /** Форма дня: хто сьогодні в ударі, а в кого не йде гра (видно з денного стану гравця). */
+    function formOfDay() {
+      for (const t of sides) {
+        const live = t.onPitch.filter((x) => !x.out && x.slot.role !== 'GK');
+        const hi = live.reduce((a, x) => (x.mf > (a ? a.mf : 0) ? x : a), null), lo = live.reduce((a, x) => (x.mf < (a ? a.mf : 9) ? x : a), null);
+        if (hi && hi.mf >= 1.035 && RC.chance(0.6)) say(current, 'info', t, [RC.pick([`${name(hi.p)} сьогодні в ударі — у нього виходить усе.`, `${name(hi.p)} у чудовій формі, суперник не може його зупинити.`, `Видно, що ${name(hi.p)} готувався до цього матчу особливо.`])]);
+        else if (lo && lo.mf <= 0.96 && RC.chance(0.5)) say(current, 'info', t, [RC.pick([`${name(lo.p)} сьогодні явно не в грі.`, G(lo.p) ? `У ${G(lo.p)} нічого не виходить — може, варто замінити?` : `${name(lo.p)} ніяк не може увійти в гру.`, `${name(lo.p)} помиляється в простих ситуаціях.`])]);
+      }
+    }
+    /** Після гола: забивши — команда окрилена (8 хв), пропустивши — трохи розгублена (5 хв). */
+    function momentum(t, o) {
+      t.mom = { until: minuteNum + 8, k: 1.035 }; o.mom = { until: minuteNum + 5, k: 0.975 };
+      compute(t); compute(o);
+    }
+    /** Що означає гол: дубль, зрівняв, вийшли вперед, пізній, розгром, лік голів у сезоні. */
+    function goalContext(t, sPerf, vars) {
+      const o = sides[1 - t.k], gf = t.stats.goals, ga = o.stats.goals, out = [];
+      const pick = (key, v = vars) => talk(key, { ...v, team: t.club.name });
+      if (sPerf.goals === 2) out.push(pick('brace'));
+      if (gf === ga) out.push(pick('equal'));
+      else if (gf === ga + 1) out.push(pick('ahead'));
+      else if (gf - ga >= 4) out.push(pick('rout'));
+      if (minuteNum >= 86 && Math.abs(gf - ga) <= 1) out.push(pick('late'));
+      if (opts.stat && sPerf.goals !== 3) { const n = (opts.stat(vars._p) || 0) + sPerf.goals; if (n >= 3 && RC.chance(0.6)) out.push(pick('seasonGoal', { ...vars, n })); }
+      return out.join('');
+    }
     /** Кутовий: подача й удар головою найкращого в повітрі. */
     function corner(t, o, min) {
       t.stats.corners++;
@@ -520,7 +633,7 @@
       const tryP = { near: 0.25, far: 0.22, short: 0.14 }[sp.corner] || 0.22;
       if (!R.chance(tryP)) {
         // центральні захисники в штрафному — суперник може втекти в контратаку
-        if (sp.cbUp && sp.corner !== 'short' && R.chance(0.035)) { say(min, 'info', o, [`${o.club.name} перехоплює після кутового й мчить у контратаку!`]); chance(o, t, min); }
+        if (!sim && sp.cbUp && sp.corner !== 'short' && R.chance(0.035)) { say(min, 'info', o, [`${o.club.name} перехоплює після кутового й мчить у контратаку!`]); chance(o, t, min); }
         return;
       }
       const tk = taker(t, 'corner');
@@ -571,6 +684,21 @@
       x.yellow++; perf.yellow++; t.stats.yellow++;
       if (x.yellow >= 2) { x.out = true; perf.red = true; t.stats.red++; say(min, 'red', t, 'red2', vars); compute(t); return; }
       say(min, 'yellow', t, [fill(R.pick(usable(T.yellow, vars)), vars)]);
+    }
+
+    /** Фол конкретного гравця (детальний рушій): жовта, друга жовта або пряма червона. */
+    function foulBy(t, x, min, victim) {
+      const perf = t.perf.get(x.p.id);
+      t.stats.fouls++;
+      perf.fouls = (perf.fouls || 0) + 1;
+      const vars = { p: name(x.p), pG: G(x.p), team: t.club.name };
+      const pCard = 0.16 * ref.k * (opts.derby ? 1.2 : 1) * (x.yellow ? 0.75 : 1);
+      if (R.chance(0.006)) { x.out = true; perf.red = true; t.stats.red++; say(min, 'red', t, 'red', vars); compute(t); return { red: true }; }
+      if (!R.chance(pCard)) { if (sim) play(t, 'foul', { d: name(x.p), dG: G(x.p), p: name(victim.p), pG: G(victim.p) }, sim.clock); return {}; }
+      x.yellow++; perf.yellow++; t.stats.yellow++;
+      if (x.yellow >= 2) { x.out = true; perf.red = true; t.stats.red++; say(min, 'red', t, 'red2', vars); compute(t); return { red: true }; }
+      say(min, 'yellow', t, [fill(R.pick(usable(T.yellow, vars)), vars)]);
+      return {};
     }
 
     /** Травма: гравця міняють (навіть якщо заміни ручні), а як замін немає — команда грає в меншості. */
@@ -818,12 +946,55 @@
     }
     compute(H); compute(A);
     const startUnits = [{ ...H.units }, { ...A.units }];
+    // детальний рушій: 22 гравці й м'яч на полі (для матчів людини; решта ліг — класичний, швидкий)
+    const useSim = !!(FM.sim && (opts.engine ? opts.engine === 'sim' : FM.match.simFor && FM.match.simFor(opts)));
+    if (useSim) {
+      const homeMul = opts.neutral ? 1 : 1.035, awayMul = opts.neutral ? 1 : 0.985;
+      const kOf = (x) => (x._k != null ? x._k : (x._k = H.onPitch.includes(x) ? 0 : 1));
+      const scored = (f) => { const g = [H.stats.goals, A.stats.goals]; f(); return H.stats.goals > g[0] ? 0 : A.stats.goals > g[1] ? 1 : null; };
+      sim = FM.sim.create({
+        sides, R, derby: !!opts.derby, rain: !!WX.shortPenalty, qk: SIM_QK * WX.q,
+        mul: (x) => {
+          const k = kOf(x), t = sides[k];
+          if (x._fs !== x.slot) { x._fs = x.slot; x._fit = fit(x.p, x.slot); }
+          return x._fit * (0.82 + 0.18 * (x.cond ?? 100) / 100) * (FM.morale ? FM.morale.factor(x.p) : 1) * (t.marked && t.marked.has(x.p.id) ? 0.88 : 1) * (x.mf || 1) * (t.formMul || 1) * (k === 0 ? homeMul : awayMul);
+        },
+        team: (t) => ({ ctrl: shX(t, 'ctrl') * (sides[1 - t.k].oppi.press === 'tight' ? 0.97 : 1), def: shX(t, 'def'), rate: shX(t, 'rate') / shX(sides[1 - t.k], 'oppRate') ** 0.5, cards: shX(t, 'cards'), press: t.shout && t.shout.kind === 'press' ? 1.3 : 1 }),
+        shoot: (t, o, x, assist, kind, q, pos) => {
+          t.stats.shots++; t.perf.get(x.p.id).shots++;
+          const gkX = o.onPitch.find((y) => !y.out && y.slot.role === 'GK');
+          shotAt = pos;
+          if (o.oppi.weakFoot) q *= 0.97;
+          const g0 = t.stats.goals;
+          finishChance(t, o, current, kind, x, assist, q, gkX, gkX ? name(gkX.p) : 'воротар');
+          return t.stats.goals > g0;
+        },
+        corner: (t, o) => scored(() => corner(t, o, current)),
+        freekick: (t, o) => scored(() => freekick(t, o, current)),
+        penalty: (t, o, x) => scored(() => penalty(t, o, current, x)),
+        foul: (t, x, o, victim) => foulBy(t, x, current, victim),
+        offside: (t, x) => say(current, 'info', t, [`Офсайд: ${name(x.p)} забіг за спину захисникам зарано.`]),
+        setSec: (s) => { evSec = s; },
+        refK: () => ref.k,
+        // перебіг гри для коментаря: who — { p, a, d, gk } (гравці на полі)
+        note: (t, key, who = {}, force) => {
+          const v = {};
+          for (const [k, x] of Object.entries(who)) if (x && x.p) { v[k] = name(x.p); v[k + 'G'] = G(x.p); }
+          return play(t, key, v, sim.clock, force);
+        },
+      });
+    }
+    // арбітр матчу: суворий — більше карток і пенальті, спокійний — дає грати
+    const RR = FM.rng(String(opts.seed) + ':ref');
+    const ref = { name: `${RR.pick(REF_FIRST)} ${RR.pick(REF_LAST)}`, k: Math.round((0.72 + RR.next() * 0.62) * 100) / 100 };
+    ref.label = ref.k >= 1.15 ? 'суворий, картки показує охоче' : ref.k <= 0.85 ? 'спокійний, дає грати' : 'звичайний';
     say(0, 'kickoff', null, 'kickoff');
+    say(0, 'info', null, [`Головний арбітр — ${ref.name} (${ref.label}).`]);
     const added = [1 + R.int(3), 2 + R.int(4)];
     const timeline = [];
     for (let m = 1; m <= 45 + added[0]; m++) timeline.push({ m, pi: 0, label: m > 45 ? `45+${m - 45}` : m, extra: m > 45 });
     for (let m = 46; m <= 90 + added[1]; m++) timeline.push({ m, pi: 1, label: m > 90 ? `90+${m - 90}` : m, extra: m > 90 });
-    let idx = 0, possH = 0, ticks = 0, done = false, minuteNum = 0;
+    let idx = 0, possH = 0, ticks = 0, done = false, minuteNum = 0, crowdSaid = false;
     const seg = Array.from({ length: 6 }, () => [0, 0]); // володіння господарів по 15 хвилин
     let scoreHT = null;
 
@@ -833,28 +1004,46 @@
       const e = timeline[idx++];
       current = e.label; minuteNum = e.m;
       if (e.pi === 1 && timeline[idx - 2] && timeline[idx - 2].pi === 0) say(46, 'half', null, 'second'); // перша хвилина другого тайму (не компенсація першого)
-      const cr = chanceRates(e.m);
-      possH += cr.share; ticks++;
-      const si = Math.min(5, Math.floor((Math.min(e.m, 90) - 1) / 15)); seg[si][0] += cr.share; seg[si][1]++;
       if (e.pi === 1 && !scoreHT) { scoreHT = [H.stats.goals, A.stats.goals]; for (const t of sides) t.perfHT = new Map([...t.perf].map(([id, pf]) => [id, { ...pf }])); }
       // втома: витривалість, пресинг
       for (const t of sides) for (const x of t.onPitch) if (!x.out) x.cond = Math.max(30, x.cond - (0.42 - x.p.attrs.sta * 0.014) * (x.slot.role === 'GK' ? 0.3 : (1 + 0.25 * t.pressing) * shX(t, 'tire') * (t.oppi.press === 'tight' ? 1.1 : 1)) * WX.tire);
       if (e.m % 5 === 0) { compute(H); compute(A); }
-      if (R.chance(cr.h)) chance(H, A, e.label);
-      if (R.chance(cr.a)) chance(A, H, e.label);
-      for (const t of sides) if (R.chance(1.9 / 94 * (1 + 0.2 * t.pressing) * (opts.derby ? 1.35 : 1) * shX(t, 'cards') * (t.oppi.tackle === 'hard' ? 1.4 : t.oppi.tackle === 'soft' ? 0.7 : 1))) card(t, e.label);
+      let share;
+      if (sim) { share = sim.minute(e.m); evSec = null; } // хвилина детальної гри: моменти, фоли, стандарти — з самої гри
+      else {
+        const cr = chanceRates(e.m);
+        share = cr.share;
+        if (R.chance(cr.h)) chance(H, A, e.label);
+        if (R.chance(cr.a)) chance(A, H, e.label);
+      }
+      possH += share; ticks++;
+      const si = Math.min(5, Math.floor((Math.min(e.m, 90) - 1) / 15)); seg[si][0] += share; seg[si][1]++;
+      if (!sim) for (const t of sides) if (R.chance(1.9 / 94 * ref.k * (1 + 0.2 * t.pressing) * (opts.derby ? 1.35 : 1) * shX(t, 'cards') * (t.oppi.tackle === 'hard' ? 1.4 : t.oppi.tackle === 'soft' ? 0.7 : 1))) card(t, e.label);
       // вигук діє 10 хвилин; ШІ, що програє після 70-ї, кричить «Більше в атаку»
       for (const t of sides) {
         if (t.shout && e.m >= t.shout.until) { t.shout = null; compute(t); }
         if (t.ai && !t.shout && e.m >= 70 && e.m % 5 === 0 && t.stats.goals < sides[1 - t.k].stats.goals) shout(t.k, 'attack');
       } // у дербі — більше карток
-      for (const t of sides) if (R.chance(0.0045 * WX.rate)) freekick(t, sides[1 - t.k], e.label);
+      if (!sim) for (const t of sides) if (R.chance(0.0045 * WX.rate)) freekick(t, sides[1 - t.k], e.label);
       for (const t of sides) if (R.chance(0.003 * (1 + 0.3 * t.pressing))) injury(t, e.label);
-      if (R.chance(0.035)) {
-        const t = R.chance(cr.share) ? H : A;
+      if (R.chance(sim ? 0.02 : 0.035)) {
+        const t = R.chance(share) ? H : A;
         say(e.label, 'info', t, 'pressure', { team: t.club.name });
       }
       if (e.pi === 1 && !e.extra) { aiSubs(H, A, e.m); aiSubs(A, H, e.m); }
+      for (const t of sides) if (t.mom && e.m >= t.mom.until) { t.mom = null; compute(t); }
+      if (!e.extra) for (const t of sides) if (t.ai) aiReact(t, sides[1 - t.k], e.m);
+      if (e.m === 24 && !e.extra) formOfDay();
+      if ([15, 30, 60, 75].includes(e.m) && !e.extra) {
+        const ph = Math.round((possH / ticks) * 100);
+        say(e.label, 'info', null, [talk('summary', { min: e.m, ph, pa: 100 - ph, sh: H.stats.shots, sa: A.stats.shots })]);
+      }
+      if (!opts.neutral && !crowdSaid && e.m >= 70) {
+        const d = H.stats.goals - A.stats.goals;
+        const v = { home: H.club.name, homeG: opts.genClub ? opts.genClub(H.club) : null };
+        if (d <= -1 && e.m >= 75 && RC.chance(0.08)) { crowdSaid = true; say(e.label, 'info', H, [talk('crowdBoo', v)]); }
+        else if (d >= 3 && RC.chance(0.1)) { crowdSaid = true; say(e.label, 'info', H, [talk('crowdSing', v)]); }
+      }
       if (e.pi === 0 && timeline[idx].pi === 1) say('45+' + added[0], 'half', null, 'half', { score: score() });
       if (idx >= timeline.length) {
         H.stats.poss = Math.round((possH / ticks) * 100);
@@ -873,7 +1062,16 @@
       const ratings = [];
       const RS = FM.rng(String(opts.seed) + ':stats'); // окреме зерно: статистика не змінює перебіг матчу
       const poss = [H.stats.poss || 50, 100 - (H.stats.poss || 50)];
-      for (const t of sides) {
+      if (sim) for (const t of sides) { // детальний рушій: справжні передачі, відбори, перехоплення
+        let tPass = 0, tOk = 0, tTack = 0;
+        for (const x of t.onPitch) {
+          const pf = t.perf.get(x.p.id);
+          for (const key of ['passes', 'passOk', 'tackles', 'interceptions', 'dribbles', 'duels']) pf[key] = pf[key] || 0;
+          tPass += pf.passes; tOk += pf.passOk; tTack += pf.tackles;
+        }
+        t.stats.passes = tPass; t.stats.passPct = tPass ? Math.round((tOk / tPass) * 100) : 0; t.stats.tackles = tTack;
+      }
+      else for (const t of sides) {
         const o = sides[1 - t.k];
         // командні обсяги: передачі — від володіння, відбори — від володіння суперника
         const teamPasses = Math.round(poss[t.k] * (9 + 0.8 * t.passing * -1) * RS.range(0.92, 1.08));
@@ -960,7 +1158,7 @@
     }
 
     return {
-      step, result, sub, setTactics, setShape, halftimeTalk, shout, teamTalk, halfReport, setInstr, mark, applyTip, liveStats, sides, events, shots: shotLog, weather,
+      step, result, sub, setTactics, setShape, halftimeTalk, shout, teamTalk, halfReport, setInstr, mark, applyTip, liveStats, sides, events, shots: shotLog, weather, sim,
       get halftime() { return idx > 0 && idx < timeline.length && timeline[idx - 1].pi === 0 && timeline[idx].pi === 1; },
       get done() { return done; },
       get minute() { return current; },

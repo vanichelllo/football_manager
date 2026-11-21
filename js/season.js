@@ -100,13 +100,15 @@
     // ШІ дає відпочити втомленим (свіжість < 72), якщо є кому їх замінити
     const fresh = available.filter((p) => (p.fitness ?? 100) >= 72);
     const pool = fresh.length >= 15 && fresh.filter((p) => p.roles[0] === 'GK').length ? fresh : available;
-    const formation = FM.bestFormation(pool);
-    let mentality = 'balanced';
+    let mentality = 'balanced', diff = 0;
     if (oppId) {
-      const diff = W.clubLevel(clubId) - W.clubLevel(oppId) + (home ? 3 : -3);
+      diff = W.clubLevel(clubId) - W.clubLevel(oppId) + (home ? 3 : -3);
       mentality = diff > 12 ? 'attacking' : diff > 5 ? 'positive' : diff < -12 ? 'defensive' : diff < -5 ? 'cautious' : 'balanced';
     }
-    const st = FM.club ? FM.club.aiStyle(W.club(clubId), mentality) : { mentality }; // стиль тренера ШІ
+    // тренер ШІ: улюблена схема й настрій на матч (команди грають по-різному від матчу до матчу)
+    const RA = FM.rng(`ai-${S.seed}-${S.week}-${clubId}-${oppId || ''}`);
+    const formation = FM.club && FM.club.aiFormation ? FM.club.aiFormation(W.club(clubId), pool, diff, RA) : FM.bestFormation(pool);
+    const st = FM.club ? FM.club.aiStyle(W.club(clubId), mentality, RA) : { mentality }; // стиль тренера ШІ
     return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(pool, formation), mentality: st.mentality, pressing: st.pressing, passing: st.passing };
   }
 
@@ -118,7 +120,7 @@
     // погода — за датою й країною господарів (детерміновано для матчу)
     const weather = FM.weatherFor ? FM.weatherFor(dateOf(f.w != null ? f.w : S.week, S), W.club(f.h).league, FM.rng(`wx-${S.seed}-${f.id}`)) : null;
     const derby = FM.rivals ? FM.rivals.derby(W, f.h, f.a) : null;
-    return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined, gen: name ? name.gen : undefined, weather, derby, big: !!derby } };
+    return { hs, as, opts: { home: side(hs), away: side(as), seed: `${S.seed}-${f.id}`, name: name ? name.player : undefined, gen: name ? name.gen : undefined, stat: name ? name.stat : undefined, weather, derby, big: !!derby } };
   }
 
   function play(S, W, f, name, user) {
@@ -145,6 +147,7 @@
       if (r.cond != null) r.player.fitness = r.cond;
       // форма: оцінки за 5 останніх матчів
       r.player.form = (r.player.form || []).concat([r.rating]).slice(-5);
+      r.player.fg = (r.player.fg || []).concat([r.goals]).slice(-6); // голи в останніх матчах (історії гравців)
       // освоєння нової позиції: зіграв на ній щонайменше тайм
       const mins = (r.off || 93) - (r.on || 0);
       if (mins >= 45 && r.role !== 'GK' && !r.player.roles.includes(r.role)) {
