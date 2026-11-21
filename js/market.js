@@ -188,6 +188,7 @@
     if (from && from === state.clubId && buyerId !== state.clubId && FM.dressing) { const t = FM.dressing.onSale(W, state, p); if (t) news(state, t, 'players'); }
     const buyer = W.club(buyerId);
     buyer.balance = Math.round((buyer.balance - fee - (extra.agent || 0)) * 100) / 100;
+    if (state.season) p.joined = [state.season.year, state.season.week]; // коли перейшов (туга за домом, адаптація)
     // трансферний бюджет людини (js/budget.js): купівля — витрата, продаж — 75% повертається в бюджет
     if (FM.budget && state.clubId) {
       if (buyerId === state.clubId) FM.budget.spend(W, state, fee + (extra.agent || 0));

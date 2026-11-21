@@ -1604,7 +1604,8 @@
     return t;
   }
   const USER1 = () => ({ clubId: state.clubId, tactics: myTactics(), familiarity: familiarity(), reserve: new Set([...FM.youth.set(state), ...FM.medical.rested(state)]), // U-21 і ті, хто відпочиває
-    boost: FM.dressing.matchBoost(state) * FM.routine.prepBoost(weekSchedule(), (curEvent() || { day: 6 }).day) * mindBoost() }); // збори + підготовка напередодні + словесна дуель
+    boost: FM.dressing.matchBoost(state) * FM.routine.prepBoost(weekSchedule(), (curEvent() || { day: 6 }).day) * mindBoost() * FM.press.focus(state) * crisisBoost() }); // збори + підготовка напередодні + словесна дуель + преса + криза
+  const crisisBoost = () => { const c = state.crisisBoost, S = state.season; return c && c.y === S.year && S.week - c.w <= 1 ? c.k : 1; };
   /** Тренер-людина для рушія матчів; у грі на двох — обидва (склад і тактика другого — його власні). */
   const USER = () => (FM.duo.on(state) ? [USER1(), FM.duo.as(state, USER1)] : USER1());
   const mindBoost = () => { const m = state.mind, S = state.season, ev = curEvent(); return m && m.key === `${S.year}-${S.week}` && ev && ev.opp === m.club ? m.boost : 1; };
@@ -3188,18 +3189,49 @@
     ]);
   }
 
+  // ---------------- Прес-конференції за ситуацією (js/press.js) ----------------
   let pressMsg = null;
-  function pressPanel() {
-    const key = `${state.season.year}-${state.season.week}`;
-    if (state.pressDone === key) return pressMsg ? el('p.msg-ok', pressMsg) : null;
-    const q = FM.morale.pressQuestion(state.season);
-    if (FM.routine.delegated(state, 'press')) { FM.morale.answerPress(W, state, 1); saveGame(); return el('p.muted', `Прес-конференцію провів асистент: «${q.a[1][0]}»`); }
-    return el('div.press', [el('b', 'Прес-конференція'), el('p', q.q), el('div.press-opts', q.a.map(([text], i) => el('button.btn', { type: 'button', onclick: () => {
-      const e = FM.morale.answerPress(W, state, i);
-      pressMsg = e.morale > 0.9 ? 'Гравцям сподобалися ваші слова.' : e.morale < 0 ? 'Дехто в роздягальні сприйняв ваші слова болісно.' : 'Відповідь сприйняли спокійно.';
-      if (e.conf > 0) pressMsg += ' Правління оцінило вашу вимогливість.'; else if (e.conf < 0) pressMsg += ' Правлінню відповідь не сподобалася.';
-      saveGame(); render();
-    } }, text))), el('small.muted', 'Можна не відповідати — тоді все лишиться як є.')]);
+  const PRESS_INFO = () => ({ name: nameOf, gen: genOf, club: clubName });
+  /** Останній матч ліги вашого клубу (для прес-конференції після матчу). */
+  function lastLeagueMatch() {
+    const S = state.season;
+    const f = S.fixtures.filter((x) => x.s && (x.h === state.clubId || x.a === state.clubId) && x.w === S.week - 1).pop();
+    if (!f) return null;
+    const home = f.h === state.clubId, gf = home ? f.s[0] : f.s[1], ga = home ? f.s[1] : f.s[0];
+    const lastGoal = (f.gm || []).slice().sort((a, b) => a[1] - b[1]).pop();
+    return { opp: clubName(W.club(home ? f.a : f.h)), score: `${gf}:${ga}`, d: gf - ga, late: !!(lastGoal && lastGoal[1] >= 85 && lastGoal[0] === (home ? 0 : 1) && Math.abs(gf - ga) <= 1 && gf >= ga) };
+  }
+  /** Прес-конференція: 2–3 питання одне за одним. kind 'pre' — перед матчем (oppId), 'post' — після. */
+  function pressBlock(kind, oppId) {
+    const key = `${state.season.year}-${state.season.week}-${kind}`;
+    if (!state.press || state.press.key !== key) {
+      const items = FM.press.build(W, state, { ...PRESS_INFO(), opp: oppId, last: kind === 'post' ? lastLeagueMatch() : null }, kind);
+      state.press = { key, items, i: 0, said: [] };
+    }
+    const P = state.press;
+    if (!P.items.length) return null;
+    if (P.i >= P.items.length) return P.said.length ? el('div.press.done', [el('b', kind === 'post' ? 'Після матчу: преса' : 'Прес-конференція'), ...P.said.map((x) => el('p.muted', x))]) : null;
+    if (FM.routine.delegated(state, 'press')) {
+      while (P.i < P.items.length) { const it = P.items[P.i++]; P.said.push(`Асистент: «${it.a[Math.min(1, it.a.length - 1)][0]}» — ${FM.press.answer(W, state, it, Math.min(1, it.a.length - 1), nameOf)}`); }
+      saveGame();
+      return el('div.press.done', [el('b', 'Прес-конференцію провів асистент'), ...P.said.map((x) => el('p.muted', x))]);
+    }
+    const it = P.items[P.i];
+    return el('div.press', [el('b', `${kind === 'post' ? 'Після матчу: преса' : 'Прес-конференція'} · питання ${P.i + 1} з ${P.items.length}`),
+      ...P.said.map((x) => el('p.muted.small', x)),
+      el('p', it.q), el('div.press-opts', it.a.map(([text], i) => el('button.btn', { type: 'button', onclick: () => {
+        const r = FM.press.answer(W, state, it, i, nameOf);
+        P.said.push(`«${text}» — ${r}`); P.i++;
+        saveGame(); render();
+      } }, text))),
+      el('div.actions', [el('button.btn.link', { type: 'button', onclick: () => { P.i = P.items.length; saveGame(); render(); } }, 'Пропустити решту питань')])]);
+  }
+  const pressPanel = (oppId) => pressBlock('pre', oppId);
+  /** Після матчу — пресі цікаві яскраві моменти (розгром, пізній гол). */
+  function postPressCard() {
+    if (state.season.week < 1) return null;
+    const b = pressBlock('post', null);
+    return b ? el('div.panel', b) : null;
   }
 
   function boardWeek(second) {
@@ -3238,6 +3270,15 @@
     if (state.paper && state.paper.w !== p0 && state.paper.s === S.year) FM.market.news(state, `📰 ${state.paper.name}: «${state.paper.head}». Газета туру — в «Медіа».`, 'club');
     // глядачі на домашніх матчах тижня й атрибутика
     for (const f of myFs.filter((x) => x.h === state.clubId)) attendanceNews(f.a, 'league');
+    // історії клубу — наслідки того, що відбувається; новини ліги
+    for (const st of FM.stories.week(W, state, nameOf, genOf)) FM.market.news(state, st.text, st.cat);
+    if (!second) for (const t of FM.stories.world(W, state, nameOf)) FM.market.news(state, '🌍 ' + t, 'world');
+    // гучна заява на прес-конференції: результат матчу вирішує, хто сміятиметься
+    if (state.pressBold && state.pressBold.y === S.year && state.pressBold.w === S.week - 1) {
+      const lr = lastLeagueMatch(); delete state.pressBold;
+      if (lr && lr.d < 0) { for (const p of W.squad(state.clubId)) p.morale = Math.max(0, (p.morale ?? 60) - 1); if (state.board) state.board.conf = Math.max(0, state.board.conf - 1.5); FM.market.news(state, `Гучні слова на прес-конференції обернулися проти вас: після поразки ${lr.score} газети цитують вас із сарказмом.`, 'club'); }
+      else if (lr && lr.d > 0) { if (state.board) state.board.rep = Math.min(100, state.board.rep + 1); FM.market.news(state, `Слова дотримано: ${lr.score}. Преса пише про «тренера, який відповідає за свої слова».`, 'club'); }
+    }
     // випадкова подія тижня: новина або лист з вибором
     const ev = FM.events.week(W, state, nameOf, genOf);
     if (ev && ev.text) FM.market.news(state, '🎲 ' + ev.text, 'club');
@@ -3942,6 +3983,7 @@
     return [
       el('header', [el('h1', 'Повідомлення'), el('span.muted', `Усього ${all.length}${maxId > lastRead ? ` · нових ${all.filter((n) => n.id > lastRead).length}` : ''}`)]),
       actionCards(),
+      postPressCard(),
       planCard(),
       missionsCard(),
       backupCard(),
@@ -4367,7 +4409,7 @@
         feudPanel(opp.id),
         matchTacticPanel(),
         tipsPanel(6),
-        pressPanel(),
+        pressPanel(opp.id),
         el('div.actions', [
           el('button.btn.primary', { type: 'button', onclick: () => playMyMatch(true) }, 'Грати з трансляцією'),
           el('button.btn', { type: 'button', onclick: () => playMyMatch(false) }, 'Одразу результат'),
