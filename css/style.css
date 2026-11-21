@@ -762,3 +762,20 @@ th[aria-sort] { color: var(--fg); }
 .duo-who h1 { margin: 0; }
 .duo-gate .note { text-align: left; }
 .tb-duo { white-space: nowrap; max-width: 11rem; overflow: hidden; text-overflow: ellipsis; }
+
+/* Детальний рушій: справжнє поле 105×68 */
+.mini-pitch.pitch2d.sim { height: auto; aspect-ratio: 105 / 68; max-height: 70vh; }
+.pitch2d.sim .dot2 { width: 0.7rem; height: 0.7rem; }
+.pitch2d.sim .dot2.has-ball { box-shadow: 0 0 0 2px #fff; z-index: 2; }
+.pitch2d.sim .ball { width: 0.45rem; height: 0.45rem; z-index: 3; }
+@media (prefers-reduced-motion: no-preference) {
+  .pitch2d.sim .dot2 { transition: left 0.1s linear, top 0.1s linear; }
+  .pitch2d.sim .ball { transition: left 0.1s linear, top 0.1s linear; }
+}
+.mp-holder { font-size: 0.8rem; min-height: 1.2em; margin-top: -0.4rem; margin-bottom: 0.4rem; }
+.mini-pitch.pitch2d.sim { max-width: 48rem; margin-inline: auto; }
+/* розмітка в масштабі: штрафний 16,5×40,3 м, воротарський 5,5×18,3 м, коло 9,15 м, ворота 7,32 м */
+.pitch2d.sim .mp-box { top: 20.4%; bottom: 20.4%; width: 15.7%; }
+.pitch2d.sim .mp-six { top: 36.5%; bottom: 36.5%; width: 5.2%; }
+.pitch2d.sim .mp-circle { width: 17.4%; }
+.pitch2d.sim .mp-goal { top: 44.6%; bottom: 44.6%; width: 1%; }
