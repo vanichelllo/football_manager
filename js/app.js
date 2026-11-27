@@ -2705,7 +2705,7 @@
     const VIEW_KEY = 'golovnyi-trener:view';
     const can3d = SIMV && FM.view3d && FM.view3d.supported();
     let mode3 = can3d && (() => { try { return localStorage.getItem(VIEW_KEY) !== '2d'; } catch (_) { return true; } })();
-    let v3 = null, cam3 = (() => { try { return localStorage.getItem(VIEW_KEY + ':cam') || 'tv'; } catch (_) { return 'tv'; } })();
+    let v3 = null, cam3 = (() => { try { const c = localStorage.getItem(VIEW_KEY + ':cam'); return FM.view3d && FM.view3d.CAMERAS.some(([k]) => k === c) ? c : 'director'; } catch (_) { return 'director'; } })();
     const v3wrap = el('div.v3d-wrap', { hidden: true });
     // накладки трансляції: табло, стрічка подій (голи, вилучення), рядок коментаря
     const ov3 = { score: el('div.v3o-score', { 'aria-hidden': 'true' }), line: el('div.v3o-line', { 'aria-hidden': 'true' }), tick: el('div.v3o-ticker', { 'aria-hidden': 'true' }) };
@@ -2733,7 +2733,20 @@
       }
       return { k: 0, num: '', gk: false };
     };
-    function ensure3d() { if (!v3 && can3d) { try { v3 = FM.view3d.create(v3wrap, { kit, info: info3, sponsor: state && state.sponsor && myK != null ? state.sponsor.name : null }); v3.setCamera(cam3); } catch (err) { console.warn('3D недоступне', err); mode3 = false; } } }
+    const name3 = (id) => { for (const k of [0, 1]) { const x = M.sides[k].onPitch.find((y) => y.p.id === id); if (x) return shortName(x.p); } return ''; };
+    /** Стадіон для 3D: місткість і заповненість (для ліги — як рахує каса), погода, лави запасних. */
+    function stadium3() {
+      const hc = hs.club && W.club(hs.club.id) ? W.club(hs.club.id) : hs.club || {};
+      let fill = 0.7;
+      const f = extra && extra.fixture;
+      if (f && state) { try { const t = FM.season.table(state.season, W, hc.league), pos = t.findIndex((r) => r.id === hc.id) + 1; fill = FM.money.attendance(W, state, hc.id, as.club.id, t.length > 1 ? 1 - (pos - 1) / (t.length - 1) : 0.5, FM.rivals.derby(W, hc.id, as.club.id), M.weather).fill; } catch (_) { /* без розрахунку каси */ } }
+      else if (!f && myK != null && state && !state.season.fixtures.some((x) => x.s)) fill = 0.35; // товариські перед сезоном
+      return { capacity: hc.capacity || 15000, fill, weather: M.weather, seed: `${hc.id}-${as.club.id}-${state ? state.season.year : ''}`, bench: [0, 1].map((k) => (M.sides[k].bench || []).length) };
+    }
+    const Q3_KEY = 'golovnyi-trener:q3d', RC_KEY = 'golovnyi-trener:rcam';
+    const q3d = () => { try { return localStorage.getItem(Q3_KEY) || 'auto'; } catch (_) { return 'auto'; } };
+    const rcam3 = () => { try { return localStorage.getItem(RC_KEY) || 'director'; } catch (_) { return 'director'; } };
+    function ensure3d() { if (!v3 && can3d) { try { v3 = FM.view3d.create(v3wrap, { kit, info: info3, name: name3, sponsor: state && state.sponsor && myK != null ? state.sponsor.name : null, ...stadium3(), camera: cam3, quality: q3d() }); v3.setReplayCamera(rcam3()); } catch (err) { console.warn('3D недоступне', err); mode3 = false; } } }
     const viewBar = el('div.view-bar');
     function drawViewBar() {
       if (!can3d) return viewBar.replaceChildren();
@@ -2744,7 +2757,7 @@
           if (mode3) ensure3d();
           drawViewBar(); if (frames.length) drawFrame(frames[Math.min(frames.length - 1, fIdx)]);
         } }, l))),
-        mode3 ? el('div.tabs.view-cam', [['tv', 'ТВ'], ['top', 'Згори'], ['goal', 'З-за воріт']].map(([v, l]) => el('button', { type: 'button', 'aria-pressed': String(cam3 === v), onclick: () => {
+        mode3 ? el('div.tabs.view-cam', FM.view3d.CAMERAS.map(([v, l]) => el('button', { type: 'button', 'aria-pressed': String(cam3 === v), onclick: () => {
           cam3 = v; try { localStorage.setItem(VIEW_KEY + ':cam', v); } catch (_) { /* приватне вікно */ } if (v3) v3.setCamera(v); drawViewBar();
         } }, l))) : null);
     }
@@ -2849,6 +2862,7 @@
         else if (SIMV && e.type === 'goal' && !finished) setTimeout(() => replay(), 900);
         scoreEl.textContent = e.score.join(':') + (e.so ? ` (пен. ${e.so.join(':')})` : '');
         // звук і анімація
+        if (v3 && mode3 && !finished) { if (e.type === 'goal') { v3.celebrate(e.team); v3.cue('goal', e.team); } else if (e.hl) v3.cue('shot', e.team); }
         if (e.type === 'goal') { hold = liveSpeed === 'key' ? 4000 : 1800; FM.sound.goal(myK == null || e.team === myK); if (!finished) vibe(myK == null || e.team === myK ? [90, 50, 90, 50, 160] : 250); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
         else if (e.type === 'chance' || e.type === 'miss') FM.sound.chance();
         else if (e.type === 'kickoff') { FM.sound.whistle(1); FM.sound.ambient(true); }
