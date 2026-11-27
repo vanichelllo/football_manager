@@ -46,6 +46,7 @@
     }
     state.payables = (state.payables || []).filter((d) => d.left > 0);
     for (const a of state.addons || []) {
+      if (a.kind === 'goals') continue; // бонуси за голи — js/tcentre.js
       const p = W.player(a.pid);
       if (!p || a.done) continue;
       if (p.club !== state.clubId) { a.done = true; continue; } // продали раніше — бонус згорає

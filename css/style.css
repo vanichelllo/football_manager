@@ -923,3 +923,8 @@ label.ti-item small { flex-basis: 100%; padding-left: 1.6rem; margin-top: -0.2re
 .field.cf input, .field.cf select { width: 100%; }
 .cinfo dl.facts { grid-template-columns: auto 1fr; font-size: 0.88rem; }
 @media (min-width: 900px) { .cblock.cinfo { grid-column: span 2; } }
+
+/* Трансферний центр */
+.seller-info { margin: 0.7rem 0; padding: 0.6rem 0.8rem; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--panel) 85%, var(--fg) 4%); }
+.seller-info small { display: block; margin-top: 0.4rem; }
+.tc-tabs { margin: 0 0 1rem; }

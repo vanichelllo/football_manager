@@ -227,8 +227,8 @@
   }
   const loanFee = (p) => Math.round(Math.max(0.05, p.value * 0.05) * 20) / 20;
   /** Узяти в оренду до кінця сезону: share — частка зарплати, яку платить орендар. */
-  function loanIn(W, state, p, toClub, share) {
-    const fee = loanFee(p);
+  function loanIn(W, state, p, toClub, share, opts = {}) {
+    const fee = opts.free ? 0 : loanFee(p);
     W.club(toClub).balance = Math.round((W.club(toClub).balance - fee) * 100) / 100;
     W.club(p.club).balance = Math.round((W.club(p.club).balance + fee) * 100) / 100;
     if (FM.budget && toClub === state.clubId) FM.budget.spend(W, state, fee);
