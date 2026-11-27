@@ -110,7 +110,7 @@
       const age = W.age(p) ?? 25, rank = ranked.indexOf(p), apps = (S.ps[p.id] || [0])[0];
       const fringe = rank >= 14 || (games >= 6 && apps / games < 0.25);
       if (!fringe || age > 26 || state.loanOffers.some((o) => o.pid === p.id)) continue;
-      if (!R.chance(p.listed ? 0.25 : 0.07)) continue;
+      if (!R.chance(p.loanListed ? 0.4 : p.listed ? 0.25 : 0.07)) continue;
       const opts = FM.market.loanOffers(W, state, p);
       if (!opts.length) continue;
       const o = opts[0], lvl = W.clubLevel(o.club);
@@ -130,6 +130,7 @@
     if (!p || p.club !== state.clubId) return null;
     FM.market.loanIn(W, state, p, o.club, o.share);
     p.loan.promise = o.role;
+    delete p.loanListed;
     return `${p.name} іде в оренду до ${W.club(o.club).name} до кінця сезону (${PLAYTIME[o.role].toLowerCase()}, вони платять ${Math.round(o.share * 100)}% зарплати).`;
   }
   const rejectLoan = (state, id) => { state.loanOffers = (state.loanOffers || []).filter((x) => x.id !== id); };

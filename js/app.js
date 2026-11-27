@@ -982,6 +982,24 @@
         el('span', [starsEl(W.clubLevel(id), 'Рівень клубу'), ' ', el('button.btn', { type: 'button', onclick: () => startInterview(id, () => onTake(id)) }, 'На співбесіду')])]);
     }));
   }
+  /** Поради штабу: щотижнева нарада, кожну пораду можна прийняти або відхилити. */
+  let brMsg = null;
+  function backroomCard() {
+    const items = FM.backroom.advice(W, state, nameOf);
+    if (brMsg && brMsg.w !== state.season.week) brMsg = null;
+    if (!items.length && !brMsg) return null;
+    return el('div.panel.backroom', [el('h3', 'Поради штабу'),
+      items.length ? el('ul.plist', items.map((it) => el('li.br-item', [
+        el('div', [el('small.muted', `${it.who}, ${it.role}`), el('p', it.text)]),
+        el('span.offer-btns', [
+          el('button.btn.primary', { type: 'button', onclick: () => { const r = FM.backroom.accept(W, state, it.id, nameOf); brMsg = r && r.text ? { w: state.season.week, text: r.text } : null; if (r && r.text) FM.market.news(state, r.text, 'club'); saveGame(); if (r && r.go) go(r.go); else render(); } },
+            it.act.kind === 'renew' || it.act.kind === 'player' ? 'До гравця' : 'Погодитися'),
+          el('button.btn', { type: 'button', onclick: () => { FM.backroom.dismiss(state, it.id); saveGame(); render(); } }, 'Ні'),
+        ]),
+      ]))) : null,
+      brMsg ? el('p.msg-ok', brMsg.text) : null]);
+  }
+
   /** Нарада з правлінням про очікування на сезон (до першого матчу ліги). */
   function expectCard() {
     if (!FM.boardroom.expectOpen(W, state)) return null;
@@ -4427,6 +4445,7 @@
       actionCards(),
       postPressCard(),
       expectCard(),
+      backroomCard(),
       planCard(),
       missionsCard(),
       backupCard(),

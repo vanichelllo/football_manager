@@ -938,3 +938,7 @@ label.ti-item small { flex-basis: 100%; padding-left: 1.6rem; margin-top: -0.2re
 .expect-opt { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.7rem; border: 1px solid var(--line); border-radius: 8px; }
 .expect-opt.rec { border-color: var(--accent); }
 .expect-opt .btn { margin-top: auto; align-self: flex-start; }
+/* Поради штабу */
+.backroom .br-item { align-items: center; }
+.backroom .br-item p { margin: 0.15rem 0 0; }
+@media (max-width: 560px) { .backroom .br-item { flex-direction: column; align-items: stretch; } }

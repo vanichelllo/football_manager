@@ -47,3 +47,29 @@ test('очікування на сезон: три варіанти, амбіт�
   assert.ok(!FM.boardroom.expectOpen(W, state), 'раз на сезон');
   assert.strictEqual(FM.boardroom.setExpect(W, state, 'down').ok, false);
 });
+
+test('поради штабу: індивідуальне тренування, слабка позиція, відхилити не повторюється', () => {
+  for (const m of ['morale', 'tcentre', 'backroom']) require(`../js/${m}.js`);
+  const { W, state } = fresh();
+  FM.club.initStaff(W, state);
+  state.training = { focus: 'balanced', intensity: 'normal', individual: {} };
+  // забрати всіх воротарів, крім одного, — штаб помітить
+  const gks = W.squad(state.clubId).filter((p) => p.roles[0] === 'GK');
+  for (const p of gks.slice(1)) W.move(p.id, [...W.clubs.values()].find((c) => c.id !== state.clubId).id);
+  const items = FM.backroom.advice(W, state);
+  assert.ok(items.length >= 1);
+  assert.ok(items.every((i) => i.who && i.text && i.act));
+  const need = items.find((i) => i.act.kind === 'need');
+  assert.ok(need && FM.ROLE_NAME[need.act.role], JSON.stringify(items.map((i) => i.id)));
+  const r = FM.backroom.accept(W, state, need.id);
+  assert.ok(/шукає/.test(r.text));
+  assert.ok(FM.market.scouts(state).some((s) => s.region === 'task' && s.task.pos === need.act.role));
+  const focus = items.find((i) => i.act.kind === 'focus');
+  if (focus) { FM.backroom.accept(W, state, focus.id); assert.strictEqual(state.training.individual[focus.act.pid], focus.act.attr); }
+  const left = FM.backroom.advice(W, state);
+  if (left.length) {
+    const id = left[0].id; FM.backroom.dismiss(state, id);
+    state.backroom = null; state.season.week += 1;
+    assert.ok(!FM.backroom.advice(W, state).some((i) => i.id === id), 'відхилена порада не повторюється');
+  }
+});

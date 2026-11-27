@@ -165,6 +165,6 @@
     return ids.reduce((s, id) => s + get(W.player(id)), 0) / Math.max(1, ids.length);
   };
 
-  FM.morale = { POST_TALKS, postTalk, get, factor, label, status, STATUS, weekly, recordRatings, TALKS, talkEffect, PRESS, pressQuestion, answerPress, teamMorale };
+  FM.morale = { POST_TALKS, postTalk, get, factor, label, status, STATUS, EXPECT, weekly, recordRatings, TALKS, talkEffect, PRESS, pressQuestion, answerPress, teamMorale };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);
