@@ -2574,6 +2574,24 @@
     return { box, draw };
   }
 
+  /** Стаття про матч (і коротка новина в пошту, якщо грала ваша команда). */
+  function matchArticle(m, hs, as, myK, extra) {
+    if (!FM.report) return null;
+    const f = extra && extra.fixture;
+    let att = null;
+    if (f && state && hs.club && W.club(hs.club.id)) {
+      const S = state.season, lg = W.club(hs.club.id).league, t = FM.season.table(S, W, lg), pos = t.findIndex((r) => r.id === hs.club.id) + 1;
+      const rel = t.length > 1 ? 1 - (pos - 1) / (t.length - 1) : 0.5;
+      const a = FM.money.attendance(W, state, hs.club.id, as.club.id, rel, FM.rivals.derby(W, hs.club.id, as.club.id), m.weather);
+      att = a.n;
+      if (hs.club.id === state.clubId) state.matchAtt = { s: S.year, opp: as.club.id, n: a.n, fill: a.fill };
+    }
+    const r = FM.report.article(m, { home: clubName(hs.club), away: clubName(as.club), name: nameOf, stadium: f ? hs.club.stadium : null, att,
+      comp: f && W.league(f.l) ? W.league(f.l).name : null, myK, manager: state ? state.manager : null });
+    if (state && myK != null) { FM.market.news(state, `Преса: «${r.head}». ${r.paras[0] || ''}`, 'match'); saveGame(); }
+    return r;
+  }
+
   function liveView(hs, as, M, myK, onFinish, actions, extra) {
     const ticker = extra && extra.fixture && state ? liveTicker(extra.fixture, M, myK) : null;
     const scoreEl = el('div.sb-score', '0:0');
@@ -2689,6 +2707,25 @@
     let mode3 = can3d && (() => { try { return localStorage.getItem(VIEW_KEY) !== '2d'; } catch (_) { return true; } })();
     let v3 = null, cam3 = (() => { try { return localStorage.getItem(VIEW_KEY + ':cam') || 'tv'; } catch (_) { return 'tv'; } })();
     const v3wrap = el('div.v3d-wrap', { hidden: true });
+    // накладки трансляції: табло, стрічка подій (голи, вилучення), рядок коментаря
+    const ov3 = { score: el('div.v3o-score', { 'aria-hidden': 'true' }), line: el('div.v3o-line', { 'aria-hidden': 'true' }), tick: el('div.v3o-ticker', { 'aria-hidden': 'true' }) };
+    v3wrap.append(ov3.score, ov3.line, ov3.tick);
+    const teamTag = (k) => { const c = k === 0 ? hs.club : as.club, t = el('span.v3o-team', c.code || clubName(c).slice(0, 3).toUpperCase()); t.style.background = kit[k][0]; t.style.color = hexLum(kit[k][0]) > 0.6 ? '#111' : '#fff'; return t; };
+    const hexLum = (hex) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return 0.5; const n = parseInt(m[1], 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+    function draw3dOverlay() {
+      if (!mode3) return;
+      ov3.score.replaceChildren(teamTag(0), el('b', scoreEl.textContent), teamTag(1), el('span.v3o-clock', clock.textContent));
+      const seen = M.events.slice(0, shown);
+      const last = [...seen].reverse().find((e) => e.text && e.type !== 'info');
+      ov3.tick.textContent = last ? `${last.min}′  ${last.text}` : '';
+      ov3.tick.hidden = !last;
+      const span = seen.some((e) => typeof e.min === 'number' && e.min > 95) ? 122 : 95;
+      const now = typeof M.minuteNum === 'number' ? M.minuteNum : 0;
+      const bar = el('i.v3o-prog'); bar.style.width = Math.min(100, (now / span) * 100) + '%';
+      ov3.line.replaceChildren(bar, ...seen.filter((e) => (e.type === 'goal' || e.type === 'red') && typeof e.min === 'number').map((e) => {
+        const mk = el('i.v3o-mk.' + (e.type === 'goal' ? 'goal' : 'red')); mk.style.left = Math.min(100, (e.min / span) * 100) + '%'; mk.style.background = e.type === 'goal' ? kit[e.team][0] : ''; return mk;
+      }));
+    }
     const info3 = (id) => {
       for (const k of [0, 1]) {
         const x = M.sides[k].onPitch.find((y) => y.p.id === id);
@@ -2696,7 +2733,7 @@
       }
       return { k: 0, num: '', gk: false };
     };
-    function ensure3d() { if (!v3 && can3d) { try { v3 = FM.view3d.create(v3wrap, { kit, info: info3 }); v3.setCamera(cam3); } catch (err) { console.warn('3D недоступне', err); mode3 = false; } } }
+    function ensure3d() { if (!v3 && can3d) { try { v3 = FM.view3d.create(v3wrap, { kit, info: info3, sponsor: state && state.sponsor && myK != null ? state.sponsor.name : null }); v3.setCamera(cam3); } catch (err) { console.warn('3D недоступне', err); mode3 = false; } } }
     const viewBar = el('div.view-bar');
     function drawViewBar() {
       if (!can3d) return viewBar.replaceChildren();
@@ -2822,6 +2859,7 @@
       }
       const s = M.liveStats();
       if (ticker) ticker.draw();
+      draw3dOverlay();
       const lastEv = M.events[M.events.length - 1];
       if (!SIMV && lastEv && lastEv !== moveBall.last && !hlActive) {
         moveBall.last = lastEv;
@@ -3003,6 +3041,7 @@
       flush();
       clock.textContent = 'Кінець';
       onFinish(m);
+      const art = matchArticle(m, hs, as, myK, extra);
       drawSpeed(); drawControl();
       const [sh, sa] = m.stats;
       const ratingTable = (k, club) => el('div.panel', [el('h3', clubName(club)), el('div.table-wrap', el('table', [
@@ -3015,6 +3054,8 @@
         ]))),
       ]))]);
       put(after,
+        art ? el('article.panel.match-report', [el('h3', 'Звіт про матч'), el('h2.mr-head', art.head), el('p.mr-lead', art.lead), ...art.paras.map((t) => el('p', t)),
+          el('dl.facts.mr-facts', art.facts.flatMap(([k, v]) => [el('dt', k), el('dd', v)]))]) : null,
         el('div.panel', [el('h3', 'Статистика'), compareBars([
           ['Володіння', sh.poss, sa.poss, pct], ['Удари', sh.shots, sa.shots], ['У площину воріт', sh.onTarget, sa.onTarget],
           ['Очікувані голи (xG)', sh.xg, sa.xg, f2], ['Голи зі стандартів', sh.spGoals || 0, sa.spGoals || 0], ['Кутові', sh.corners || 0, sa.corners || 0],
@@ -3562,7 +3603,9 @@
   function attendanceNews(oppId, comp) {
     const S = state.season, t = FM.season.table(S, W, W.club(state.clubId).league), n0 = t.length;
     const pos = t.findIndex((r) => r.id === state.clubId) + 1, rel = n0 > 1 ? 1 - (pos - 1) / (n0 - 1) : 0.5;
-    const a = FM.money.attendance(W, state, state.clubId, oppId, rel, FM.rivals.derby(W, state.clubId, oppId), null);
+    const ma = state.matchAtt && state.matchAtt.opp === oppId && state.matchAtt.s === S.year ? state.matchAtt : null; // уже пораховано для звіту про матч
+    const a = ma || FM.money.attendance(W, state, state.clubId, oppId, rel, FM.rivals.derby(W, state.clubId, oppId), null);
+    state.matchAtt = null;
     state.attLog = (state.attLog || []).concat([{ s: S.year, w: S.week - 1, opp: oppId, n: a.n, fill: Math.round(a.fill * 100), comp }]).slice(-60);
     const rec = FM.awards.attendance(state, a.n, clubName(W.club(oppId)));
     FM.market.news(state, `Глядачів на матчі з ${clubName(W.club(oppId))}: ${fmt.int(a.n)} (заповнено ${Math.round(a.fill * 100)}%).${rec.length ? ' ' + rec[0] + '!' : ''}`, 'club');

@@ -60,6 +60,22 @@
     g.fillStyle = fg; g.font = 'bold 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(text).slice(0, 3), 32, 34);
     return new THREE.CanvasTexture(c);
   }
+  // Рекламні щити: вигадані бренди (без справжніх компаній), спонсор клубу — частіше
+  const BRANDS = [['КАВУН БАНК', '#1f8a4c', '#fff'], ['СТРУМОК • вода', '#1d6fd1', '#fff'], ['ВІТРИЛО АВТО', '#e8e8e8', '#14213d'], ['КЛЮЧ мобайл', '#ffcc00', '#111'],
+    ['КОЛОСОК', '#c8752a', '#fff'], ['ЗЛАГОДА страхування', '#4b2a87', '#fff'], ['ПОЛЕТЕХ', '#111', '#3fe07a'], ['БУРШТИН', '#f2a51a', '#2b1a00'], ['СОКІЛ СПОРТ', '#d12f2f', '#fff']];
+  /** Стрічка реклами: бренди підряд на кольорових панелях; повторюється, тож її можна прокручувати. */
+  function adTexture(THREE, brands) {
+    const c = document.createElement('canvas'); c.width = 2048; c.height = 64;
+    const g = c.getContext('2d'), w = c.width / brands.length;
+    brands.forEach(([text, bg, fg], i) => {
+      g.fillStyle = bg; g.fillRect(i * w, 0, w, 64);
+      g.fillStyle = fg; g.font = 'bold 34px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(text, i * w + w / 2, 34, w - 20);
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(i * w + w - 3, 0, 3, 64);
+    });
+    const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4;
+    return t;
+  }
   const lum = (hex) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return 0.5; const n = parseInt(m[1], 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
 
   /**
@@ -95,6 +111,21 @@
     };
     stand(L + 30, 5, 0, WD / 2 + 12, 0); stand(L + 30, 5, 0, -(WD / 2 + 12), Math.PI);
     stand(WD + 20, 5, L / 2 + 14, 0, Math.PI / 2); stand(WD + 20, 5, -(L / 2 + 14), 0, -Math.PI / 2);
+    // рекламні щити вздовж бровок і за воротами (LED: стрічка повільно прокручується)
+    const brands = BRANDS.slice();
+    if (opts.sponsor) brands.splice(0, 0, [String(opts.sponsor).toUpperCase(), opts.kit[0][0], lum(opts.kit[0][0]) > 0.6 ? '#111' : '#fff']);
+    const ads = [];
+    const adBoard = (len, x, z, ry, rep, shift) => {
+      const tex = adTexture(THREE, brands); tex.repeat.set(rep, 1); tex.offset.x = shift;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(len, 0.9), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+      m.position.set(x, 0.45, z); m.rotation.y = ry; scene.add(m);
+      ads.push(tex);
+    };
+    adBoard(L + 10, 0, -(WD / 2 + 4), 0, 1.6, 0); // дальня бровка — її видно з ТВ-камери
+    adBoard(L + 10, 0, WD / 2 + 4, Math.PI, 1.6, 0.5);
+    adBoard(WD - 8, -(L / 2 + 5), 0, Math.PI / 2, 0.6, 0.2);
+    adBoard(WD - 8, L / 2 + 5, 0, -Math.PI / 2, 0.6, 0.7);
+    let adClock = 0;
     // ворота
     const white = new THREE.MeshLambertMaterial({ color: 0xffffff });
     const netMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 });
@@ -209,6 +240,10 @@
         P.g.rotation.y = P.head;
         P.num.material.rotation = 0;
       }
+      // LED-щити: кожні 8 с стрічка зсувається на одну панель
+      adClock += dt;
+      const step = Math.floor(adClock / 8), frac = Math.min(1, (adClock % 8) / 0.6);
+      for (const t of ads) t.offset.x = (t.userData.base ?? (t.userData.base = t.offset.x)) + (step + frac) / brands.length;
       const bk = 1 - Math.exp(-dt * 12);
       B.x += (B.tx - B.x) * bk; B.z += (B.tz - B.z) * bk; B.y += (B.ty - B.y) * bk;
       ball.position.set(B.x, B.y, B.z);
@@ -241,6 +276,6 @@
     return { show, setCamera, replay, dispose, el: renderer.domElement, get camera() { return camMode; } };
   }
 
-  FM.view3d = { supported, create };
+  FM.view3d = { supported, create, BRANDS };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);
