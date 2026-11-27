@@ -681,6 +681,79 @@
     return blocks.length ? el('div.grid', blocks) : null;
   }
 
+  // ---------------- Переговори про контракт (js/contracts.js) ----------------
+  let neg = null; // { pid, kind: 'renew' | 'new', offer, rounds, max, msg, ok }
+  /**
+   * Панель пропозиції контракту. kind — 'renew' (продовження) або 'new' (новий гравець).
+   * onAgree(offer) — що зробити, коли агент погодився (перевірки бюджету й підписання).
+   */
+  function contractPanel(p, kind, onAgree) {
+    const S = state.season, me = W.club(state.clubId), now = S.year * 100 + S.week;
+    if (!neg || neg.pid !== p.id || neg.kind !== kind) {
+      const ag = FM.agents ? FM.agents.of(p) : { greed: 1 };
+      neg = { pid: p.id, kind, offer: FM.contracts.draft(W, state, p, me.id, kind), rounds: 0, max: ag.greed > 1.2 ? 3 : 5, msg: 'Це перша пропозиція клубу — змініть умови й надішліть агентові.', ok: null };
+    }
+    if (p.negBlock && p.negBlock > now) return el('div.panel', [el('h3', 'Контракт'), el('p.msg-bad', `Агент не хоче розмовляти до тижня ${p.negBlock % 100 + 1}. Спробуйте пізніше.`)]);
+    const o = neg.offer, exp = FM.contracts.expected(W, p, me.id), pref = FM.contracts.prefYears(W, p);
+    const bill = FM.market.wageBill(W, me.id), wages = W.squad(me.id).map((x) => x.wage || 0).filter((x) => x > 0);
+    const field = (id, label, input, help) => el('div.field.cf', [el('label', { for: id }, label), input, help ? el('small.muted', help) : null]);
+    const num = (id, v, step, max) => el('input', { id, type: 'number', min: 0, max, step, value: v ?? 0, inputmode: 'decimal' });
+    const sel = (id, v, opts) => el('select', { id }, opts.map(([k, l]) => el('option', { value: String(k), selected: String(v) === String(k) || null }, l)));
+    const read = () => {
+      const g = (id) => document.getElementById(id);
+      const n = (id) => Math.max(0, Number(g(id).value) || 0);
+      return { status: g('c-status').value, wage: Math.round(n('c-wage')), years: Number(g('c-years').value), signOn: n('c-sign'), loyalty: Math.round(n('c-loyal')), agent: kind === 'renew' ? 0 : n('c-agent'),
+        bonus: { app: Math.round(n('c-app')), goal: Math.round(n('c-goal')), clean: Math.round(n('c-clean')), unused: Math.round(n('c-unused')) },
+        clause: { rise: Number(g('c-rise').value), promo: Number(g('c-promo').value), releg: Number(g('c-releg').value), release: n('c-release'), ext: g('c-ext').checked } };
+    };
+    const propose = () => {
+      neg.offer = read();
+      const r = FM.contracts.evaluate(W, state, p, me.id, neg.offer, kind, neg);
+      neg.msg = r.text; neg.ok = r.ok;
+      if (r.walked) { p.negBlock = now + 3; neg = null; FM.market.news(state, `Агент ${nameOf(p)}: переговори припинено.`, 'transfers'); saveGame(); return render(); }
+      if (r.ok) { const res = onAgree(neg.offer); if (res && res.msg) { neg.msg = res.msg; neg.ok = res.ok; } if (res && res.ok) neg = null; }
+      saveGame(); render();
+    };
+    return el('div.panel.contract', [
+      el('div.panel-head', [el('h3', kind === 'renew' ? 'Новий контракт' : 'Пропозиція контракту'), el('small.muted', `Раунд ${neg.rounds + 1} з ${neg.max}`)]),
+      el('div.agent-say', [el('b', `Агент: ${FM.agents ? FM.agents.of(p).name : ''}`), el('p', neg.msg)]),
+      el('div.cgrid', [
+        el('div.cblock', [el('b', 'Основне'),
+          field('c-status', 'Статус у складі', sel('c-status', o.status, FM.contracts.ORDER.map((k) => [k, FM.contracts.STATUS[k] + (k === exp ? ' — очікує' : '')])), 'Обіцяний статус: якщо гравець гратиме менше, ніж обіцяно, він засмутиться.'),
+          field('c-wage', 'Зарплата, тис. € на тиждень', num('c-wage', o.wage, 1, 5000)),
+          field('c-years', 'Тривалість', sel('c-years', o.years, [1, 2, 3, 4, 5].map((y) => [y, `${y} р. (до літа ${S.year + 1 + y})${y === pref ? ' — хоче' : ''}`]))),
+          field('c-loyal', 'Бонус за лояльність, тис. € на рік', num('c-loyal', o.loyalty, 10, 50000)),
+          field('c-sign', 'Підйомні, млн € (разово)', num('c-sign', o.signOn, 0.05, 100)),
+          kind === 'renew' ? el('input', { id: 'c-agent', type: 'hidden', value: 0 }) : field('c-agent', 'Агентські, млн €', num('c-agent', o.agent, 0.05, 100), `Агент розраховує приблизно на ${M(FM.market.agentFee(0, o.wage, p))}.`)]),
+        el('div.cblock', [el('b', 'Бонуси, тис. €'),
+          field('c-app', 'За матч', num('c-app', o.bonus.app, 1, 1000)), field('c-goal', 'За гол', num('c-goal', o.bonus.goal, 1, 1000)),
+          field('c-clean', 'За суху гру', num('c-clean', o.bonus.clean, 1, 1000)), field('c-unused', 'За невихід із запасу', num('c-unused', o.bonus.unused, 1, 1000))]),
+        el('div.cblock', [el('b', 'Пункти'),
+          field('c-rise', 'Щорічне підвищення', sel('c-rise', o.clause.rise, [[0, 'немає'], [5, '5%'], [10, '10%'], [15, '15%']])),
+          field('c-promo', 'Підвищення при виході в лігу вище', sel('c-promo', o.clause.promo, [[0, 'немає'], [10, '10%'], [25, '25%'], [50, '50%']])),
+          field('c-releg', 'Зниження при вильоті', sel('c-releg', o.clause.releg, [[0, 'немає'], [10, '10%'], [25, '25%'], [50, '50%']])),
+          field('c-release', 'Мінімальні відступні, млн € (0 — без них)', num('c-release', o.clause.release, 0.5, 1000), 'Гравцеві подобається свобода: з відступними він просить менше.'),
+          el('label.check', [el('input', { id: 'c-ext', type: 'checkbox', checked: o.clause.ext || null }), ' Опція клубу продовжити на рік'])]),
+        el('div.cblock.cinfo', [el('b', 'Довідка'), el('dl.facts', [
+          el('dt', 'Очікує статус'), el('dd', FM.contracts.STATUS[exp]),
+          el('dt', 'Хоче контракт'), el('dd', `${pref} р.`),
+          el('dt', 'Зараз отримує'), el('dd', p.wage ? `${p.wage} тис. €/тиж.` : '—'),
+          el('dt', 'Найбільша зарплата в клубі'), el('dd', `${Math.max(0, ...wages)} тис. €/тиж.`),
+          el('dt', 'Середня в клубі'), el('dd', `${wages.length ? Math.round(wages.reduce((a, b) => a + b, 0) / wages.length) : 0} тис. €/тиж.`),
+          el('dt', 'Фонд зарплат'), el('dd', `${me.wageBudget} тис. €/тиж., витрачено ${bill}`),
+          el('dt', 'Пакет коштує гравцеві'), el('dd', `≈ ${Math.round(FM.contracts.worth(W, p, o))} тис. €/тиж. разом з бонусами`),
+        ])]),
+      ]),
+      el('div.actions', [
+        el('button.btn.primary', { type: 'button', onclick: propose }, 'Запропонувати'),
+        el('button.btn', { type: 'button', title: 'Агент назве пакет, на який гравець погодиться', onclick: () => { neg.offer = FM.contracts.suggest(W, state, p, me.id, read(), kind); neg.msg = 'Агент: «Ось контракт, який нас влаштує». Можна надіслати або змінити.'; render(); } }, 'Умови агента'),
+        el('button.btn', { type: 'button', onclick: () => { neg = null; render(); } }, 'Скинути'),
+        el('button.btn.link', { type: 'button', onclick: () => { neg = null; deal = null; render(); } }, 'Припинити переговори'),
+      ]),
+      neg.ok === false && neg.rounds ? el('p.muted', 'Зарплату можна «добрати» підйомними, бонусами, щорічним підвищенням або вищим статусом.') : null,
+    ]);
+  }
+
   // ---------------- Трансфери: панелі в картці гравця ----------------
   let deal = null; // поточні перемовини: { pid, stage: 'club' | 'player', fee, msg, ok }
   let renewMsg = null, confirmRelease = null, loanShow = null;
@@ -776,38 +849,27 @@
     } else {
       const raw = FM.market.wageDemand(W, p, me.id);
       if (raw == null) { blocks.push(el('p.msg-bad', 'Гравець не хоче переходити в значно слабший клуб.')); return el('div.panel', blocks); }
-      const agent = FM.market.agentFee(deal.fee, raw, p);
-      blocks.push(el('p.muted', `Гравець зараз отримує ${p.wage || '—'} тис. € на тиждень${known(p) ? `, розраховує приблизно на ${raw}` : ''}. Комісія агента — ${M(agent)}.${rv ? ` ${clubName(W.club(rv.club))} пропонує йому ${rv.wage} тис.` : ''}`));
-      blocks.push(el('div.pre-row', [
-        numField('bid-wage', 'Зарплата, тис. € на тиждень', deal.wage || (rv ? Math.max(raw, rv.wage) : raw), 1, 1, 2000),
-        el('div.field', [el('label', { for: 'bid-years' }, 'Років'), el('select', { id: 'bid-years' }, [1, 2, 3, 4, 5].map((y) => el('option', { value: y, selected: y === (deal.years || 3) || null }, y)))]),
-        numField('bid-clause', 'Відступні, млн € (необов’язково)', deal.clause || '', 0.5, 0, 500),
-        numField('bid-bonus', 'Бонус за гол, тис. €', deal.goalBonus || '', 1, 0, 500),
-        el('button.btn.primary', { type: 'button', onclick: () => {
-          const wage = Math.round(Number(document.getElementById('bid-wage').value) || 0);
-          const years = Number(document.getElementById('bid-years').value);
-          const clause = Number(document.getElementById('bid-clause').value) || 0;
-          const goalBonus = Math.round(Number(document.getElementById('bid-bonus').value) || 0);
-          Object.assign(deal, { wage, years, clause, goalBonus });
-          const r = FM.market.playerResponse(W, p, me.id, wage, years, { rival: rv, clauses: { clause, goalBonus } });
-          if (!r.ok) { deal.msg = r.reason; deal.ok = false; return render(); }
-          const ag = FM.market.agentFee(deal.fee, wage, p);
-          if (!FM.budget.canSpend(W, state, deal.fee + ag)) { deal.msg = `Не вистачає трансферного бюджету: ${M(FM.budget.available(W, state))}, а з агентом треба ${M(deal.fee + ag)}.`; deal.ok = false; return render(); }
-          if (FM.deals.upfront(deal.fee, deal.inst) + ag > me.balance) { deal.msg = `Не вистачає грошей: баланс ${M(me.balance)}, з агентом — ${M(deal.fee + ag)}.`; deal.ok = false; return render(); }
-          const bill = FM.market.wageBill(W, me.id) - (deal.swap ? W.player(deal.swap).wage || 0 : 0);
-          if (bill + wage > me.wageBudget) { deal.msg = `Правління не погоджує: фонд зарплат ${me.wageBudget} тис. €/тиж., уже витрачено ${bill}. Продайте когось або запропонуйте менше.`; deal.ok = false; return render(); }
-          const from = p.club ? clubName(W.club(p.club)) : null;
-          const now = FM.deals.upfront(deal.fee, deal.inst), fromId = p.club;
-          state.board.fin.transfers = Math.round((state.board.fin.transfers - now - ag) * 100) / 100;
-          FM.market.complete(W, state, p, me.id, now, wage, years, { agent: ag, sellOn: deal.sellOn ? 0.15 : 0, clause: clause || null, goalBonus: goalBonus || null, swap: deal.swap });
-          FM.deals.register(state, p, fromId, deal.fee, { inst: deal.inst, apps: deal.apps, bonus: deal.bonus });
-          if (deal.fee - now > 0) FM.budget.spend(W, state, deal.fee - now); // розстрочка: бюджет рахує всю суму одразу
-          state.known = state.known || {}; state.known[p.id] = true;
-          FM.market.news(state, `Ви підписали ${nameOf(p)}${from ? ` (${from}, ${M(deal.fee)}${deal.swap ? ' + обмін' : ''})` : ' (вільний агент)'}.`);
-          deal = null; saveGame(); render();
-        } }, 'Запропонувати контракт'),
-      ]));
-      blocks.push(el('p.note', 'Відступні знижують вимоги гравця на 10%, але за цю суму будь-який клуб зможе його забрати. Бонус за голи теж трохи знижує вимоги.'));
+      if (rv) blocks.push(el('p.msg-bad', `${clubName(W.club(rv.club))} теж хоче підписати гравця й пропонує ${rv.wage} тис. € на тиждень.`));
+      blocks.push(contractPanel(p, 'new', (offer) => {
+        const wage = offer.wage, years = offer.years, clause = offer.clause.release || 0;
+        if (rv) { const score = (w, clubId) => w * (1 + (W.clubLevel(clubId) - 100) * 0.006); if (score(FM.contracts.worth(W, p, offer), me.id) < score(rv.wage, rv.club)) return { ok: false, msg: `Гравець обирає ${clubName(W.club(rv.club))}: там пропонують ${rv.wage} тис. € на тиждень. Додайте до пакета.` }; }
+        const ag = offer.agent || 0;
+        if (!FM.budget.canSpend(W, state, deal.fee + ag + (offer.signOn || 0))) return { ok: false, msg: `Не вистачає трансферного бюджету: ${M(FM.budget.available(W, state))}, а з агентськими й підйомними треба ${M(deal.fee + ag + (offer.signOn || 0))}.` };
+        if (FM.deals.upfront(deal.fee, deal.inst) + ag + (offer.signOn || 0) > me.balance) return { ok: false, msg: `Не вистачає грошей: баланс ${M(me.balance)}.` };
+        const bill = FM.market.wageBill(W, me.id) - (deal.swap ? W.player(deal.swap).wage || 0 : 0);
+        if (bill + wage > me.wageBudget) return { ok: false, msg: `Правління не погоджує: фонд зарплат ${me.wageBudget} тис. €/тиж., уже витрачено ${bill}. Продайте когось або запропонуйте менше.` };
+        const from = p.club ? clubName(W.club(p.club)) : null;
+        const now = FM.deals.upfront(deal.fee, deal.inst), fromId = p.club;
+        state.board.fin.transfers = Math.round((state.board.fin.transfers - now - ag) * 100) / 100;
+        FM.market.complete(W, state, p, me.id, now, wage, years, { agent: ag, sellOn: deal.sellOn ? 0.15 : 0, clause: clause || null, goalBonus: offer.bonus.goal || null, swap: deal.swap });
+        FM.contracts.apply(W, state, p, offer, me.id);
+        FM.deals.register(state, p, fromId, deal.fee, { inst: deal.inst, apps: deal.apps, bonus: deal.bonus });
+        if (deal.fee - now > 0) FM.budget.spend(W, state, deal.fee - now); // розстрочка: бюджет рахує всю суму одразу
+        state.known = state.known || {}; state.known[p.id] = true;
+        FM.market.news(state, `Ви підписали ${nameOf(p)}${from ? ` (${from}, ${M(deal.fee)}${deal.swap ? ' + обмін' : ''})` : ' (вільний агент)'}: ${wage} тис. € на тиждень до літа ${p.contract}, статус — ${FM.contracts.STATUS[offer.status].toLowerCase()}.`);
+        deal = null; saveGame();
+        return { ok: true };
+      }));
     }
     return el('div.panel', blocks);
   }
@@ -824,19 +886,16 @@
       el('p', `Контракт до літа ${p.contract} (${yearsLeft <= 0 ? 'закінчується цього сезону' : `ще ${yearsLeft} р. після цього сезону`}), ${p.wage} тис. € на тиждень.`
         + (p.clause ? ` Відступні: ${M(p.clause)}.` : '') + (p.goalBonus ? ` Бонус за гол: ${p.goalBonus} тис. €.` : '') + (p.sellOn ? ` ${Math.round(p.sellOn.pct * 100)}% з наступного продажу отримає ${clubName(W.club(p.sellOn.club))}.` : ''))];
     if (renewMsg && renewMsg.pid === p.id) blocks.push(el('p.' + (renewMsg.ok ? 'msg-ok' : 'msg-bad'), renewMsg.text));
-    const demand = FM.market.renewDemand(W, p);
-    blocks.push(el('div.pre-row', [
-      numField('renew-wage', 'Нова зарплата, тис. € на тиждень', demand, 1, 1, 2000),
-      el('div.field', [el('label', { for: 'renew-years' }, 'Ще років'), el('select', { id: 'renew-years' }, [1, 2, 3, 4, 5].map((y) => el('option', { value: y, selected: y === 3 || null }, y)))]),
-      el('button.btn', { type: 'button', onclick: () => {
-        const nw = Math.round(Number(document.getElementById('renew-wage').value) || 0);
-        const me = W.club(state.clubId), bill = FM.market.wageBill(W, me.id);
-        if (bill - (p.wage || 0) + nw > me.wageBudget) { renewMsg = { pid: p.id, ok: false, text: `Правління не погоджує: перевищено фонд зарплат (${me.wageBudget} тис. €/тиж.).` }; return render(); }
-        const r = FM.market.renew(W, state, p, nw, Number(document.getElementById('renew-years').value));
-        renewMsg = { pid: p.id, ok: r.ok, text: r.ok ? `Контракт продовжено до літа ${p.contract}.` : r.reason };
-        if (r.ok) saveGame(); render();
-      } }, 'Продовжити контракт'),
-    ]));
+    blocks.push(el('p.muted', `Статус у складі: ${FM.morale.STATUS[FM.morale.status(W, p)]}${p.bonus ? ` · бонуси: ${[p.bonus.app ? `${p.bonus.app} за матч` : '', p.bonus.goal ? `${p.bonus.goal} за гол` : '', p.bonus.clean ? `${p.bonus.clean} за суху гру` : ''].filter(Boolean).join(', ')} тис. €` : ''}${p.loyalty ? ` · лояльність ${p.loyalty} тис. €/рік` : ''}${p.clauseSet && p.clauseSet.rise ? ` · щорічне підвищення ${p.clauseSet.rise}%` : ''}.`));
+    if (p.clauseSet && p.clauseSet.ext && yearsLeft <= 1) blocks.push(el('div.actions', [el('button.btn', { type: 'button', onclick: () => { const r = FM.contracts.exerciseExt(W, state, p); renewMsg = { pid: p.id, ok: r.ok, text: r.text }; saveGame(); render(); } }, 'Скористатися опцією продовження')]));
+    blocks.push(contractPanel(p, 'renew', (offer) => {
+      const me = W.club(state.clubId), bill = FM.market.wageBill(W, me.id);
+      if (bill - (p.wage || 0) + offer.wage > me.wageBudget) return { ok: false, msg: `Правління не погоджує: перевищено фонд зарплат (${me.wageBudget} тис. €/тиж.). Перекиньте гроші в «Клуб → Бюджети» або запропонуйте менше.` };
+      FM.contracts.apply(W, state, p, offer, me.id);
+      renewMsg = { pid: p.id, ok: true, text: `Контракт підписано: до літа ${p.contract}, ${p.wage} тис. € на тиждень, статус — ${FM.contracts.STATUS[offer.status].toLowerCase()}.` };
+      FM.market.news(state, `${nameOf(p)} підписав новий контракт до літа ${p.contract}.`, 'players');
+      return { ok: true };
+    }));
     if (FM.market.windowOpen(S)) {
       if (loanShow === p.id) {
         const offers = FM.market.loanOffers(W, state, p);
@@ -3555,6 +3614,7 @@
     for (const t of FM.boardroom.promisesWeek(W, state)) FM.market.news(state, t, 'club');
     for (const t of FM.deals.week(W, state)) FM.market.news(state, t, 'transfers');
     const ln = FM.budget.loanWeek(W, state); if (ln) FM.market.news(state, ln, 'club');
+    FM.contracts.weekBonuses(W, state); // бонуси за матч, гол, суху гру з контрактів
     const fresh = FM.medical.restWeek(W, state, `${S.year}-${S.week - 1}`);
     if (fresh.length) FM.market.news(state, `Після тижня відпочинку повністю свіжі: ${fresh.map(nameOf).join(', ')}.`, 'players');
     // міжнародне вікно, що минуло: хто їздив у збірні
@@ -3712,6 +3772,7 @@
       if (m.club === state.clubId) FM.market.news(state, m.up ? `Вітаємо! ${clubName(c)} виходить до ліги «${W.league(m.to).name}».` : `${clubName(c)} вилітає до ліги «${W.league(m.to).name}».`);
     }
     state.lastReport.moves = moves.filter((m) => m.from === state.lastReport.league || m.to === state.lastReport.league || m.club === state.clubId);
+    for (const t of FM.contracts.seasonEnd(W, state, { promoted: moves.some((m) => m.club === state.clubId && m.up), relegated: moves.some((m) => m.club === state.clubId && !m.up) })) FM.market.news(state, t, 'club');
     // кар'єра тренера: бачення правління, трофеї, досягнення
     {
       const lg = W.league(state.lastReport.league) || {};

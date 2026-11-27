@@ -912,3 +912,14 @@ details.pi summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
 .pl-role { font: 700 0.6rem/1 var(--font-body); background: rgba(0,0,0,.55); color: #ffe27a; padding: 1px 3px; border-radius: 2px; }
 label.ti-item { justify-content: flex-start; gap: 0.35rem; }
 label.ti-item small { flex-basis: 100%; padding-left: 1.6rem; margin-top: -0.2rem; }
+
+/* Переговори про контракт */
+.contract .agent-say { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.6rem 0.8rem; border-left: 3px solid var(--club-hi, var(--accent)); background: var(--panel-2); border-radius: var(--radius); margin-bottom: 0.7rem; }
+.contract .agent-say p { margin: 0; }
+.cgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 0.8rem 1rem; }
+.cblock { display: flex; flex-direction: column; gap: 0.45rem; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.6rem 0.7rem; }
+.cblock > b { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.field.cf { margin: 0; }
+.field.cf input, .field.cf select { width: 100%; }
+.cinfo dl.facts { grid-template-columns: auto 1fr; font-size: 0.88rem; }
+@media (min-width: 900px) { .cblock.cinfo { grid-column: span 2; } }
