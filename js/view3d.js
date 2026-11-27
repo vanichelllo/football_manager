@@ -255,7 +255,7 @@
     const ads = [];
     const adBoard = (len, x, z, ry, rep, shift) => {
       const tex = adTexture(THREE, brands); tex.repeat.set(rep, 1); tex.offset.x = shift;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(len, 0.9), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(len, 0.9), new THREE.MeshBasicMaterial({ map: tex }));
       m.position.set(x, 0.45, z); m.rotation.y = ry; scene.add(m);
       ads.push(tex);
     };
@@ -536,11 +536,12 @@
       const near = Math.abs(B.x) > L / 2 - 24; // м'яч у штрафному майданчику чи біля нього
       if (mode === 'top') { px = B.x * 0.6; py = 72; pz = 30; lz = B.z * 0.5; fov = narrow ? 44 : 36; }
       else if (mode === 'side') { px = clamp(B.x, -L / 2 + 4, L / 2 - 4); py = 4.2; pz = WD / 2 + 6.5; lz = B.z * 0.8; fov = narrow ? 44 : 34; }
-      else if (mode === 'goal') { const end = B.x >= 0 ? 1 : -1; px = end * (L / 2 + 18); py = 10; pz = B.z * 0.3; fov = narrow ? 50 : 42; }
-      else if (mode === 'goalHigh') { const end = replaying || camMode !== 'director' ? (B.x >= 0 ? 1 : -1) : dir.end; px = end * (L / 2 + 22); py = 15; pz = B.z * 0.35 + 9; lx = end * (L / 2 - 14); lz = B.z * 0.6; fov = narrow ? 48 : 40; }
+      else if (mode === 'goal') { const end = B.x >= 0 ? 1 : -1; px = end * (L / 2 + 7); py = 6.5; pz = B.z * 0.3; fov = narrow ? 56 : 48; }
+      else if (mode === 'goalHigh') { const end = replaying || camMode !== 'director' ? (B.x >= 0 ? 1 : -1) : dir.end; px = end * (L / 2 + 7.5); py = 11; pz = B.z * 0.3 + 7; lx = end * (L / 2 - 16); lz = B.z * 0.6; fov = narrow ? 54 : 46; }
       else { // «Трансляція»: висока бокова камера, ближче біля воріт
         const zoom = camMode === 'director' && near ? 0.82 : 1;
-        px = clamp(B.x * 0.92, -L / 2 + 8, L / 2 - 8); py = (narrow ? 23 : 25) * zoom; pz = WD / 2 + (narrow ? 22 : 27) * zoom + B.z * 0.2; lz = B.z * 0.8 - 4; ly = 2; fov = narrow ? 36 : 27;
+        const bz = clamp(B.z, -WD / 2, WD / 2);
+        px = clamp(B.x * 0.92, -L / 2 + 8, L / 2 - 8); py = (narrow ? 23 : 25) * zoom; pz = WD / 2 + (narrow ? 24 : 27) * zoom + bz * 0.15; lz = clamp(bz * 0.6 - 4, -30, 10); ly = 2; fov = narrow ? 33 : 27;
       }
       const ck = cut ? 1 : 1 - Math.exp(-dt * 2.6);
       cut = false;
