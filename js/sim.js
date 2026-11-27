@@ -36,7 +36,8 @@
   function create(ctx) {
     const { sides, R } = ctx;
     // атрибут з урахуванням форми гравця (свіжість, настрій, позиція, тактика), стиснутий до середнього
-    const at = (x, k, fb) => { const raw = x.p.attrs[k] ?? (fb != null ? fb : 10); return 10 + (raw * (x._m ?? 1) - 10) * SENS; };
+    const at = (x, k, fb) => { const raw = x.p.attrs[k] ?? (x._xa && x._xa[k] != null ? x._xa[k] : fb != null ? fb : 10); return 10 + (raw * (x._m ?? 1) - 10) * SENS; };
+    const XA = ['acc', 'ant', 'cmp', 'fir', 'jum', 'cnt', 'fla', 'vis']; // похідні атрибути (js/attrs.js), рахуються раз на хвилину
     const [H, A] = sides;
     // перетворення координат: команда k бачить поле зі своїх воріт (u вздовж, v поперек)
     const X = (k, u) => (k === 0 ? u : L - u), Y = (k, v) => (k === 0 ? v : WD - v);
@@ -96,7 +97,7 @@
       }
       for (const x of L1) if (x.px == null) { const p = base(t, x, false, L / 2, WD / 2); x.px = p[0]; x.py = p[1]; }
     }
-    const vmax = (x) => (7.1 + (at(x, 'pac') - 10) * 0.17) * (0.8 + 0.2 * (x.cond ?? 100) / 100);
+    const vmax = (x) => (7.1 + ((at(x, 'pac') * 0.65 + at(x, 'acc', x.p.attrs.pac) * 0.35) - 10) * 0.17) * (0.8 + 0.2 * (x.cond ?? 100) / 100);
     const U = (t, x) => (t.k === 0 ? x.px : L - x.px), V = (t, x) => (t.k === 0 ? x.py : WD - x.py);
     const ballU = (k) => (k === 0 ? ball.x : L - ball.x), ballV = (k) => (k === 0 ? ball.y : WD - ball.y);
 
@@ -241,7 +242,7 @@
         const cx = fx + dx * s, cy = fy + dy * s, h = Math.hypot(y.px - cx, y.py - cy);
         if (aerial && !tail && y.slot.role !== 'GK') continue; // довгу перехоплюють лише там, де вона приземлиться
         const tb = (s * len) / sp;
-        const react = 0.45 - (at(y, 'pos') + at(y, 'dec') - 20) * 0.008;
+        const react = 0.45 - (at(y, 'pos') + at(y, 'ant', y.p.attrs.dec) - 20) * 0.008; // передбачення
         const ty2 = Math.max(0, h - (y.slot.role === 'GK' ? 2.2 : 1.2)) / vmax(y) + react;
         let r = sig(2.0 * (tb - ty2) - 0.6) * (tail ? 0.5 : 0.75);
         if (y.slot.role === 'GK' && !(Math.abs(cy - WD / 2) < 20 && (t.k === 0 ? cx > L - 17 : cx < 17))) r = 0; // воротар — лише у своєму штрафному
@@ -271,7 +272,7 @@
         const ir = interceptRisk(t, x.px, x.py, tx, ty, sp, aerial);
         const pInt = Math.min(0.97, ir.p * (1.25 - 0.025 * pasE));
         const near = nearestOpp(t, tx, ty).d;
-        let pCtl = 0.995 - d * 0.003 * (21 - pasE) / 10 - (near < 2 ? 0.12 : near < 4 ? 0.04 : 0) + (at(y, 'tec', y.p.attrs.dri) - 10) * 0.005;
+        let pCtl = 0.995 - d * 0.003 * (21 - pasE) / 10 - (near < 2 ? 0.12 : near < 4 ? 0.04 : 0) + (at(y, 'fir', y.p.attrs.tec) - 10) * 0.005; // перший дотик
         if (aerial) pCtl -= 0.12 * (near < 3 ? 1 : 0.3);
         if (ctx.rain && !aerial && d < 25) pCtl -= 0.02;
         pCtl = clamp(pCtl, 0.35, 0.99);
@@ -337,7 +338,7 @@
     function shotQ(t, x, u, v, press, header) {
       const o = sides[1 - t.k], gk = live(o).find((y) => y.slot.role === 'GK');
       const far = Math.hypot(L - u, v - WD / 2) > 20;
-      const skill = (far ? at(x, 'lon', x.p.attrs.fin) * 0.6 + at(x, 'fin') * 0.4 : at(x, 'fin')) * 0.7 + at(x, 'dec') * 0.3;
+      const skill = (far ? at(x, 'lon', x.p.attrs.fin) * 0.6 + at(x, 'fin') * 0.4 : at(x, 'fin')) * 0.7 + at(x, 'cmp', x.p.attrs.dec) * 0.3; // холоднокровність
       const gq = gk ? at(gk, 'ref') * 0.4 + at(gk, 'one') * 0.3 + at(gk, 'pos') * 0.3 : 7;
       const ff = Math.pow(clamp(skill / gq, 0.55, 1.6), 0.85);
       const pm = 0.5 + 0.5 * clamp(press / 4, 0, 1);
@@ -463,7 +464,7 @@
       }
       // груба помилка під тиском біля своїх воріт: м'яч — суперникові
       const nr0 = U(t, x) < 30 ? nearestOpp(t, x.px, x.py) : null;
-      if (nr0 && nr0.d < 2.5 && R.chance(0.012 * (1 + (12 - at(x, 'dec')) / 5))) {
+      if (nr0 && nr0.d < 2.5 && R.chance(0.012 * (1 + (12 - (at(x, 'dec') + at(x, 'cnt', x.p.attrs.dec)) / 2) / 5) * (clock > 75 * 60 ? 1.25 : 1))) { // концентрація, утома наприкінці
         const o2 = sides[1 - t.k];
         note(o2, 'howler', { p: x }, true);
         nr0.y.px = x.px; nr0.y.py = x.py; give(nr0.y, o2); return;
@@ -505,8 +506,9 @@
           ball.x = target.px; ball.y = target.py; return deadBall('gk', o, X(o.k, 6), WD / 2, 5);
         }
         // боротьба в повітрі
-        const atk = at(target, 'hea') + at(target, 'str') * 0.3 + at(target, 'bra') * 0.2;
-        const def = defs.reduce((m, d) => Math.max(m, at(d, 'hea') + at(d, 'str') * 0.3 + at(d, 'bra') * 0.2), 0);
+        const air = (q) => at(q, 'hea') * 0.65 + at(q, 'jum', q.p.attrs.hea) * 0.35 + at(q, 'str') * 0.3 + at(q, 'bra') * 0.2; // гра головою й стрибок
+        const atk = air(target);
+        const def = defs.reduce((m, d) => Math.max(m, air(d)), 0);
         const win = sig(0.22 * (atk - def) + (defs.length ? -0.2 - 0.25 * (defs.length - 1) : 1.4));
         if (R.chance(win)) {
           perf(t, x).passOk = (perf(t, x).passOk || 0) + 1;
@@ -634,7 +636,7 @@
 
     /** Одна хвилина гри. kickoff — хто розпочинає (на 1-й і 46-й хвилині). Повертає частку володіння господарів. */
     function minute(m) {
-      for (const t of sides) { anchors(t); for (const x of live(t)) x._m = ctx.mul(x); }
+      for (const t of sides) { anchors(t); for (const x of live(t)) { x._m = ctx.mul(x); if (FM.attrs && !x._xa) { x._xa = {}; for (const k of XA) x._xa[k] = FM.attrs.attr(x.p, k); } } }
       if (m === 1 || m === 46 || m === 91 || m === 106) {
         const t = m === 1 || m === 91 ? H : A;
         for (const s of sides) for (const x of live(s)) { const p = base(s, x, false, L / 2, WD / 2); x.px = s.k === 0 ? Math.min(p[0], L / 2 - 1) : Math.max(p[0], L / 2 + 1); x.py = p[1]; x.run = null; x.carry = null; }

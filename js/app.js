@@ -453,6 +453,8 @@
         { k: 'ca', label: 'Рівень', v: (p) => p.ca, cell: (p) => starsEl(p.ca, 'Рівень') },
         { k: 'pa', label: 'Потенціал', v: (p) => p.pa, cell: (p) => starsEl(p.pa, 'Потенціал') },
         { k: 'fit', label: 'Свіж.', full: 'Свіжість', title: 'Свіжість, %', v: (p) => Math.round(p.fitness ?? 100), num: true },
+        { k: 'sharp', label: 'Ритм', full: 'Ігрова форма', title: 'Ігрова форма, %: падає без матчів', v: (p) => Math.round(FM.attrs.sharp(p)), cell: (p) => { const v = Math.round(FM.attrs.sharp(p)); return el('span' + (v < 70 ? '.warn-t' : ''), v + '%'); }, num: true },
+        { k: 'last5', label: 'Останні 5', full: 'Оцінки за останні 5 матчів', v: (p) => (p.form && p.form.length ? p.form[p.form.length - 1] : null), cell: (p) => el('span.last5', (p.form || []).map((r) => el('i', { title: String(r).replace('.', ','), style: { height: Math.max(15, Math.min(100, (r - 4) * 20)) + '%' }, class: r >= 7.3 ? 'hi' : r < 6.2 ? 'lo' : '' }))), hide: !mine },
         { k: 'apps', label: 'Ігри', full: 'Ігри за сезон', v: (p) => (pstat(p.id) || [0])[0], num: true },
         { k: 'goals', label: 'Голи', v: (p) => (pstat(p.id) || [0, 0])[1], num: true },
         { k: 'ast', label: 'Пас.', full: 'Гольові передачі', v: (p) => (pstat(p.id) || [0, 0, 0])[2], num: true, hide: true },
@@ -502,7 +504,10 @@
         ]),
       ]),
       el('div.ptabs', { role: 'tablist' }, TABS.map(([k, l]) => el('button', { type: 'button', role: 'tab', 'aria-selected': String(playerTab === k), onclick: () => { playerTab = k; render(); } }, l))),
-      ...sec('profile', el('div.panel', [el('h3', 'Атрибути'), el('div.attr-pitch', [el('div.attrs', ATTR_BLOCKS(p, groups)), el('div', [posMap(p), el('small.muted', 'Зелене — рідна позиція, жовте — може грати, бліде — освоює.')])]),
+      ...sec('profile', el('div.panel.pcard', [
+        el('div.pcard-top', [radarSvg(p), playerCard(p), el('div.pcard-pos', [posMap(p), el('small.muted', 'Зелене — рідна позиція, жовте — може грати, бліде — освоює.')])]),
+        el('h3', { style: { marginTop: '1rem' } }, ['Атрибути', el('small.muted', ` · підсвічено ключові для позиції «${FM.roleLabel(p.roles[0], p.side)}»`)]),
+        el('div.attrs.attrs-full', ATTR_BLOCKS(p)),
         known(p) ? null : el('p.note', 'Гравця не розвідано: атрибути приблизні. Відправте скаута, щоб дізнатися точно.')])),
       ...sec('profile', el('div.grid', [
         el('div.panel', [el('h3', 'Особисте'), el('dl.facts', [
@@ -543,17 +548,51 @@
     ];
   }
   let playerTab = 'profile';
-  /** Атрибути групами (точні — для розвіданих, діапазон — для інших). */
-  function ATTR_BLOCKS(p, groups) {
-    return groups.map(([title, keys]) => el('div', [
+  /** Атрибути групами — повний набір (js/attrs.js); точні — для розвіданих, діапазон — для інших; ключові для позиції підсвічено. */
+  function ATTR_BLOCKS(p) {
+    const key = FM.attrs.keyAttrs(p.roles[0]);
+    return FM.attrs.groups(p).map(([title, keys]) => el('div', [
       el('h3', title),
       el('ul', keys.map((k) => {
-        if (known(p)) return el('li', [FM.ATTRS[k], el('b.' + attrClass(p.attrs[k]), p.attrs[k])]);
-        const d = 1 + Math.abs(fuzz(p, k, 2)), mid = p.attrs[k] + fuzz(p, k + 'm', 1);
+        const v = FM.attrs.attr(p, k), cls = key.has(k) ? '.key' : '';
+        if (known(p)) return el('li' + cls, [FM.attrs.label(k), el('b.' + attrClass(v), v)]);
+        const d = 1 + Math.abs(fuzz(p, k, 2)), mid = Math.max(1, Math.min(20, v + fuzz(p, k + 'm', 1)));
         const lo = Math.max(1, mid - d), hi = Math.min(20, mid + d);
-        return el('li', [FM.ATTRS[k], el('b.' + attrClass(mid), `${lo}–${hi}`)]);
+        return el('li' + cls, [FM.attrs.label(k), el('b.' + attrClass(mid), `${lo}–${hi}`)]);
       })),
     ]));
+  }
+  /** Радар складових гравця (оборона, фізика, швидкість, креативність…), як у жанрі. */
+  function radarSvg(p) {
+    const data = FM.attrs.radar(p), n = data.length, R = 70, cx = 110, cy = 95;
+    const pt = (i, v) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / n; return [cx + Math.cos(a) * R * v, cy + Math.sin(a) * R * v]; };
+    const ring = (v) => data.map((_, i) => pt(i, v).map((x) => x.toFixed(1)).join(',')).join(' ');
+    const fuzzK = known(p) ? 0 : 0.06;
+    const poly = data.map(([, v], i) => pt(i, Math.max(0.05, Math.min(1, v / 20 + (fuzzK ? fuzz(p, 'r' + i, 1) * fuzzK : 0)))).map((x) => x.toFixed(1)).join(',')).join(' ');
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '-40 -4 300 200'); svg.setAttribute('class', 'radar'); svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Радар: ' + data.map(([k, v]) => `${k} ${Math.round(v)}`).join(', '));
+    const add = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text) e.textContent = text; svg.appendChild(e); return e; };
+    for (const v of [0.25, 0.5, 0.75, 1]) add('polygon', { points: ring(v), class: 'radar-grid' });
+    data.forEach((_, i) => { const [x, y] = pt(i, 1); add('line', { x1: cx, y1: cy, x2: x, y2: y, class: 'radar-grid' }); });
+    add('polygon', { points: poly, class: 'radar-area' });
+    data.forEach(([name], i) => { const [x, y] = pt(i, 1.2); add('text', { x: x.toFixed(1), y: (y + 3).toFixed(1), 'text-anchor': Math.abs(x - cx) < 8 ? 'middle' : x > cx ? 'start' : 'end', class: 'radar-label' }, name); });
+    return svg;
+  }
+  /** Особисте як у профілі жанру: нога, зріст і вага, характер, опис у медіа, свіжість і ігрова форма. */
+  function playerCard(p) {
+    const cond = Math.round(p.fitness ?? 100), sh = Math.round(FM.attrs.sharp(p));
+    const bar = (v) => el('span.meter', el('i', { style: { width: v + '%' }, class: v < 70 ? 'low' : '' }));
+    return el('dl.facts.pcard-facts', [
+      el('dt', 'Робоча нога'), el('dd', FM.attrs.FOOT[FM.attrs.foot(p)]),
+      el('dt', 'Зріст / вага'), el('dd', `${p.height ? p.height + ' см' : '—'} / ${FM.attrs.weight(p)} кг`),
+      el('dt', 'Характер'), el('dd', known(p) ? FM.attrs.personality(p) : 'невідомо — потрібен скаут'),
+      el('dt', 'Думка медіа'), el('dd', FM.attrs.media(p)),
+      ...(p.traits && p.traits.length ? [el('dt', 'Улюблені прийоми'), el('dd', p.traits.map((t) => FM.TRAITS[t]).join(', '))] : []),
+      el('dt', 'Свіжість'), el('dd', [bar(cond), ` ${cond}%`]),
+      el('dt', 'Ігрова форма'), el('dd', [bar(sh), ` ${sh}%`, sh < 70 ? el('small.muted', ' — давно не грав') : null]),
+    ]);
   }
   /** Позиції на полі: рідна, можливі, ті, що освоює. */
   function posMap(p) {
@@ -3188,6 +3227,7 @@
       weather: FM.weatherFor(FM.season.dateOf(state.season.week, state.season), hs.club.league, FM.rng(`pref-wx-${fr.w}`)) };
     const done = (r) => {
       fr.s = r.score.slice();
+      for (const rr of r.ratings) if (rr.player.club === state.clubId && FM.attrs) { FM.attrs.playSharp(rr.player, (rr.off || 93) - (rr.on || 0)); rr.player.lastPlayed = state.season.week; } // передсезоння повертає ігрову форму
       state.friendlies = (state.friendlies || []).concat([{ home: clubName(hs.club), away: clubName(as.club), score: r.score.join(':') }]).slice(-20);
       const fam = familiarity(), f0 = myTactics().formation;
       fam[f0] = Math.min(100, (fam[f0] || 0) + 5); // гра — найкраще тренування схеми

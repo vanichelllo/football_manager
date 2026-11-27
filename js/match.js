@@ -360,7 +360,7 @@
       const form = p.form && p.form.length ? Math.max(-0.03, Math.min(0.03, (p.form.reduce((a, b) => a + b, 0) / p.form.length - 6.6) * 0.02)) : 0;
       const daily = (R.next() - 0.5) * 0.1 * (20 - (h.con || 12)) / 19;
       const big = opts.big ? ((h.big || 10) - 10) * 0.004 : 0;
-      return 1 + form + daily + big;
+      return (1 + form + daily + big) * (FM.attrs ? FM.attrs.sharpK(p) : 1); // ігрова форма: без матчів гравець «не в ритмі»
     };
     const sides = [opts.home, opts.away].map((t, k) => {
       const formation = t.formation || bestFormation(t.players);

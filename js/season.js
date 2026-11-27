@@ -148,6 +148,7 @@
       // форма: оцінки за 5 останніх матчів
       r.player.form = (r.player.form || []).concat([r.rating]).slice(-5);
       r.player.fg = (r.player.fg || []).concat([r.goals]).slice(-6); // голи в останніх матчах (історії гравців)
+      if (FM.attrs) { FM.attrs.playSharp(r.player, (r.off || 93) - (r.on || 0)); r.player.lastPlayed = f.w; } // ігрова форма
       // освоєння нової позиції: зіграв на ній щонайменше тайм
       const mins = (r.off || 93) - (r.on || 0);
       if (mins >= 45 && r.role !== 'GK' && !r.player.roles.includes(r.role)) {

@@ -265,6 +265,7 @@
     for (const r of m.ratings) {
       if (r.injury) r.player.injury = Math.max(r.player.injury || 0, r.injury);
       if (r.cond != null) r.player.fitness = r.cond; // свіжість після кубкового матчу
+      if (FM.attrs) { FM.attrs.playSharp(r.player, (r.off || 93) - (r.on || 0)); r.player.lastPlayed = state.season.week; }
     }
     tie.legs.push(leg === 1 ? [m.score[1], m.score[0]] : m.score.slice());
     const entry = { cup: cup.id, cupName: cup.name, round: round.name, h, a, score: m.score, mine: h === state.clubId || a === state.clubId };
@@ -343,6 +344,7 @@
     for (const r of m.ratings) {
       if (r.injury) r.player.injury = Math.max(r.player.injury || 0, r.injury);
       if (r.cond != null) r.player.fitness = r.cond;
+      if (FM.attrs) { FM.attrs.playSharp(r.player, (r.off || 93) - (r.on || 0)); r.player.lastPlayed = state.season.week; }
     }
     f.s = m.score.slice();
     const pr = PRIZE[cup.id];

@@ -878,3 +878,22 @@ th[aria-sort] { color: var(--fg); }
 @media (max-width: 760px) { .v3d-wrap { aspect-ratio: 4 / 3; } }
 .v3d-canvas { display: block; width: 100%; height: 100%; }
 .v3d-wrap.replaying::after { content: "ПОВТОР"; position: absolute; top: 0.5rem; left: 0.6rem; font: 700 0.8rem/1 var(--font-display); letter-spacing: 0.1em; color: #fff; background: #d93a3a; padding: 0.25rem 0.5rem; border-radius: 3px; }
+
+/* Профіль гравця: радар, картка, повний набір атрибутів */
+.pcard-top { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) minmax(0, 11rem); gap: 1rem; align-items: start; }
+@media (max-width: 900px) { .pcard-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .pcard-pos { grid-column: 1 / -1; max-width: 14rem; } }
+@media (max-width: 560px) { .pcard-top { grid-template-columns: minmax(0, 1fr); } }
+.radar { width: 100%; max-width: 17rem; height: auto; overflow: visible; }
+.radar-grid { fill: none; stroke: var(--line); stroke-width: 0.8; }
+.radar-area { fill: color-mix(in srgb, var(--club-hi, var(--accent)) 45%, transparent); stroke: var(--club-hi, var(--accent)); stroke-width: 1.6; }
+.radar-label { font: 600 8.5px var(--font-body); fill: var(--muted); }
+.pcard-facts dd { min-width: 0; }
+.meter { display: inline-block; width: 4.5rem; height: 0.45rem; background: var(--panel-2); border-radius: 3px; overflow: hidden; vertical-align: middle; }
+.meter i { display: block; height: 100%; background: #4fd18f; }
+.meter i.low { background: var(--warn); }
+.attrs-full { grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); }
+.attrs li.key { background: color-mix(in srgb, var(--club-hi, var(--accent)) 14%, transparent); border-radius: 3px; font-weight: 600; }
+.last5 { display: inline-flex; align-items: flex-end; gap: 2px; height: 1.1rem; }
+.last5 i { display: block; width: 5px; background: var(--muted); border-radius: 1px; }
+.last5 i.hi { background: #4fd18f; } .last5 i.lo { background: #e5484d; }
+.warn-t { color: var(--warn); }
