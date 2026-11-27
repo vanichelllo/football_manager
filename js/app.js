@@ -763,7 +763,8 @@
 
   function shortlistBtn(p) {
     const on = (state.shortlist || []).includes(p.id);
-    return el('button.btn', { type: 'button', 'aria-pressed': String(on), onclick: () => {
+    return el('button.btn', { type: 'button', 'aria-pressed': String(on), onclick: (e) => {
+      if (e && e.stopPropagation) e.stopPropagation(); // у рядку таблиці — не відкривати картку
       state.shortlist = on ? state.shortlist.filter((x) => x !== p.id) : (state.shortlist || []).concat([p.id]);
       saveGame(); render();
     } }, on ? '★ У шортлисті' : '☆ До шортлиста');
@@ -981,6 +982,22 @@
         el('span', [starsEl(W.clubLevel(id), 'Рівень клубу'), ' ', el('button.btn', { type: 'button', onclick: () => startInterview(id, () => onTake(id)) }, 'На співбесіду')])]);
     }));
   }
+  /** Нарада з правлінням про очікування на сезон (до першого матчу ліги). */
+  function expectCard() {
+    if (!FM.boardroom.expectOpen(W, state)) return null;
+    const opts = FM.boardroom.expectOptions(W, state);
+    const TITLE = { up: 'Амбітніше', board: 'Пропозиція правління', down: 'Скромніше' };
+    return el('div.panel.expect-card', [el('h3', 'Очікування на сезон: нарада з правлінням'),
+      el('p.muted', 'Оберіть ціль на сезон. Від неї залежать бюджети; виконання цілі правління оцінить наприкінці сезону.'),
+      el('div.expect-opts', opts.map((o) => el('div.expect-opt' + (o.k === 'board' ? '.rec' : ''), [
+        el('small.muted', TITLE[o.k]), el('b', FM.board.TARGETS[o.target.kind].label),
+        el('dl.facts', [el('dt', 'Трансферний бюджет'), el('dd', M(o.transfer)), el('dt', 'Фонд зарплат'), el('dd', `${o.wage} тис. €/тиж.`)]),
+        el('small.muted', o.note),
+        el('button.btn' + (o.k === 'board' ? '.primary' : ''), { type: 'button', onclick: () => { const r = FM.boardroom.setExpect(W, state, o.k); FM.market.news(state, r.text, 'club'); saveGame(); render(); } }, 'Погодитися'),
+      ]))),
+    ]);
+  }
+
   function screenBoard() {
     const b = state.board, me = W.club(state.clubId), S = state.season;
     const { pos } = FM.board.position(W, S, state.clubId);
@@ -990,6 +1007,7 @@
     const offers = state.jobOffers || [];
     return [
       el('header', [el('h1', 'Правління'), el('span.muted', `${state.manager} · репутація ${b.rep} з 100`)]),
+      expectCard(),
       el('div.grid', [
         el('div.panel', [el('h3', 'Очікування на сезон'),
           el('p.big', FM.board.TARGETS[b.target.kind].label),
@@ -1158,6 +1176,41 @@
     }) : el('p.muted', 'Порожньо. Додавайте гравців кнопкою «☆ До шортлиста» в їхніх картках — про зміни (трансфер, продаж, травма) повідомлять новини.')]);
   }
 
+  /** Критерії пошуку для скаута: де, позиція, вік, рівень, ціна. */
+  function scoutTaskRow(sc) {
+    const t = (sc.task = { ...FM.scouting.defTask(), ...(sc.task || {}) });
+    const sel = (k, label, opts) => el('label.dt-sel', [el('span.muted', label + ' '), el('select.tiny', { 'aria-label': label, onchange: (e) => { t[k] = k === 'price' ? Number(e.target.value) : e.target.value; sc.seen = []; sc.empty = false; saveGame(); render(); } },
+      opts.map(([v, l]) => el('option', { value: v, selected: String(t[k]) === String(v) || null }, l)))]);
+    return el('div.scout-task', [
+      sel('area', 'Де', [['all', 'усі ліги'], ['my', 'своя ліга'], ['free', 'вільні агенти'], ...W.db.leagues.map((l) => [l.id, l.name])]),
+      sel('pos', 'Позиція', FM.scouting.POS.map((r) => [r, r === 'any' ? 'будь-яка' : FM.ROLE_NAME[r].toLowerCase()])),
+      sel('age', 'Вік', FM.scouting.AGES.map(([v, l]) => [v, l])),
+      sel('level', 'Рівень', FM.scouting.LEVELS),
+      sel('price', 'Ціна', FM.scouting.PRICES.map((v) => [v, v ? `до ${M(v)}` : 'будь-яка'])),
+    ]);
+  }
+
+  /** Рекомендації скаутів: оцінка, гравець, ціна; до шортлиста або відхилити. */
+  function scoutRecsPanel() {
+    const recs = (state.scoutRecs || []).filter((r) => W.player(r.pid)).slice().reverse();
+    const GR = { A: 4, B: 3, C: 2, D: 1 };
+    return el('div.panel', [el('h3', 'Рекомендації скаутів'), recs.length ? dataTable('scoutrecs', {
+      rows: recs, flat: true, rowClick: (r) => go('player-' + r.pid), sort: { k: 'grade', dir: -1 }, search: (r) => nameOf(W.player(r.pid)),
+      cols: [
+        { k: 'grade', label: 'Оц.', full: 'Оцінка скаута', v: (r) => GR[r.grade], cell: (r) => el('span.grade.g-' + r.grade, { title: r.text }, r.grade) },
+        { k: 'name', label: 'Гравець', v: (r) => nameOf(W.player(r.pid)), asc: true, cls: () => 'name' },
+        { k: 'pos', label: 'Поз.', v: (r) => FM.ROLE_ORDER.indexOf(W.player(r.pid).roles[0]), cell: (r) => FM.positions(W.player(r.pid)), asc: true },
+        { k: 'age', label: 'Вік', v: (r) => W.age(W.player(r.pid)), num: true, asc: true },
+        { k: 'club', label: 'Клуб', v: (r) => { const p = W.player(r.pid); return p.club ? clubName(W.club(p.club)) : 'вільний'; }, asc: true },
+        { k: 'price', label: 'Ціна', v: (r) => r.ask, cell: (r) => (r.ask ? M(r.ask) : '—'), num: true, asc: true },
+        { k: 'keen', label: 'Перехід', v: (r) => r.keen, hide: true },
+        { k: 'scout', label: 'Скаут', v: (r) => r.scout, hide: true },
+        { k: 'act', label: '', cell: (r) => el('span.offer-btns', [shortlistBtn(W.player(r.pid)), el('button.btn', { type: 'button', onclick: (e) => { e.stopPropagation(); FM.scouting.dismiss(state, r.id); saveGame(); render(); } }, 'Відхилити')]) },
+      ],
+    }) : el('p.muted', 'Поки немає. Дайте скауту завдання «Пошук гравців» — він надсилатиме рекомендації щотижня.'),
+    el('p.note', `Рекомендація лишається ${FM.scouting.KEEP} тижнів. Гравець, якого бачив скаут, оцінюється точно.`)]);
+  }
+
   function scoutsPanel() {
     const list = FM.market.scouts(state);
     const R = FM.rng(Date.now());
@@ -1166,12 +1219,14 @@
       el('ul.plist', list.map((sc, i) => el('li', [
         el('span', [el('b', sc.name), el('small.muted', ` рівень ${sc.level}${i ? `, ${FM.market.scoutWage(sc)} тис. €/тиж.` : ', головний'}`)]),
         el('span.offer-btns', [
-          el('select.tiny', { 'aria-label': 'Регіон скаута', onchange: (e) => { sc.region = e.target.value || null; sc.prog = 0; saveGame(); render(); } }, [el('option', { value: '' }, 'Без завдання'),
+          el('select.tiny', { 'aria-label': 'Регіон скаута', onchange: (e) => { sc.region = e.target.value || null; sc.prog = 0; if (sc.region === 'task' && !sc.task) sc.task = FM.scouting.defTask(); saveGame(); render(); } }, [el('option', { value: '' }, 'Без завдання'),
+            el('option', { value: 'task', selected: sc.region === 'task' || null }, 'Пошук гравців'),
             el('optgroup', { label: 'Ліги гри' }, W.db.leagues.filter((l) => !(state.knownLeagues || {})[l.id] && l.id !== W.club(state.clubId).league).map((l) => el('option', { value: l.id, selected: sc.region === l.id || null }, l.name))),
             el('optgroup', { label: 'Світ: пошук талантів' }, Object.entries(FM.worldScout.REGIONS).map(([k, r]) => el('option', { value: k, selected: sc.region === k || null }, r.label)))]),
-          sc.region && W.league(sc.region) ? el('small.muted', `${Math.min(99, Math.round(sc.prog / 1.5))}%`) : sc.region ? el('small.muted', 'шукає таланти') : null,
+          sc.region && W.league(sc.region) ? el('small.muted', `${Math.min(99, Math.round(sc.prog / 1.5))}%`) : sc.region === 'task' ? null : sc.region ? el('small.muted', 'шукає таланти') : null,
           i ? el('button.btn', { type: 'button', onclick: () => { state.scoutStaff = list.filter((x) => x !== sc); saveGame(); render(); } }, 'Звільнити') : null,
         ]),
+        sc.region === 'task' ? scoutTaskRow(sc) : null,
       ]))),
       list.length < 5 ? el('div.actions', [el('button.btn', { type: 'button', onclick: () => { const sc = FM.market.hireScout(state, R); FM.market.news(state, `Найнято скаута: ${sc.name}, рівень ${sc.level}.`); saveGame(); render(); } }, 'Найняти скаута')]) : null,
       Object.keys(state.knownLeagues || {}).length ? el('p.note', 'Розвідано ліги: ' + Object.keys(state.knownLeagues).map((l) => W.league(l).name).join(', ') + '.') : null,
@@ -1690,7 +1745,7 @@
         el('div.panel', [el('h3', 'Можна відпустити'), el('p.muted', 'Запасні, які рідко грають: їхні зарплати можна звільнити для підсилення.'), fringe.length ? el('ul.plist', fringe.map((x) => pl(x, `${(S.ps[x.id] || [0])[0]} ігор, ${x.wage} тис. €/тиж.`))) : el('p.muted', 'Таких немає.')])),
       ...tab('dev', el('div.panel', [el('h3', 'Список розвитку'), el('p.muted', 'Молоді гравці, яким бракує ігрової практики: оренда в слабший клуб пришвидшить їхній розвиток.'),
         youngDev.length ? el('ul.plist', youngDev.map((x) => pl(x, `${(S.ps[x.id] || [0])[0]} ігор з ${games}, потенціал ${'★'.repeat(Math.round(FM.stars(seenPA(x))))}`))) : el('p.muted', 'Усі молоді гравці отримують достатньо практики.')])),
-      ...tab('scouts', scoutsPanel(), talentsPanel()),
+      ...tab('scouts', scoutRecsPanel(), scoutsPanel(), talentsPanel()),
       ...tab('history', el('div.panel', [el('h3', 'Ваші угоди'), myDeals.length ? el('ul.plist', myDeals.map((t) => el('li', [
         el('span', [el('a', { href: '#player-' + t.p }, nameOf(W.player(t.p))), el('small.muted', ` ${t.to === state.clubId ? '← ' + (t.from ? clubName(W.club(t.from)) : 'вільний агент') : '→ ' + clubName(W.club(t.to))}`)]),
         el('b', t.fee ? M(t.fee) : 'безкоштовно')]))) : el('p.muted', 'Поки що жодної.')])),
@@ -3675,6 +3730,7 @@
     state.caLog = state.caLog || {};
     for (const p of W.squad(state.clubId)) { const l = (state.caLog[p.id] = state.caLog[p.id] || []); if (!l.length || l[l.length - 1][2] !== p.ca) l.push([S.year, S.week, p.ca]); if (l.length > 40) l.shift(); }
     for (const t of FM.worldScout.week(W, state)) FM.market.news(state, t, 'transfers');
+    for (const r of FM.scouting.week(W, state)) FM.market.news(state, r.text, 'transfers', r.pid ? { pid: r.pid } : null);
     for (const t of FM.agents.week(W, state)) FM.market.news(state, t, 'players');
     for (const t of FM.media.week(W, state, { club: clubName, player: nameOf })) FM.market.news(state, t, 'club');
     const yr = FM.youth.week(W, state);
@@ -4362,12 +4418,15 @@
     for (const n of list) {
       const key = `${n.s}-${n.w}`;
       if (key !== prevKey) { rows.push(el('li.day', `${n.s}/${String(n.s + 1).slice(2)}, тиждень ${n.w + 1} · ${fmt.date(FM.season.dateOf(n.w, n.s === state.season.year ? state.season : { start: FM.season.firstSaturday(n.s) }))}`)); prevKey = key; }
-      rows.push(el('li' + (n.id > lastRead ? '.unread' : ''), [el('span.tag', FM.market.NEWS_CATS[n.c || FM.market.newsCat(n.text)]), ' ', n.text]));
+      const np = n.pid && W.player(n.pid);
+      rows.push(el('li' + (n.id > lastRead ? '.unread' : ''), [el('span.tag', FM.market.NEWS_CATS[n.c || FM.market.newsCat(n.text)]), ' ', n.text,
+        np && np.club !== state.clubId && !np.retired ? el('span.news-acts', [el('button.btn', { type: 'button', onclick: () => go('player-' + np.id) }, 'Картка'), shortlistBtn(np)]) : null]));
     }
     return [
       el('header', [el('h1', 'Повідомлення'), el('span.muted', `Усього ${all.length}${maxId > lastRead ? ` · нових ${all.filter((n) => n.id > lastRead).length}` : ''}`)]),
       actionCards(),
       postPressCard(),
+      expectCard(),
       planCard(),
       missionsCard(),
       backupCard(),

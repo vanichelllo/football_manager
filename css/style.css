@@ -928,3 +928,13 @@ label.ti-item small { flex-basis: 100%; padding-left: 1.6rem; margin-top: -0.2re
 .seller-info { margin: 0.7rem 0; padding: 0.6rem 0.8rem; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--panel) 85%, var(--fg) 4%); }
 .seller-info small { display: block; margin-top: 0.4rem; }
 .tc-tabs { margin: 0 0 1rem; }
+/* Скаутські завдання */
+.plist li:has(.scout-task) { flex-wrap: wrap; }
+.scout-task { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0.35rem 0.8rem; padding: 0.35rem 0 0.15rem; font-size: 0.9rem; }
+.news-acts { display: inline-flex; gap: 0.35rem; margin-left: 0.5rem; vertical-align: middle; }
+.news-acts .btn, .dt .offer-btns .btn { padding: 0.15rem 0.55rem; font-size: 0.85rem; }
+/* Очікування на сезон */
+.expect-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.7rem; margin-top: 0.6rem; }
+.expect-opt { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.7rem; border: 1px solid var(--line); border-radius: 8px; }
+.expect-opt.rec { border-color: var(--accent); }
+.expect-opt .btn { margin-top: auto; align-self: flex-start; }
