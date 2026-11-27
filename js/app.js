@@ -2288,10 +2288,42 @@
   let engineMode = (() => { try { return localStorage.getItem(ENGINE_KEY) === 'classic' ? 'classic' : 'sim'; } catch (_) { return 'sim'; } })();
   const setEngine = (v) => { engineMode = v; try { localStorage.setItem(ENGINE_KEY, v); } catch (_) { /* приватне вікно */ } };
   FM.match.simFor = (o) => engineMode === 'sim' && !!state && [o.home, o.away].some((sd) => sd && sd.club && (sd.club.id === state.clubId || (FM.duo && sd.club.id === FM.duo.otherClub(state))));
-  const SPEEDS = [[30000, '2D у темпі гри', '≈45 хв'], [6400, 'Дуже повільно', '≈10 хв'], [3900, 'Повільно', '≈6 хв'], [1950, 'Звичайно', '≈3 хв'], [970, 'Швидко', '≈1,5 хв'], [320, 'Дуже швидко', '≈30 с'], ['key', 'Лише ключові моменти', 'пауза на моментах']];
-  const SPEED_KEY = 'golovnyi-trener:speed';
-  let liveSpeed = (() => { try { const v = localStorage.getItem(SPEED_KEY); return v === 'key' ? 'key' : SPEEDS.some(([x]) => String(x) === v) ? Number(v) : 1950; } catch (_) { return 1950; } })();
-  const setSpeed = (v) => { liveSpeed = v; try { localStorage.setItem(SPEED_KEY, String(v)); } catch (_) { /* приватне вікно */ } };
+  // Налаштування трансляції (як прийнято в жанрі): швидкість під час моментів і між ними, які моменти показувати,
+  // поділений екран, повтори, інформація про матч між моментами.
+  const BC_KEY = 'golovnyi-trener:bcast';
+  const BC_DURING = [[30000, 'У темпі гри'], [6400, 'Дуже повільно'], [3900, 'Повільно'], [1950, 'Звичайно'], [970, 'Швидко'], [320, 'Дуже швидко']];
+  const BC_BETWEEN = [[1950, 'Звичайно'], [970, 'Швидко'], [320, 'Дуже швидко'], [0, 'Миттєво']];
+  const BC_HL = [['key', 'Ключові'], ['ext', 'Розширені'], ['full', 'Повні'], ['all', 'Весь матч']];
+  const BC_HL_HINT = { key: 'Голи, великі моменти, пенальті, вилучення.', ext: 'Ще всі удари, картки й травми.', full: 'Ще атаки й стандарти — майже вся гра.', all: 'Кожна хвилина в однаковому темпі.' };
+  const BC_SIDE = [['table', 'Таблиця ліги'], ['stats', 'Статистика'], ['squad', 'Мої гравці'], ['others', 'Інші матчі'], ['events', 'Події']];
+  let bc = (() => {
+    const def = { during: 1950, between: 0, hl: 'ext', split: true, side: 'right', panel: 'table', replays: 'goals', info: true };
+    try { const v = JSON.parse(localStorage.getItem(BC_KEY) || 'null'); if (v) return { ...def, ...v }; } catch (_) { /* приватне вікно */ }
+    try { const old = localStorage.getItem('golovnyi-trener:speed'); if (old === 'key') return { ...def, hl: 'key' }; if (old && Number(old)) return { ...def, during: Number(old) }; } catch (_) { /* приватне вікно */ }
+    return def;
+  })();
+  const saveBc = () => { try { localStorage.setItem(BC_KEY, JSON.stringify(bc)); } catch (_) { /* приватне вікно */ } };
+  /** Чи є подія моментом для рівня показу. */
+  function isHighlight(e, lvl) {
+    if (lvl === 'all') return true;
+    const big = e.type === 'goal' || e.type === 'red' || e.type === 'penalty' || (e.hl && (e.hl.out === 'goal' || e.hl.out === 'post' || e.hl.out === 'pen' || e.hl.xg >= 0.2));
+    if (lvl === 'key') return big;
+    const ext = big || !!e.hl || e.type === 'chance' || e.type === 'miss' || e.type === 'yellow' || e.type === 'injury';
+    if (lvl === 'ext') return ext;
+    return ext || e.type === 'play' || e.type === 'sub';
+  }
+  /** Відрізки хвилини (індекси кадрів), які показуються як моменти: передісторія атаки + удар. */
+  function hlWindows(events, n, dt, lvl) {
+    if (lvl === 'all') return [[0, n]];
+    const pre = lvl === 'key' ? 10 : lvl === 'ext' ? 12 : 16, post = lvl === 'full' ? 5 : 4;
+    const w = [];
+    for (const e of events) {
+      if (e.sec == null || !isHighlight(e, lvl)) continue;
+      const a = Math.max(0, Math.floor((e.sec - pre) / dt)), b = Math.min(n, Math.ceil((e.sec + post) / dt));
+      if (w.length && a <= w[w.length - 1][1]) w[w.length - 1][1] = Math.max(w[w.length - 1][1], b); else w.push([a, b]);
+    }
+    return w;
+  }
   let activeLive = null; // поточна трансляція: якщо піти з неї — матч догравається й записується
   // Виділення моментів, як у FM: які удари показувати смугою над полем з паузою
   const HL_MODES = [['goals', 'Лише голи'], ['key', 'Небезпечні моменти'], ['all', 'Усі удари'], ['none', 'Без виділення']];
@@ -2598,9 +2630,109 @@
     const clock = el('div.sb-clock', '0′');
     const feed = el('ol.feed', { 'aria-live': 'polite' });
     const after = el('div.after');
-    const speedBtns = el('div.tabs');
     const statsBox = el('div');
     const control = el('div.panel.control');
+    // ---- екран трансляції (як прийнято в жанрі): верхня панель із годинником і смугами команд, вкладки,
+    // повний / поділений екран, бічна панель, кнопки відтворення, налаштування, шкала матчу, рядок коментаря ----
+    const hasCtl = myK != null && !!state;
+    const TABS = [['overview', 'Огляд'], ['pitch', 'Поле'], ['tactics', 'Тактика'], ['stats', 'Статистика'], ['analysis', 'Аналіз']].filter(([k]) => k !== 'tactics' || hasCtl);
+    let tab = hasCtl ? 'tactics' : 'pitch', autoTab = hasCtl;
+    const tabsEl = el('div.bc-tabs', { role: 'tablist', 'aria-label': 'Розділи трансляції' });
+    const panes = {};
+    function drawTabs() { tabsEl.replaceChildren(...TABS.map(([k, l]) => el('button', { type: 'button', role: 'tab', 'aria-selected': String(tab === k), onclick: () => { autoTab = false; setTab(k); } }, l))); }
+    function setTab(t) {
+      tab = t;
+      for (const [k, pn] of Object.entries(panes)) pn.hidden = k !== t;
+      drawTabs();
+      if (t === 'analysis') drawAnalysis(true);
+      if (t === 'stats') drawPlayers();
+    }
+    const splitEl = el('div.bc-split');
+    function drawSplit() { splitEl.replaceChildren(...[[false, 'Повний'], [true, 'Поділений']].map(([v, l]) => el('button', { type: 'button', 'aria-pressed': String(!!bc.split === v), onclick: () => { bc.split = v; saveBc(); drawLayout(); drawSplit(); } }, l))); }
+    const lum2 = (hex) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return 0.5; const n = parseInt(m[1], 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+    const teamBar = (k) => { const c = k === 0 ? hs.club : as.club, b = el('div.bc-teambar' + (k ? '.away' : ''), [badge(c), el('b', clubName(c))]); b.style.setProperty('--tc', kit[k][0]); b.style.setProperty('--tt', lum2(kit[k][0]) > 0.6 ? '#111' : '#fff'); return b; };
+    let curScore = [0, 0];
+    // бічна панель (поділений екран)
+    const bodyEl = el('div.bc-body'), sideEl = el('aside.bc-side'), sideStats = el('div'), statsBox2 = el('div'), playersBox = el('div.grid'), analysisBox = el('div.panel');
+    function drawLayout() { bodyEl.classList.toggle('split', !!bc.split); bodyEl.classList.toggle('side-left', bc.side === 'left'); sideEl.hidden = !bc.split; drawSide(); }
+    const sideOpts = () => BC_SIDE.filter(([k]) => (k !== 'table' || (extra && extra.fixture && extra.fixture.l && state)) && (k !== 'others' || ticker) && (k !== 'squad' || hasCtl));
+    function drawSide() {
+      if (!bc.split) return;
+      const o = sideOpts();
+      const cur = o.some(([k]) => k === bc.panel) ? bc.panel : o[0][0];
+      const body = cur === 'table' ? liveTable() : cur === 'stats' ? sideStats : cur === 'squad' ? squadBox() : cur === 'others' ? ticker.box : sideFeed();
+      sideEl.replaceChildren(el('div.bc-side-head', [el('select', { 'aria-label': 'Що показувати на бічній панелі', onchange: (e) => { bc.panel = e.target.value; saveBc(); drawSide(); } },
+        o.map(([k, l]) => el('option', { value: k, selected: cur === k || null }, l)))]), el('div.bc-side-body', [body]));
+    }
+    /** Таблиця ліги наживо: з поточним рахунком матчу. */
+    function liveTable() {
+      const f = extra && extra.fixture;
+      const rows = FM.season.table(state.season, W, f.l).map((r) => ({ ...r }));
+      const upd = (id, gf, ga) => { const r = rows.find((x) => x.id === id); if (!r) return; r.p++; r.gf += gf; r.ga += ga; r.gd = r.gf - r.ga; r.pts += gf > ga ? 3 : gf === ga ? 1 : 0; r.live = true; };
+      upd(hs.club.id, curScore[0], curScore[1]); upd(as.club.id, curScore[1], curScore[0]);
+      rows.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
+      return el('table.bc-table', [el('thead', el('tr', [el('th', '#'), el('th', 'Команда'), el('th.num', 'І'), el('th.num', 'РМ'), el('th.num', 'О')])),
+        el('tbody', rows.map((r, i) => el('tr' + (r.live ? '.live' : ''), [el('td', String(i + 1)), el('td', clubName(W.club(r.id))), el('td.num', String(r.p)), el('td.num', (r.gd > 0 ? '+' : '') + r.gd), el('td.num', el('b', String(r.pts)))])))]);
+    }
+    const condCell = (x) => el('span.bc-cond' + (x.cond < 65 ? '.lo' : x.cond < 80 ? '.mid' : ''), Math.round(x.cond) + '%');
+    function squadBox() {
+      const t = M.sides[myK];
+      return el('table.bc-table', [el('thead', el('tr', [el('th', 'Поз.'), el('th', 'Гравець'), el('th.num', 'Свіжість')])),
+        el('tbody', t.onPitch.filter((x) => !x.out).map((x) => el('tr', [el('td', ROLE_SHORT(x.slot)), el('td', [shortName(x.p), x.yellow ? el('span.bc-yc', { title: 'Жовта картка' }) : null]), el('td.num', condCell(x))])))]);
+    }
+    function sideFeed() { return el('ol.bc-sfeed', M.events.slice(0, shown).filter((e) => e.text && e.type !== 'info').slice(-14).reverse().map((e) => el('li', [el('b', e.min + '′ '), e.text]))); }
+    function drawPlayers() {
+      if (tab !== 'stats') return;
+      playersBox.replaceChildren(...[0, 1].map((k) => el('div.panel', [el('h3', clubName(k === 0 ? hs.club : as.club)), el('table.bc-table', [el('thead', el('tr', [el('th', 'Поз.'), el('th', 'Гравець'), el('th.num', 'Свіжість')])),
+        el('tbody', M.sides[k].onPitch.map((x) => el('tr' + (x.out ? '.out' : ''), [el('td', ROLE_SHORT(x.slot)), el('td', [nameOf(x.p), x.yellow ? el('span.bc-yc') : null, x.out ? el('small.muted', ' (не на полі)') : null]), el('td.num', condCell(x))])))])])));
+    }
+    /** Аналіз наживо: карта ударів (розмір — xG) і очікувані голи. */
+    let anaN = -1;
+    function drawAnalysis(force) {
+      if (tab !== 'analysis') return;
+      const shots = M.shots || [];
+      if (!force && shots.length === anaN) return;
+      anaN = shots.length;
+      const NS = 'http://www.w3.org/2000/svg', sv = (tag, a = {}, kids = []) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(a)) n.setAttribute(k, v); for (const c of kids) n.append(c); return n; };
+      const map = sv('svg', { viewBox: '0 0 100 64', class: 'shotmap', role: 'img', 'aria-label': 'Карта ударів наживо' }, [
+        sv('rect', { x: 0.5, y: 0.5, width: 99, height: 63, rx: 1, class: 'sm-pitch' }), sv('line', { x1: 50, y1: 0.5, x2: 50, y2: 63.5, class: 'sm-line' }),
+        sv('rect', { x: 0.5, y: 17, width: 14, height: 30, class: 'sm-line' }), sv('rect', { x: 85.5, y: 17, width: 14, height: 30, class: 'sm-line' }),
+        ...shots.map((sh) => { const x = sh.t === 0 ? sh.x : 100 - sh.x, y = (sh.t === 0 ? sh.y : 100 - sh.y) * 0.64; const c = sv('circle', { cx: x, cy: y, r: 0.9 + sh.xg * 6, style: `fill:${sh.goal ? kit[sh.t][0] : 'none'};stroke:${kit[sh.t][0]};stroke-width:0.5` }); c.append(sv('title', {}, [document.createTextNode(`${sh.min}′ · xG ${String(sh.xg).replace('.', ',')}${sh.goal ? ' · гол' : ''}`)])); return c; }),
+      ]);
+      const xg = [0, 1].map((k) => shots.filter((x) => x.t === k).reduce((a, x) => a + x.xg, 0));
+      analysisBox.replaceChildren(el('h3', 'Аналіз: удари й очікувані голи'), map,
+        el('p', `Очікувані голи: ${clubName(hs.club)} ${String(Math.round(xg[0] * 100) / 100).replace('.', ',')} — ${String(Math.round(xg[1] * 100) / 100).replace('.', ',')} ${clubName(as.club)}. Заповнене коло — гол, розмір — якість моменту.`));
+    }
+    // шкала матчу, володіння, рядок коментаря
+    const tlEl = el('div.bc-tl'), possEl = el('div.bc-poss'), commEl = el('div.bc-comm', { 'aria-live': 'polite' });
+    let tlKey = '';
+    function drawTimeline() {
+      const key = `${shown}-${M.minuteNum}`;
+      if (key === tlKey) return;
+      tlKey = key;
+      const seen = M.events.slice(0, shown);
+      const et = seen.some((e) => typeof e.min === 'number' && e.min > 95) || (M.minuteNum || 0) > 96;
+      const span = et ? 120 : 93, now = Math.min(span, M.minuteNum || 0);
+      tlEl.replaceChildren(
+        el('i.bc-tl-fill', { style: { width: (now / span) * 100 + '%' } }),
+        ...seen.filter((e) => (e.type === 'goal' || e.type === 'red' || e.type === 'yellow') && typeof e.min === 'number').map((e) => { const mk = el('i.bc-tl-mk.' + e.type, { title: `${e.min}′ ${e.text}` }); mk.style.left = Math.min(100, (e.min / span) * 100) + '%'; if (e.type === 'goal') mk.style.background = kit[e.team][0]; return mk; }),
+        ...[el('span.bc-tl-l', { style: { left: '0%' } }, 'Поч.'), el('span.bc-tl-l', { style: { left: (45 / span) * 100 + '%' } }, 'Перерва'), et ? el('span.bc-tl-l', { style: { left: (90 / span) * 100 + '%' } }, 'Дод. час') : null, el('span.bc-tl-l.end', 'Кінець')].filter(Boolean));
+      const st = M.liveStats();
+      possEl.replaceChildren(el('span.muted', 'Володіння'), el('div.bc-poss-bar', [el('i', { style: { width: st[0].poss + '%', background: kit[0][0] } }), el('i', { style: { width: st[1].poss + '%', background: kit[1][0] } })]), el('b', `${st[0].poss}% : ${st[1].poss}%`));
+      const last = [...seen].reverse().find((e) => e.text && e.type !== 'info');
+      commEl.textContent = last ? `${last.min}′  ${last.text}` : 'Команди виходять на поле.';
+      commEl.style.borderLeftColor = last && last.team != null ? kit[last.team][0] : 'transparent';
+    }
+    // між моментами: коротка інформація про матч поверх поля
+    const infoEl = el('div.bc-info', { hidden: true });
+    function drawInfo(on) {
+      if (!on || !bc.info) { infoEl.hidden = true; return; }
+      if (!infoEl.hidden && infoEl.dataset.m === String(M.minuteNum)) return;
+      infoEl.dataset.m = String(M.minuteNum); infoEl.hidden = false;
+      const st = M.liveStats();
+      infoEl.replaceChildren(el('div.bc-info-head', [el('span', clubName(hs.club)), el('b', scoreEl.textContent), el('span', clubName(as.club))]), el('small', `${clock.textContent} · між моментами`),
+        compareBars([['Володіння', st[0].poss, st[1].poss, (v) => v + '%'], ['Удари', st[0].shots, st[1].shots], ['У площину', st[0].onTarget, st[1].onTarget], ['xG', st[0].xg, st[1].xg, (v) => String(v).replace('.', ',')]]));
+    }
     // міні-поле: м'яч біля воріт того, хто атакує (господарі атакують праворуч)
     const ball = el('i.ball');
     const SIMV = !!M.sim; // детальний рушій: на полі справжні позиції гравців
@@ -2625,7 +2757,7 @@
         const out = e.hl.out;
         hlBar.className = 'hl-bar ' + (out === 'goal' ? (ours ? 'hl-goal' : 'hl-goal-against') : 'hl-' + out);
         hlBar.replaceChildren(el('b', e.hl.og ? 'Автогол!' : e.hl.special === 'gk' ? '🧤 ГОЛ ВОРОТАРЯ!' : e.hl.special ? '🚀 ГОЛ-ШЕДЕВР!' : HL_OUT[out] || 'Момент'), el('span.muted', ` ${clubName(team)} · ${e.min}′${e.hl.xg != null ? ` · xG ${String(e.hl.xg).replace('.', ',')}` : ''}`));
-        if (out === 'goal') { if (!SIMV) { moveBall(k === 0 ? 98 : 2, 50); lastGoal = trail.slice(-6); } hlBar.append(' ', el('button.btn.tiny-btn', { type: 'button', onclick: () => replay() }, '▶ Повтор')); setTimeout(() => replay(), 900); }
+        if (out === 'goal') { if (!SIMV) { moveBall(k === 0 ? 98 : 2, 50); lastGoal = trail.slice(-6); } hlBar.append(' ', el('button.btn.tiny-btn', { type: 'button', onclick: () => replay() }, '▶ Повтор')); if (bc.replays !== 'off') setTimeout(() => replay(), 900); }
         else if (SIMV) { /* м'яч показує сам рушій */ }
         else if (out === 'wide') moveBall(k === 0 ? 99 : 1, sy < 50 ? 30 : 70);
         else if (out === 'post') moveBall(k === 0 ? 97 : 3, 44);
@@ -2705,7 +2837,7 @@
     const VIEW_KEY = 'golovnyi-trener:view';
     const can3d = SIMV && FM.view3d && FM.view3d.supported();
     let mode3 = can3d && (() => { try { return localStorage.getItem(VIEW_KEY) !== '2d'; } catch (_) { return true; } })();
-    let v3 = null, cam3 = (() => { try { return localStorage.getItem(VIEW_KEY + ':cam') || 'tv'; } catch (_) { return 'tv'; } })();
+    let v3 = null, cam3 = (() => { try { const c = localStorage.getItem(VIEW_KEY + ':cam'); return FM.view3d && FM.view3d.CAMERAS.some(([k]) => k === c) ? c : 'director'; } catch (_) { return 'director'; } })();
     const v3wrap = el('div.v3d-wrap', { hidden: true });
     // накладки трансляції: табло, стрічка подій (голи, вилучення), рядок коментаря
     const ov3 = { score: el('div.v3o-score', { 'aria-hidden': 'true' }), line: el('div.v3o-line', { 'aria-hidden': 'true' }), tick: el('div.v3o-ticker', { 'aria-hidden': 'true' }) };
@@ -2733,7 +2865,20 @@
       }
       return { k: 0, num: '', gk: false };
     };
-    function ensure3d() { if (!v3 && can3d) { try { v3 = FM.view3d.create(v3wrap, { kit, info: info3, sponsor: state && state.sponsor && myK != null ? state.sponsor.name : null }); v3.setCamera(cam3); } catch (err) { console.warn('3D недоступне', err); mode3 = false; } } }
+    const name3 = (id) => { for (const k of [0, 1]) { const x = M.sides[k].onPitch.find((y) => y.p.id === id); if (x) return shortName(x.p); } return ''; };
+    /** Стадіон для 3D: місткість і заповненість (для ліги — як рахує каса), погода, лави запасних. */
+    function stadium3() {
+      const hc = hs.club && W.club(hs.club.id) ? W.club(hs.club.id) : hs.club || {};
+      let fill = 0.7;
+      const f = extra && extra.fixture;
+      if (f && state) { try { const t = FM.season.table(state.season, W, hc.league), pos = t.findIndex((r) => r.id === hc.id) + 1; fill = FM.money.attendance(W, state, hc.id, as.club.id, t.length > 1 ? 1 - (pos - 1) / (t.length - 1) : 0.5, FM.rivals.derby(W, hc.id, as.club.id), M.weather).fill; } catch (_) { /* без розрахунку каси */ } }
+      else if (!f && myK != null && state && !state.season.fixtures.some((x) => x.s)) fill = 0.35; // товариські перед сезоном
+      return { capacity: hc.capacity || 15000, fill, weather: M.weather, seed: `${hc.id}-${as.club.id}-${state ? state.season.year : ''}`, bench: [0, 1].map((k) => (M.sides[k].bench || []).length) };
+    }
+    const Q3_KEY = 'golovnyi-trener:q3d', RC_KEY = 'golovnyi-trener:rcam';
+    const q3d = () => { try { return localStorage.getItem(Q3_KEY) || 'auto'; } catch (_) { return 'auto'; } };
+    const rcam3 = () => { try { return localStorage.getItem(RC_KEY) || 'director'; } catch (_) { return 'director'; } };
+    function ensure3d() { if (!v3 && can3d) { try { v3 = FM.view3d.create(v3wrap, { kit, info: info3, name: name3, sponsor: state && state.sponsor && myK != null ? state.sponsor.name : null, ...stadium3(), camera: cam3, quality: q3d() }); v3.setReplayCamera(rcam3()); } catch (err) { console.warn('3D недоступне', err); mode3 = false; } } }
     const viewBar = el('div.view-bar');
     function drawViewBar() {
       if (!can3d) return viewBar.replaceChildren();
@@ -2744,7 +2889,7 @@
           if (mode3) ensure3d();
           drawViewBar(); if (frames.length) drawFrame(frames[Math.min(frames.length - 1, fIdx)]);
         } }, l))),
-        mode3 ? el('div.tabs.view-cam', [['tv', 'ТВ'], ['top', 'Згори'], ['goal', 'З-за воріт']].map(([v, l]) => el('button', { type: 'button', 'aria-pressed': String(cam3 === v), onclick: () => {
+        mode3 ? el('div.tabs.view-cam', FM.view3d.CAMERAS.map(([v, l]) => el('button', { type: 'button', 'aria-pressed': String(cam3 === v), onclick: () => {
           cam3 = v; try { localStorage.setItem(VIEW_KEY + ':cam', v); } catch (_) { /* приватне вікно */ } if (v3) v3.setCamera(v); drawViewBar();
         } }, l))) : null);
     }
@@ -2807,6 +2952,7 @@
       };
       stepR();
     }
+    let sideKey = '';
     let shown = 0, paused = false, finished = false, hold = 0, acc = 0, talkAsked = false, talkMsg = null, idle = 0;
     // промова перед матчем: трансляція чекає на тренера (як у FM)
     let preTalk = myK != null && state ? 'ask' : 'done', preRes = null, shoutMsg = null, instrOpen = false;
@@ -2815,7 +2961,7 @@
     const motK = () => (state ? 0.7 + FM.career.attr(state, 'mot') * 0.03 : 1);
     const REACT_CLS = { inspired: 'ok', focused: 'ok', neutral: 'info', nervous: 'bad', complacent: 'warn' };
     const TICK = 100;
-    const msPerMin = () => (liveSpeed === 'key' ? 320 : liveSpeed);
+    const msPerMin = () => bc.during;
     const pct = (v) => v + '%';
     const f2 = (v) => String(v).replace('.', ',');
 
@@ -2824,17 +2970,54 @@
     const togglePause = () => { if (preTalk === 'ask') preTalk = 'done'; paused = !paused; drawSpeed(); drawControl(); };
     const pauseButton = (cls = '') => el('button.btn.tiny-btn.pause-btn' + cls, { type: 'button', disabled: finished || null, 'aria-pressed': String(paused),
       onclick: (e) => { e.preventDefault(); e.stopPropagation(); togglePause(); } }, paused ? '▶ Продовжити' : '⏸ Пауза');
-    const drawSpeed = () => { feedPause.replaceChildren(...(finished ? [] : [pauseButton()])); speedBtns.replaceChildren(
-      el('button', { type: 'button', disabled: finished || null, 'aria-pressed': String(paused), onclick: () => togglePause() }, paused ? 'Продовжити' : 'Пауза'),
-      el('label.speed', [el('span.muted', 'Швидкість '), el('select', { 'aria-label': 'Швидкість трансляції', disabled: finished || null, onchange: (e) => { setSpeed(e.target.value === 'key' ? 'key' : Number(e.target.value)); paused = false; drawSpeed(); } },
-        SPEEDS.map(([v, label, hint]) => el('option', { value: String(v), selected: String(liveSpeed) === String(v) || null }, `${label} (${hint})`)))]),
-      el('label.speed', [el('span.muted', 'Моменти '), el('select', { 'aria-label': 'Виділення моментів', disabled: finished || null, onchange: (e) => { setHl(e.target.value); drawSpeed(); } },
-        HL_MODES.map(([v, label]) => el('option', { value: v, selected: hlMode === v || null }, label)))]),
-      el('button', { type: 'button', disabled: finished || null, onclick: () => { M.result(); flush(); finish(); } }, 'Одразу результат'),
-      el('button', { type: 'button', 'aria-pressed': String(FM.sound.on), title: 'Свисток, трибуни, гол (звук синтезується в браузері)', onclick: () => {
-        FM.sound.set(!FM.sound.on); if (FM.sound.on) { FM.sound.whistle(1); FM.sound.ambient(!finished); } drawSpeed();
-      } }, FM.sound.on ? '🔊 Звук' : '🔇 Звук'),
-    ); };
+    const playBox = el('div.bc-play'), actBox = el('div.bc-acts'), setBox = el('div.bc-settings', { hidden: true });
+    let skipping = false;
+    const skipToHl = () => { skipping = true; if (paused) { paused = false; } drawSpeed(); };
+    const drawSpeed = () => {
+      feedPause.replaceChildren(...(finished ? [] : [pauseButton()]));
+      const ib = (icon, label, fn, dis) => el('button.bc-ib', { type: 'button', title: label, 'aria-label': label, disabled: dis || finished || null, onclick: fn }, icon);
+      playBox.replaceChildren(
+        ib('⏪', 'Повтор останнього гола', () => replay(), !(SIMV && M.sim.replays && M.sim.replays.length)),
+        ib(paused ? '▶' : '⏸', paused ? 'Продовжити' : 'Пауза', () => togglePause()),
+        ib('⏩', 'До наступного моменту', () => skipToHl(), !SIMV || bc.hl === 'all'),
+        ib('⏭', 'Одразу результат', () => { M.result(); flush(); finish(); }),
+        el('button.bc-ib', { type: 'button', title: 'Налаштування трансляції', 'aria-label': 'Налаштування трансляції', 'aria-expanded': String(!setBox.hidden), onclick: () => { setBox.hidden = !setBox.hidden; drawSettings(); drawSpeed(); } }, '⚙'),
+        el('button.bc-ib', { type: 'button', title: 'Звук', 'aria-label': 'Звук', 'aria-pressed': String(FM.sound.on), onclick: () => { FM.sound.set(!FM.sound.on); if (FM.sound.on) { FM.sound.whistle(1); FM.sound.ambient(!finished); } drawSpeed(); drawSettings(); } }, FM.sound.on ? '🔊' : '🔇'));
+      if (hasCtl && !finished) {
+        const t = M.sides[myK];
+        actBox.replaceChildren(
+          el('button.btn', { type: 'button', onclick: () => { autoTab = false; setTab('tactics'); } }, `⇄ Заміна (${t.subsLeft})`),
+          el('button.btn', { type: 'button', onclick: () => { autoTab = false; instrOpen = true; setTab('tactics'); drawControl(); } }, 'Інструкції'),
+          t.formation ? el('span.bc-chip', t.formation) : null,
+          el('label.bc-ment', [el('span.muted', 'Ментальність'), el('select', { 'aria-label': 'Ментальність', onchange: (e) => { M.setTactics(myK, { mentality: e.target.value }); flush(); drawControl(); } },
+            Object.entries(FM.match.TACTIC_UK.mentality).map(([k, l]) => el('option', { value: k, selected: (t.tactic || t).mentality === k || null }, l)))]));
+      } else actBox.replaceChildren();
+    };
+    function drawSettings() {
+      if (setBox.hidden) return;
+      const range = (label, list, key) => { const i = Math.max(0, list.findIndex(([v]) => v === bc[key])); return el('label.bc-set-row', [el('span', label), el('input', { type: 'range', min: 0, max: list.length - 1, step: 1, value: i, 'aria-label': label, oninput: (e) => { bc[key] = list[Number(e.target.value)][0]; saveBc(); drawSettings(); } }), el('b', list[i][1])]); };
+      const sel = (label, opts2, val, on) => el('label.bc-set-row', [el('span', label), el('select', { onchange: (e) => { on(e.target.value); drawSettings(); } }, opts2.map(([v, l]) => el('option', { value: v, selected: String(val) === String(v) || null }, l)))]);
+      const chk = (label, val, on) => el('label.bc-set-chk', [el('input', { type: 'checkbox', checked: val || null, onchange: (e) => on(e.target.checked) }), ' ' + label]);
+      setBox.replaceChildren(
+        el('div.bc-set-head', [el('b', '⚙ Налаштування трансляції'), el('button.bc-ib', { type: 'button', 'aria-label': 'Закрити', onclick: () => { setBox.hidden = true; drawSpeed(); } }, '✕')]),
+        el('div.bc-set-grid', [
+          el('div', [el('h4', 'Швидкість матчу'), range('Під час моментів', BC_DURING, 'during'), range('Між моментами', BC_BETWEEN, 'between'),
+            sel('Моменти', BC_HL, bc.hl, (v) => { bc.hl = v; saveBc(); if (SIMV && frames.length) wins = hlWindows(minEvents, frames.length, M.sim.DT, bc.hl); drawSpeed(); }), el('small.muted', BC_HL_HINT[bc.hl]),
+            sel('Смуга над полем', HL_MODES, hlMode, (v) => setHl(v))]),
+          el('div', [el('h4', 'Вигляд'),
+            sel('Поділений екран', [['right', 'Матч ліворуч, панель праворуч'], ['left', 'Панель ліворуч, матч праворуч']], bc.side, (v) => { bc.side = v; saveBc(); drawLayout(); }),
+            can3d ? sel('Камера', FM.view3d.CAMERAS, cam3, (v) => { cam3 = v; try { localStorage.setItem(VIEW_KEY + ':cam', v); } catch (_) { /* приватне вікно */ } if (v3) v3.setCamera(v); drawViewBar(); }) : null,
+            sel('Повтори', [['goals', 'Голи'], ['off', 'Без повторів']], bc.replays, (v) => { bc.replays = v; saveBc(); }),
+            can3d ? sel('Камера повтору', FM.view3d.CAMERAS, rcam3(), (v) => { try { localStorage.setItem(RC_KEY, v); } catch (_) { /* приватне вікно */ } if (v3) v3.setReplayCamera(v); }) : null,
+            can3d ? sel('Якість графіки', [['auto', 'Автоматично'], ...Object.entries(FM.view3d.QUALITY).map(([k, q]) => [k, q.label])], q3d(), (v) => {
+              try { localStorage.setItem(Q3_KEY, v); } catch (_) { /* приватне вікно */ }
+              if (v3) { v3.dispose(); v3 = null; if (mode3) { ensure3d(); if (frames.length) drawFrame(frames[Math.min(frames.length - 1, fIdx)]); } }
+            }) : null]),
+        ]),
+        chk('Звук', FM.sound.on, (v) => { FM.sound.set(v); if (v) FM.sound.ambient(!finished); drawSpeed(); }),
+        chk('Показувати інформацію про матч між моментами', bc.info, (v) => { bc.info = v; saveBc(); if (!v) drawInfo(false); }),
+      );
+    }
 
     /** Показати нові події. gate — секунда хвилини, до якої дійшло 2D (детальний рушій): пізніші ще не сталися на екрані. */
     function flush(gate) {
@@ -2846,16 +3029,17 @@
         const big = e.hl && e.hl.xg >= 0.25 && e.type !== 'goal';
         feed.prepend(el('li.ev.ev-' + e.type + (myK != null && e.team === myK ? '.ours' : '') + (e.type === 'goal' ? '.flash' : '') + (big ? '.big' : ''), [el('span.min', e.min + '′'), team ? badge(team) : el('span.dot'), el('span', (big ? '⚡ ' : '') + e.text)]));
         if (shouldHl(e) && !finished) { highlight(e); hold = Math.max(hold, e.hl.out === 'goal' ? 3800 : 2600); moveBall.last = e; }
-        else if (SIMV && e.type === 'goal' && !finished) setTimeout(() => replay(), 900);
+        else if (SIMV && e.type === 'goal' && !finished && bc.replays !== 'off') setTimeout(() => replay(), 900);
         scoreEl.textContent = e.score.join(':') + (e.so ? ` (пен. ${e.so.join(':')})` : '');
+        if (e.type === 'goal' || String(e.score) !== String(curScore)) { curScore = e.score.slice(); if (bc.panel === 'table') drawSide(); }
         // звук і анімація
-        if (e.type === 'goal') { hold = liveSpeed === 'key' ? 4000 : 1800; FM.sound.goal(myK == null || e.team === myK); if (!finished) vibe(myK == null || e.team === myK ? [90, 50, 90, 50, 160] : 250); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
+        if (v3 && mode3 && !finished) { if (e.type === 'goal') { v3.celebrate(e.team); v3.cue('goal', e.team); } else if (e.hl) v3.cue('shot', e.team); }
+        if (e.type === 'goal') { hold = 2200; FM.sound.goal(myK == null || e.team === myK); if (!finished) vibe(myK == null || e.team === myK ? [90, 50, 90, 50, 160] : 250); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
         else if (e.type === 'chance' || e.type === 'miss') FM.sound.chance();
         else if (e.type === 'kickoff') { FM.sound.whistle(1); FM.sound.ambient(true); }
         else if (e.type === 'half' && String(e.min).startsWith('45')) FM.sound.whistle(2);
         else if (e.type === 'full') { FM.sound.whistle(3); FM.sound.ambient(false); }
         if (e.type === 'half' && String(e.min).startsWith('45')) hold = 1200;
-        if (liveSpeed === 'key' && ['chance', 'miss', 'red', 'injury', 'penalty'].includes(e.type)) hold = Math.max(hold, 2500); // ключовий момент — пауза, щоб прочитати
       }
       const s = M.liveStats();
       if (ticker) ticker.draw();
@@ -2871,16 +3055,25 @@
         else play2d();
       }
       if (!SIMV) drawDots();
-      statsBox.replaceChildren(compareBars([
+      const rowsS = [
         ['Володіння', s[0].poss, s[1].poss, pct], ['Удари', s[0].shots, s[1].shots], ['У площину', s[0].onTarget, s[1].onTarget], ['xG', s[0].xg, s[1].xg, f2],
         ...(SIMV ? [['Фоли', s[0].fouls || 0, s[1].fouls || 0], ['Кутові', s[0].corners || 0, s[1].corners || 0]] : []),
-      ]));
+      ];
+      statsBox.replaceChildren(compareBars(rowsS));
+      if (tab === 'stats') statsBox2.replaceChildren(compareBars(rowsS));
+      if (bc.split && bc.panel === 'stats') sideStats.replaceChildren(compareBars(rowsS));
+      drawTimeline();
+      drawAnalysis(false);
+      if (bc.split && (bc.panel === 'events' || bc.panel === 'squad') && sideKey !== `${shown}-${M.minuteNum}`) { sideKey = `${shown}-${M.minuteNum}`; drawSide(); }
     }
 
     function drawControl() {
       if (myK == null || finished) { control.hidden = true; return; }
       control.hidden = false;
       const t = M.sides[myK];
+      const needTalk = preTalk === 'ask' || (talkAsked && M.halftime && !t.talked);
+      if (needTalk && tab !== 'tactics') { autoTab = true; setTab('tactics'); }
+      else if (!needTalk && autoTab && tab === 'tactics') { autoTab = false; setTab('pitch'); }
       if (preTalk === 'ask') {
         control.replaceChildren(el('h3', 'Промова перед матчем'),
           el('p.muted', 'Кожен гравець відреагує по-своєму: за характером, вагою матчу й тим, хто фаворит.'),
@@ -2974,29 +3167,55 @@
     }
 
     let pc = 0;
-    let frames = [], fIdx = 0, shownMin = null;
-    /** Такт трансляції детального рушія: хвилина гри розгортається на полі кадр за кадром; події — коли стаються. */
+    let frames = [], fIdx = 0, shownMin = null, wins = [], minEvents = [], betweenNow = false;
+    /** Годинник трансляції: хвилини й секунди (у доданий час — «45+2′»). */
+    function drawClock() {
+      if (!frames.length) return;
+      const m = String(shownMin);
+      if (/^\d+$/.test(m)) clock.textContent = `${Number(m) - 1}:${String(Math.min(59, Math.floor(fIdx * M.sim.DT))).padStart(2, '0')}`;
+      else clock.textContent = m.startsWith('Пен') ? 'Пенальті' : m + '′';
+    }
+    /**
+     * Такт детального рушія: хвилина гри розгортається на полі кадр за кадром; події — коли стаються.
+     * Моменти (за налаштуванням) ідуть зі швидкістю «під час моментів», решта — «між моментами» (або миттєво).
+     */
     function tickSim() {
       if (!paused) {
         if (hold > 0) hold -= TICK;
         else if (!replaying) {
-          acc += TICK / msPerMin();
-          if (acc >= 1 || !frames.length) {
+          const n0 = frames.length, fi0 = n0 ? Math.min(n0 - 1, Math.floor(acc * n0)) : 0;
+          const inHl0 = !!n0 && (bc.hl === 'all' || wins.some(([a, b]) => fi0 >= a && fi0 < b));
+          if (inHl0 && skipping) { skipping = false; drawSpeed(); }
+          const btw = skipping ? 0 : bc.between;
+          if (n0 && !inHl0 && btw === 0) { const nx = wins.find(([a]) => a > fi0); acc = nx ? nx[0] / n0 : 1; }
+          else acc += TICK / (inHl0 || !n0 ? bc.during : btw);
+          let guard = 0;
+          while (acc >= 1 || !frames.length) {
             flush(); // решта подій показаної хвилини
             if (M.done) return finish();
             if (frames.length && myK != null && M.halftime && !M.sides[myK].talked && !talkAsked) {
-              talkAsked = true; paused = true; acc = 0; frames = []; clock.textContent = 'Перерва'; drawSpeed(); drawControl();
+              talkAsked = true; paused = true; skipping = false; acc = 0; frames = []; clock.textContent = 'Перерва'; drawInfo(false); drawSpeed(); drawControl();
               liveTimer = setTimeout(tick, TICK); return;
             }
             acc = frames.length ? Math.max(0, acc - 1) : 0;
+            const ev0 = M.events.length;
             M.step();
             frames = M.sim.frames; shownMin = M.minute;
-            clock.textContent = String(shownMin).startsWith('Пен') ? 'Пенальті' : shownMin + '′';
+            minEvents = M.events.slice(ev0);
+            wins = hlWindows(minEvents, frames.length, M.sim.DT, bc.hl);
             if (myK != null && M.minuteNum % 5 === 0) drawControl();
+            if ((skipping || bc.between === 0) && bc.hl !== 'all') {
+              if (wins.length) { acc = Math.max(acc, wins[0][0] / Math.max(1, frames.length)); break; }
+              acc = 1; // хвилина без моментів — одразу далі
+              if (++guard >= 4) break;
+            } else break;
           }
-          fIdx = Math.min(frames.length - 1, Math.floor(acc * frames.length));
+          fIdx = Math.max(0, Math.min(frames.length - 1, Math.floor(acc * frames.length)));
+          betweenNow = bc.hl !== 'all' && !wins.some(([a, b]) => fIdx >= a && fIdx < b);
           if (!replaying) drawFrame(frames[fIdx]);
           flush(fIdx * M.sim.DT);
+          drawClock();
+          drawInfo(betweenNow && !paused);
         }
       }
       liveTimer = setTimeout(tick, TICK);
@@ -3040,6 +3259,8 @@
       const m = M.result();
       flush();
       clock.textContent = 'Кінець';
+      setBox.hidden = true; drawInfo(false);
+      if (tab === 'tactics') setTab('pitch');
       onFinish(m);
       const art = matchArticle(m, hs, as, myK, extra);
       drawSpeed(); drawControl();
@@ -3068,26 +3289,34 @@
       );
     }
 
+    // розкладка екрана трансляції
+    panes.overview = el('div.bc-pane', [el('div.live-grid', [
+      el('details.panel.feed-box', { open: true }, [el('summary', [el('span', 'Стрічка подій'), feedPause]), el('div.feed-wrap', feed)]),
+      el('div.panel', [el('h3', 'Статистика наживо'), statsBox]),
+    ])]);
+    panes.pitch = el('div.bc-pane', [hlBar, el('div.pitch-panel.bc-pitch', [viewBar, miniPitch, v3wrap, infoEl, SIMV ? holderEl : null])]);
+    if (hasCtl) panes.tactics = el('div.bc-pane', [control]);
+    panes.stats = el('div.bc-pane', [el('div.panel', [el('h3', 'Статистика'), statsBox2]), playersBox]);
+    panes.analysis = el('div.bc-pane', [analysisBox]);
+    bodyEl.replaceChildren(el('div.bc-main', Object.values(panes)), sideEl);
+    const layout = [
+      el('div.bc', [
+        el('div.bc-top', [el('div.bc-clock', clock), el('div.bc-score', [teamBar(0), scoreEl, teamBar(1)]), M.weather ? el('span.bc-weather', FM.WEATHER[M.weather].label) : null]),
+        el('div.bc-nav', [tabsEl, splitEl]),
+        el('div.bc-bar', [actBox, playBox]),
+        setBox,
+        bodyEl,
+        el('div.bc-timeline', [tlEl, possEl]),
+        commEl,
+      ]),
+      after,
+    ];
+    setTab(tab); drawSplit(); drawLayout();
     activeLive = { finish: () => { M.result(); finish(); } };
     keepAwake(true); // телефон не засинає, поки йде трансляція
     drawSpeed(); drawControl(); flush();
     liveTimer = setTimeout(tick, 300);
-    return [
-      el('div.scoreboard', [
-        el('div.sb-team', [badge(hs.club, true), el('b', clubName(hs.club))]),
-        el('div.sb-mid', [scoreEl, clock, M.weather ? el('div.sb-weather', FM.WEATHER[M.weather].label) : null]),
-        el('div.sb-team.away', [badge(as.club, true), el('b', clubName(as.club))]),
-      ]),
-      el('div.live-controls', speedBtns),
-      ticker ? ticker.box : null,
-      hlBar,
-      el('div.pitch-panel', [viewBar, miniPitch, v3wrap, SIMV ? holderEl : null]),
-      el('div.live-grid', [
-        el('details.panel.feed-box', { open: true }, [el('summary', [el('span', 'Стрічка подій'), feedPause]), el('div.feed-wrap', feed)]),
-        el('div.live-side', [el('div.panel', [el('h3', 'Статистика наживо'), statsBox]), control]),
-      ]),
-      after,
-    ];
+    return layout;
   }
 
   // ---------------- Сезон ----------------
