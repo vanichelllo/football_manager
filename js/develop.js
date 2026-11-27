@@ -88,6 +88,7 @@
     const k = FM.cal ? FM.cal.weekK(S) : 1; // розвиток і травми на тренуваннях — за сезон стільки ж, скільки в старому календарі
     for (const p of W.players.values()) {
       if (p.retired) continue;
+      if (FM.attrs && p.club) FM.attrs.weekSharp(p, p.lastPlayed === S.week - 1); // без матчів — ігрова форма падає
       const age = W.age(p) ?? 24;
       const oo = !p.club ? null : p.club === opts.myClub ? opts : (opts.also || []).find((x) => x.myClub === p.club); // гра на двох — план другого тренера
       const mine = !!oo, tr = (oo && oo.training) || {};

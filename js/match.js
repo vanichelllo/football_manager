@@ -22,21 +22,36 @@
   const VARIANTS = {
     GK: { std: { label: 'Воротар' }, sweeper: { label: 'Воротар-чистильник', w: { ref: 0.25, one: 0.25, han: 0.15, kic: 0.15, pac: 0.1, dec: 0.1 }, unit: { mid: 0.15 } } },
     CB: { std: { label: 'Центральний захисник' }, bpd: { label: 'Захисник-розігрувач', w: { tac: 0.2, pos: 0.2, pas: 0.2, hea: 0.15, dec: 0.15, str: 0.1 }, unit: { mid: 0.25, def: 0.9 } },
-      stopper: { label: 'Стопер', w: { tac: 0.3, str: 0.25, hea: 0.2, pos: 0.15, pac: 0.1 }, unit: { def: 1.1 } } },
-    FB: { std: { label: 'Крайній захисник' }, wb: { label: 'Вінгбек', w: { pac: 0.25, cro: 0.25, sta: 0.2, dri: 0.1, tac: 0.1, wor: 0.1 }, unit: { att: 0.45, def: 0.5, mid: 0.35 } },
-      inv: { label: 'Інвертований захисник', w: { pas: 0.25, dec: 0.2, tac: 0.2, pos: 0.2, sta: 0.15 }, unit: { mid: 0.6, def: 0.6 } } },
+      stopper: { label: 'Стопер', w: { tac: 0.3, str: 0.25, hea: 0.2, pos: 0.15, pac: 0.1 }, unit: { def: 1.1 }, press: true },
+      cover: { label: 'Страхувальник', w: { pos: 0.3, pac: 0.25, tac: 0.25, dec: 0.2 }, unit: { def: 1.05 }, deep: -0.04 },
+      nncb: { label: 'Захисник без зайвих ризиків', w: { tac: 0.3, hea: 0.25, str: 0.25, pos: 0.2 }, unit: { def: 1.1, mid: 0 }, safe: true } },
+    FB: { std: { label: 'Крайній захисник' }, wb: { label: 'Вінгбек', w: { pac: 0.25, cro: 0.25, sta: 0.2, dri: 0.1, tac: 0.1, wor: 0.1 }, unit: { att: 0.45, def: 0.5, mid: 0.35 }, runs: 1.5 },
+      inv: { label: 'Інвертований захисник', w: { pas: 0.25, dec: 0.2, tac: 0.2, pos: 0.2, sta: 0.15 }, unit: { mid: 0.6, def: 0.6 } },
+      cwb: { label: 'Універсальний вінгбек', w: { cro: 0.25, dri: 0.2, pac: 0.2, sta: 0.2, pas: 0.15 }, unit: { att: 0.6, def: 0.4, mid: 0.4 }, runs: 1.8, assist: 1.3 },
+      nnfb: { label: 'Оборонний крайній', w: { tac: 0.35, pos: 0.3, str: 0.2, hea: 0.15 }, unit: { att: 0.05, def: 0.85 }, runs: 0.2, safe: true } },
     DM: { std: { label: 'Опорний півзахисник' }, anchor: { label: 'Якір', w: { pos: 0.3, tac: 0.3, dec: 0.2, str: 0.2 }, unit: { def: 0.85, mid: 0.6 } },
       dlp: { label: 'Диспетчер з глибини', w: { pas: 0.35, dec: 0.25, pos: 0.15, tac: 0.1, sta: 0.15 }, unit: { mid: 1, def: 0.45 } },
-      bwm: { label: 'Руйнівник', w: { tac: 0.35, wor: 0.25, str: 0.2, sta: 0.2 }, unit: { def: 0.8, mid: 0.6 }, cards: 1.4 } },
+      bwm: { label: 'Руйнівник', w: { tac: 0.35, wor: 0.25, str: 0.2, sta: 0.2 }, unit: { def: 0.8, mid: 0.6 }, cards: 1.4, press: true },
+      reg: { label: 'Диригент', w: { pas: 0.35, dec: 0.25, tec: 0.2, otb: 0.1, dri: 0.1 }, unit: { mid: 1.1, att: 0.3, def: 0.3 }, roam: true, assist: 1.3 } },
     CM: { std: { label: 'Центральний півзахисник' }, b2b: { label: 'Від штрафного до штрафного', w: { sta: 0.25, wor: 0.2, pas: 0.2, tac: 0.15, fin: 0.1, otb: 0.1 }, unit: { att: 0.5, def: 0.45 } },
-      ap: { label: 'Плеймейкер', w: { pas: 0.35, dec: 0.25, dri: 0.2, otb: 0.1, fin: 0.1 }, unit: { att: 0.45, mid: 1.1, def: 0.15 } } },
+      ap: { label: 'Плеймейкер', w: { pas: 0.35, dec: 0.25, dri: 0.2, otb: 0.1, fin: 0.1 }, unit: { att: 0.45, mid: 1.1, def: 0.15 } },
+      bwm: { label: 'Руйнівник у центрі', w: { tac: 0.35, wor: 0.25, sta: 0.2, str: 0.2 }, unit: { def: 0.55, mid: 0.9, att: 0.15 }, cards: 1.4, press: true },
+      dlp: { label: 'Диспетчер', w: { pas: 0.35, dec: 0.3, tec: 0.2, pos: 0.15 }, unit: { mid: 1.15, def: 0.3, att: 0.2 }, deep: -0.06, assist: 1.25 },
+      rpm: { label: 'Блукаючий плеймейкер', w: { pas: 0.3, sta: 0.2, dri: 0.2, dec: 0.15, wor: 0.15 }, unit: { mid: 1.05, att: 0.45, def: 0.3 }, roam: true, runs: 1.3 } },
     AM: { std: { label: 'Атакувальний півзахисник' }, enganche: { label: 'Класична «десятка»', w: { pas: 0.35, dec: 0.3, dri: 0.25, otb: 0.1 }, unit: { mid: 1, att: 0.6 } },
-      shadow: { label: 'Тіньовий нападник', w: { fin: 0.3, otb: 0.3, dri: 0.2, pac: 0.2 }, unit: { att: 1, mid: 0.5 }, shoot: 1.6 } },
+      shadow: { label: 'Тіньовий нападник', w: { fin: 0.3, otb: 0.3, dri: 0.2, pac: 0.2 }, unit: { att: 1, mid: 0.5 }, shoot: 1.6, runs: 1.6 },
+      treq: { label: 'Трекуартиста', w: { pas: 0.3, dri: 0.3, fin: 0.2, dec: 0.2 }, unit: { att: 0.95, mid: 0.7, def: 0 }, roam: true, assist: 1.3 } },
     W: { std: { label: 'Вінгер' }, inside: { label: 'Інсайд', w: { fin: 0.3, dri: 0.25, otb: 0.2, pac: 0.15, dec: 0.1 }, unit: { att: 1 }, shoot: 1.5 },
-      wide: { label: 'Флангова гра', w: { cro: 0.35, pac: 0.3, dri: 0.2, sta: 0.15 }, unit: { att: 0.7, mid: 0.5 }, assist: 1.4 } },
+      wide: { label: 'Флангова гра', w: { cro: 0.35, pac: 0.3, dri: 0.2, sta: 0.15 }, unit: { att: 0.7, mid: 0.5 }, assist: 1.4, wideK: true },
+      dw: { label: 'Оборонний вінгер', w: { wor: 0.3, sta: 0.25, tac: 0.2, cro: 0.25 }, unit: { att: 0.45, mid: 0.5, def: 0.45 }, press: true },
+      wp: { label: 'Фланговий плеймейкер', w: { pas: 0.35, dri: 0.25, dec: 0.2, cro: 0.2 }, unit: { att: 0.6, mid: 0.8 }, assist: 1.4, cut: true } },
     ST: { std: { label: 'Нападник' }, target: { label: 'Таргетмен', w: { hea: 0.3, str: 0.3, fin: 0.25, otb: 0.15 } },
       poacher: { label: 'Браконьєр', w: { fin: 0.45, otb: 0.35, pac: 0.2 }, shoot: 1.3 },
-      false9: { label: 'Фальшива «дев\u2019ятка»', w: { pas: 0.25, dri: 0.25, dec: 0.2, fin: 0.2, otb: 0.1 }, unit: { mid: 0.6, att: 0.85 }, assist: 1.5, shoot: 0.8 } },
+      false9: { label: 'Фальшива «дев\u2019ятка»', w: { pas: 0.25, dri: 0.25, dec: 0.2, fin: 0.2, otb: 0.1 }, unit: { mid: 0.6, att: 0.85 }, assist: 1.5, shoot: 0.8, deep: -0.12 },
+      af: { label: 'Нападник на випередження', w: { pac: 0.3, fin: 0.3, otb: 0.25, dri: 0.15 }, runs: 1.6, shoot: 1.1 },
+      cf: { label: 'Універсальний нападник', w: { fin: 0.25, pas: 0.2, hea: 0.15, str: 0.15, dri: 0.15, otb: 0.1 }, unit: { att: 1, mid: 0.4 }, assist: 1.2 },
+      dlf: { label: 'Відтягнутий нападник', w: { pas: 0.3, fin: 0.25, str: 0.2, dec: 0.25 }, unit: { att: 0.85, mid: 0.5 }, assist: 1.3, deep: -0.08 },
+      df: { label: 'Нападник-перший захисник', w: { wor: 0.3, tac: 0.2, str: 0.2, fin: 0.2, sta: 0.1 }, unit: { att: 0.8, mid: 0.3, def: 0.25 }, press: true } },
   };
   // Індивідуальні інструкції: зміна внеску в лінії
   const INSTR = {
@@ -67,9 +82,16 @@
 
   const variantOf = (slot) => (slot.variant && VARIANTS[slot.role] && VARIANTS[slot.role][slot.variant]) || null;
   /** Внесок позиції в лінію з урахуванням варіанта ролі й інструкції. */
+  /** Обов'язок за замовчуванням: захисники — оборона, нападники й атакувальні — атака, решта — підтримка. */
+  const dutyOf = (slot) => slot.duty || ({ GK: 'D', CB: 'D', DM: 'D', FB: 'S', CM: 'S', AM: 'A', W: 'A', ST: 'A' }[slot.role] || 'S');
+  const DUTY_UK = { D: 'оборона', S: 'підтримка', A: 'атака' };
   function unitWeight(slot, unit) {
     const v = variantOf(slot);
     let w = v && v.unit && v.unit[unit] != null ? v.unit[unit] : UNIT[unit][slot.role] || 0;
+    if (slot.duty && slot.role !== 'GK') { // обов'язок, змінений тренером, зсуває внесок у лінії
+      const d0 = dutyOf({ role: slot.role }), dd = { D: -1, S: 0, A: 1 }[slot.duty] - { D: -1, S: 0, A: 1 }[d0];
+      if (unit === 'att') w = Math.max(0, w + dd * 0.12); else if (unit === 'def') w = Math.max(0, w - dd * 0.1);
+    }
     const ins = slot.instr && INSTR[slot.instr];
     if (ins && ins.d && ins.d[unit] && slot.role !== 'GK') w = Math.max(0, w + ins.d[unit]);
     return w;
@@ -104,7 +126,7 @@
   const RATIO_REF = 1;
   const BASE_Q = 0.073;
   const FINISH_K = 1.18; // калібрування реалізації відносно воротаря
-  const SIM_QK = 0.66; // калібрування реалізації в детальному рушії (js/sim.js)
+  const SIM_QK = 0.62; // калібрування реалізації в детальному рушії (js/sim.js)
 
   // ваги ролей і варіантів — масивами (рахується дуже часто: підбір складу перебирає всі схеми)
   const W_ENTRIES = new Map();
@@ -149,7 +171,8 @@
     return FORMATIONS[formation].map((s, i) => {
       const role = i === 0 ? 'GK' : (tac && tac.roles && tac.roles[i]) || s.role;
       return { role, side: role === 'FB' || role === 'W' ? s.side || (tac && tac.sides && tac.sides[i]) || null : null,
-        variant: (tac && tac.variants && tac.variants[i]) || null, instr: (tac && tac.instr && tac.instr[i]) || null };
+        variant: (tac && tac.variants && tac.variants[i]) || null, instr: (tac && tac.instr && tac.instr[i]) || null,
+        duty: (tac && tac.duty && tac.duty[i]) || null, pi: (tac && tac.pi && tac.pi[i]) || null };
     });
   }
 
@@ -304,11 +327,12 @@
   const usable = (list, v) => list.filter((t) => [...t.matchAll(/\{(\w+)\}/g)].every((m) => v[m[1]] != null));
 
   // ---------------- Симуляція ----------------
-  const MENTALITY = { defensive: -2, cautious: -1, balanced: 0, positive: 1, attacking: 2 };
+  const MENTALITY = { contain: -3, defensive: -2, cautious: -1, balanced: 0, positive: 1, attacking: 2, overload: 3 };
   const PRESSING = { low: -1, normal: 0, high: 1 };
   const PASSING = { short: -1, mixed: 0, direct: 1 };
+  const FLUID_UK = { rigid: 'жорстка структура', balanced: 'збалансована структура', fluid: 'плинна структура' };
   const TACTIC_UK = {
-    mentality: { defensive: 'оборонний', cautious: 'обережний', balanced: 'збалансований', positive: 'сміливий', attacking: 'атакувальний' },
+    mentality: { contain: 'утримання', defensive: 'оборонний', cautious: 'обережний', balanced: 'збалансований', positive: 'сміливий', attacking: 'атакувальний', overload: 'ва-банк' },
     pressing: { low: 'низький пресинг', normal: 'звичайний пресинг', high: 'високий пресинг' },
     passing: { short: 'короткі передачі', mixed: 'змішані передачі', direct: 'довгі передачі' },
   };
@@ -360,7 +384,7 @@
       const form = p.form && p.form.length ? Math.max(-0.03, Math.min(0.03, (p.form.reduce((a, b) => a + b, 0) / p.form.length - 6.6) * 0.02)) : 0;
       const daily = (R.next() - 0.5) * 0.1 * (20 - (h.con || 12)) / 19;
       const big = opts.big ? ((h.big || 10) - 10) * 0.004 : 0;
-      return 1 + form + daily + big;
+      return (1 + form + daily + big) * (FM.attrs ? FM.attrs.sharpK(p) : 1); // ігрова форма: без матчів гравець «не в ритмі»
     };
     const sides = [opts.home, opts.away].map((t, k) => {
       const formation = t.formation || bestFormation(t.players);
@@ -376,6 +400,7 @@
         lineup: lu, takers: t.takers || {}, marked: new Set(), familiarity: t.familiarity == null ? 1 : t.familiarity,
         setp: { corner: 'far', cbUp: true, fk: 'shoot', ...(t.setp || {}) }, shout: null, shoutLog: [], ai: !t.manual,
         oppi: { tackle: 'normal', press: 'normal', weakFoot: false, ...(t.oppi || {}) }, // інструкції проти суперника
+        fluid: t.fluid || 'balanced', ti: { ...(t.ti || {}) }, // плинність і командні інструкції
         stats_extra: null,
       };
     });
@@ -768,6 +793,8 @@
         t.tactic[key] = tac[key];
         changed.push(TACTIC_UK[key][tac[key]]);
       }
+      if (tac.fluid && tac.fluid !== t.fluid) { t.fluid = tac.fluid; changed.push(FLUID_UK[tac.fluid]); }
+      if (tac.ti) { t.ti = { ...tac.ti }; }
       t.mentality = MENTALITY[t.tactic.mentality]; t.pressing = PRESSING[t.tactic.pressing]; t.passing = PASSING[t.tactic.passing];
       if (changed.length && !done) say(current, 'info', t, [`${t.club.name}: тренер змінює підхід — ${changed.join(', ')}.`]);
       return changed.length > 0;
@@ -1234,6 +1261,7 @@
   function play(opts) { return create(opts).result(); }
 
   Object.assign(FM, { FORMATIONS, VARIANTS, INSTR, WEATHER, weatherFor, slotsFor, unitWeight, roleRating, fit, slotValue, pickLineup, lineupFromIds, bestFormation, lineupUnits,
-    match: { play, create, MENTALITY, PRESSING, PASSING, TACTIC_UK, SHOUTS, TEAM_TALKS, TALK_REACT_UK } });
+    dutyOf, DUTY_UK,
+    match: { play, create, MENTALITY, PRESSING, PASSING, TACTIC_UK, FLUID_UK, SHOUTS, TEAM_TALKS, TALK_REACT_UK } });
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

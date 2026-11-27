@@ -214,7 +214,13 @@
     const order = ['defensive', 'cautious', 'balanced', 'positive', 'attacking'];
     const mood = R && R.chance(0.25) ? (R.chance(0.5) ? 1 : -1) : 0; // настрій тренера на конкретний матч
     const i = Math.max(0, Math.min(4, order.indexOf(mentality) + st.mentality + mood));
-    return { mentality: order[i], pressing: st.pressing, passing: st.passing };
+    // командні інструкції за стилем тренера: хтось тримає м'яч, хтось контратакує, хтось грає флангами
+    const TI = {
+      attack: { tempo: 1, width: 1, shootSight: true }, possession: { possession: true, tempo: -1, playOut: true, workBox: true },
+      balanced: {}, counter: { counter: true, line: -1, tempo: 1 }, defence: { line: -1, width: -1, timeWaste: true },
+    }[c.manager.style] || {};
+    const flank = R && R.chance(0.35) ? { focus: R.chance(0.5) ? 'flanks' : 'middle' } : {};
+    return { mentality: order[i], pressing: st.pressing, passing: st.passing, fluid: c.manager.style === 'defence' ? 'rigid' : c.manager.style === 'possession' ? 'fluid' : 'balanced', ti: { ...TI, ...flank } };
   }
 
   function init(W, state) {

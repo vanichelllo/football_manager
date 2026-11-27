@@ -162,6 +162,41 @@
     return out;
   }
 
-  FM.boardroom = { REQUESTS, asked, request, shiftTarget, INTERVIEW, applyInterview, promisesWeek, affiliateCandidates, sendToAffiliate, callups };
+  // ---------------- Очікування на сезон ----------------
+  /** Нарада про очікування відкрита: до першого матчу ліги, раз на сезон, якщо цього сезону не було співбесіди. */
+  function expectOpen(W, state) {
+    const S = state.season, b = state.board;
+    if (!b || !b.target || (b.expect && b.expect.y === S.year) || b.interviewed === S.year) return false;
+    return !S.fixtures.some((f) => f.s && f.l && (f.h === state.clubId || f.a === state.clubId));
+  }
+  /** Варіанти: амбітніша ціль з більшим бюджетом, ціль правління, скромніша з меншим. */
+  function expectOptions(W, state) {
+    const b = state.board, c = W.club(state.clubId), bud = FM.budget.get(W, state);
+    const up = shiftTarget(W, c.id, b.target, 1), down = shiftTarget(W, c.id, b.target, -1);
+    const extra = r2(Math.max(bud.transfer * 0.35, (c.income0 || 0.05) * 38 * 0.03));
+    const out = [];
+    if (up.kind !== b.target.kind) out.push({ k: 'up', target: up, transfer: r2(bud.transfer + extra), wage: Math.round(c.wageBudget * 1.08), conf: 4,
+      note: 'Правління знайде більше грошей, але й чекатиме більшого.' });
+    out.push({ k: 'board', target: b.target, transfer: bud.transfer, wage: c.wageBudget, conf: 0, note: 'Як пропонує правління.' });
+    if (down.kind !== b.target.kind) out.push({ k: 'down', target: down, transfer: r2(bud.transfer * 0.65), wage: c.wageBudget, conf: -4,
+      note: 'Менше тиску, але й менше грошей на трансфери; довіра трохи нижча.' });
+    return out;
+  }
+  /** Обрати варіант. Повертає { ok, text }. */
+  function setExpect(W, state, k) {
+    if (!expectOpen(W, state)) return { ok: false, text: 'Очікування на цей сезон уже визначено.' };
+    const o = expectOptions(W, state).find((x) => x.k === k);
+    if (!o) return { ok: false, text: 'Такого варіанта немає.' };
+    const b = state.board, c = W.club(state.clubId), bud = FM.budget.get(W, state);
+    if (k === 'up') { const add = r2(o.transfer - bud.transfer); c.balance = r2(c.balance + add); if (b.fin) b.fin.transfers = r2((b.fin.transfers || 0) + add); }
+    bud.transfer = o.transfer; bud.start = o.transfer;
+    c.wageBudget = o.wage;
+    b.target = { ...o.target };
+    b.conf = Math.max(0, Math.min(100, b.conf + o.conf));
+    b.expect = { y: state.season.year, k };
+    return { ok: true, text: `Домовилися з правлінням: ${FM.board.TARGETS[o.target.kind].label.toLowerCase()}. Трансферний бюджет — ${FM.market.fmtM(o.transfer)}, фонд зарплат — ${o.wage} тис. € на тиждень.` };
+  }
+
+  FM.boardroom = { expectOpen, expectOptions, setExpect, REQUESTS, asked, request, shiftTarget, INTERVIEW, applyInterview, promisesWeek, affiliateCandidates, sendToAffiliate, callups };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

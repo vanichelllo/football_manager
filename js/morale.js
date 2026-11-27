@@ -14,14 +14,15 @@
 
   /** Статус у складі за рівнем: лідер (топ-11), ротація (12–16), запасний, молодь. */
   function status(W, p) {
+    if (p.squadStatus && p.statusClub === p.club) return p.squadStatus; // статус, обіцяний у контракті
     const sq = W.squad(p.club).sort((a, b) => b.ca - a.ca);
     const r = sq.findIndex((x) => x.id === p.id);
     if (r < 11) return 'key';
     if (r < 16) return 'rotation';
     return (W.age(p) ?? 24) <= 20 ? 'youth' : 'backup';
   }
-  const STATUS = { key: 'Лідер', rotation: 'Ротація', backup: 'Запасний', youth: 'Молодий гравець' };
-  const EXPECT = { key: 0.7, rotation: 0.35, backup: 0.1, youth: 0.05 }; // частка зіграних матчів, якої гравець чекає
+  const STATUS = { key: 'Лідер', first: 'Гравець основи', rotation: 'Ротація', backup: 'Запасний', prospect: 'Перспективний', youth: 'Молодий гравець', notneeded: 'Не потрібен' };
+  const EXPECT = { key: 0.7, first: 0.55, rotation: 0.35, backup: 0.1, prospect: 0.15, youth: 0.05, notneeded: 0 }; // частка зіграних матчів, якої гравець чекає
 
   /**
    * Тиждень: мораль гравців усіх клубів (для людини — детально, з причинами).
@@ -164,6 +165,6 @@
     return ids.reduce((s, id) => s + get(W.player(id)), 0) / Math.max(1, ids.length);
   };
 
-  FM.morale = { POST_TALKS, postTalk, get, factor, label, status, STATUS, weekly, recordRatings, TALKS, talkEffect, PRESS, pressQuestion, answerPress, teamMorale };
+  FM.morale = { POST_TALKS, postTalk, get, factor, label, status, STATUS, EXPECT, weekly, recordRatings, TALKS, talkEffect, PRESS, pressQuestion, answerPress, teamMorale };
   if (typeof module !== 'undefined' && module.exports) module.exports = FM;
 })(typeof window !== 'undefined' ? window : globalThis);

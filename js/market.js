@@ -173,10 +173,10 @@
     if (/тренер|звільнив/i.test(text)) return 'world';
     return 'match';
   }
-  function news(state, text, cat) {
+  function news(state, text, cat, extra) {
     text = text.replace(/\.\.$/, '.'); // «€550 тис..» → «€550 тис.»
     state.newsSeq = (state.newsSeq || 0) + 1;
-    state.news = (state.news || []).concat([{ id: state.newsSeq, s: state.season.year, w: state.season.week, text, c: cat || newsCat(text) }]).slice(-200);
+    state.news = (state.news || []).concat([{ id: state.newsSeq, s: state.season.year, w: state.season.week, text, c: cat || newsCat(text), ...(extra || {}) }]).slice(-200);
   }
   /** Скільки непрочитаних. */
   const unread = (state) => (state.news || []).filter((n) => n.id && n.id > (state.newsRead || 0)).length;
@@ -227,8 +227,8 @@
   }
   const loanFee = (p) => Math.round(Math.max(0.05, p.value * 0.05) * 20) / 20;
   /** Узяти в оренду до кінця сезону: share — частка зарплати, яку платить орендар. */
-  function loanIn(W, state, p, toClub, share) {
-    const fee = loanFee(p);
+  function loanIn(W, state, p, toClub, share, opts = {}) {
+    const fee = opts.free ? 0 : loanFee(p);
     W.club(toClub).balance = Math.round((W.club(toClub).balance - fee) * 100) / 100;
     W.club(p.club).balance = Math.round((W.club(p.club).balance + fee) * 100) / 100;
     if (FM.budget && toClub === state.clubId) FM.budget.spend(W, state, fee);
