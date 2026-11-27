@@ -897,3 +897,18 @@ th[aria-sort] { color: var(--fg); }
 .last5 i { display: block; width: 5px; background: var(--muted); border-radius: 1px; }
 .last5 i.hi { background: #4fd18f; } .last5 i.lo { background: #e5484d; }
 .warn-t { color: var(--warn); }
+
+/* Командні інструкції й інструкції гравцям */
+.ti-group { margin-top: 0.6rem; }
+.ti-group > b { display: block; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.3rem; }
+.ti-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); gap: 0.35rem 1rem; }
+.ti-item { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; justify-content: space-between; }
+.ti-item .tabs { margin: 0; }
+.ti-item .tabs button { padding: 0.2rem 0.55rem; font-size: 0.82rem; }
+details.pi { grid-column: 1 / -1; }
+details.pi summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+.pi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr)); gap: 0.3rem 0.6rem; margin-top: 0.3rem; }
+.pi-grid label { display: flex; flex-direction: column; gap: 2px; }
+.pl-role { font: 700 0.6rem/1 var(--font-body); background: rgba(0,0,0,.55); color: #ffe27a; padding: 1px 3px; border-radius: 2px; }
+label.ti-item { justify-content: flex-start; gap: 0.35rem; }
+label.ti-item small { flex-basis: 100%; padding-left: 1.6rem; margin-top: -0.2rem; }

@@ -94,7 +94,7 @@
     if (user && user.clubId === clubId && user.tactics) {
       const t = user.tactics;
       const lineup = FM.lineupFromIds(available, t.formation, t.ids, t);
-      return { club: W.club(clubId), players: available, formation: t.formation, lineup, mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers || {}, setp: t.setp, oppi: t.oppi,
+      return { club: W.club(clubId), players: available, formation: t.formation, lineup, mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers || {}, setp: t.setp, oppi: t.oppi, fluid: t.fluid, ti: t.ti,
         familiarity: user.familiarity ? Math.min(1, (user.familiarity[t.formation] || 0) / 100) : 1, boost: user.boost || 1 };
     }
     // ШІ дає відпочити втомленим (свіжість < 72), якщо є кому їх замінити
@@ -109,14 +109,14 @@
     const RA = FM.rng(`ai-${S.seed}-${S.week}-${clubId}-${oppId || ''}`);
     const formation = FM.club && FM.club.aiFormation ? FM.club.aiFormation(W.club(clubId), pool, diff, RA) : FM.bestFormation(pool);
     const st = FM.club ? FM.club.aiStyle(W.club(clubId), mentality, RA) : { mentality }; // стиль тренера ШІ
-    return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(pool, formation), mentality: st.mentality, pressing: st.pressing, passing: st.passing };
+    return { club: W.club(clubId), players: available, formation, lineup: FM.pickLineup(pool, formation), mentality: st.mentality, pressing: st.pressing, passing: st.passing, fluid: st.fluid, ti: st.ti };
   }
 
   /** Параметри матчу для двигуна (FM.match.create або play). */
   function prepare(S, W, f, name, user) {
     const hs = sideFor(S, W, f.h, user, f.a, true), as = sideFor(S, W, f.a, user, f.h, false);
     const side = (x) => ({ club: { ...x.club, name: name ? name.club(x.club) : x.club.name }, players: x.players, formation: x.formation,
-      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing, takers: x.takers, setp: x.setp, oppi: x.oppi, familiarity: x.familiarity, boost: x.boost });
+      lineup: x.lineup, mentality: x.mentality, pressing: x.pressing, passing: x.passing, takers: x.takers, setp: x.setp, oppi: x.oppi, familiarity: x.familiarity, boost: x.boost, fluid: x.fluid, ti: x.ti });
     // погода — за датою й країною господарів (детерміновано для матчу)
     const weather = FM.weatherFor ? FM.weatherFor(dateOf(f.w != null ? f.w : S.week, S), W.club(f.h).league, FM.rng(`wx-${S.seed}-${f.id}`)) : null;
     const derby = FM.rivals ? FM.rivals.derby(W, f.h, f.a) : null;

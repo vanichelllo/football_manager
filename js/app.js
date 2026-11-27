@@ -1639,7 +1639,10 @@
 
   // ---------------- Тактика ----------------
   const ROLE_SHORT = (slot) => FM.roleLabel(slot.role, slot.side);
-  const TUK = FM.match.TACTIC_UK;
+  const TUK = { ...FM.match.TACTIC_UK, fluid: FM.match.FLUID_UK };
+  const DUTY_SHORT = { D: 'О', S: 'П', A: 'А' };
+  /** Позиція з обов'язком: «ЦП-П», «НП-А» (як у жанрі). */
+  const ROLE_DUTY = (slot) => `${FM.roleLabel(slot.role, slot.side)}${slot.role === 'GK' ? '' : '-' + DUTY_SHORT[FM.dutyOf(slot)]}`;
   const ROLE_Y = { GK: 91, CB: 77, FB: 70, DM: 58, CM: 46, AM: 32, W: 24, ST: 13 };
   /** Розстановка на полі для будь-якої схеми: [x, y] у відсотках (y — від чужих воріт до своїх). */
   function layoutXY(slots) {
@@ -1706,7 +1709,7 @@
     const players = availablePlayers(state.clubId);
     const lineup = FM.lineupFromIds(players, t.formation, t.ids, t);
     return { club: W.club(state.clubId), players, formation: t.formation, lineup, units: FM.lineupUnits(lineup),
-      mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers, setp: t.setp, oppi: t.oppi, familiarity: Math.min(1, (familiarity()[t.formation] || 0) / 100) };
+      mentality: t.mentality, pressing: t.pressing, passing: t.passing, takers: t.takers, setp: t.setp, oppi: t.oppi, fluid: t.fluid, ti: t.ti, familiarity: Math.min(1, (familiarity()[t.formation] || 0) / 100) };
   }
 
   const shortName = (p) => { const n = nameOf(p).split(' '); return n.length > 1 ? n.slice(1).join(' ') : n[0]; };
@@ -1754,7 +1757,7 @@
         return el('button.pl.' + fitClass(fv) + (x.auto ? '.auto' : '') + (lineupSel.slot === i ? '.sel' : ''), {
           type: 'button', style: { left: xy[i][0] + '%', top: xy[i][1] + '%' }, 'aria-pressed': String(lineupSel.slot === i),
           title: `${ROLE_SHORT(x.slot)}: ${nameOf(x.player)} — натисніть, щоб замінити`, onclick: () => pickSlot(i),
-        }, [el('span.pl-num', ROLE_SHORT(x.slot)), el('span.pl-name', shortName(x.player) + (x.player.id === t.takers.captain ? ' (К)' : '')),
+        }, [el('span.pl-num', ROLE_SHORT(x.slot)), el('span.pl-role', ROLE_DUTY(x.slot)), el('span.pl-name', shortName(x.player) + (x.player.id === t.takers.captain ? ' (К)' : '')),
           el('span.pl-cond', el('i', { style: { width: cond + '%' }, class: cond < 75 ? 'low' : '' }))]);
       }),
     ]);
@@ -1808,6 +1811,7 @@
   }
 
   const TACTIC_HELP = {
+    fluid: 'Жорстка — кожен тримає своє місце, менше ривків і ризику; плинна — захисники підключаються, атакувальні міняються місцями, більше імпровізації.',
     mentality: 'Наскільки команда йде вперед: сміливіше — більше моментів у вас, але й у суперника.',
     pressing: 'Високий пресинг частіше відбирає м’яч, але втомлює, дає більше карток і лишає простір за спиною.',
     passing: 'Короткі передачі бережуть м’яч і дають кращі моменти; довгі — більше спроб, але гіршої якості. Дощ і сніг заважають коротким, вітер — довгим.',
@@ -1835,7 +1839,9 @@
       const fv = FM.fit(x.player, x.slot);
       return el('li.slot-row', [
         el('div.slot-main', [roleSel, el('button.btn.link.slot-name', { type: 'button', title: 'Змінити гравця', onclick: () => { lineupSel = { slot: i, pid: null }; render(); setTimeout(() => { const el2 = document.getElementById('lineup-picker'); if (el2) el2.scrollIntoView({ block: 'nearest' }); }, 30); } }, nameOf(x.player)), el('span.fitdot.' + fitClass(fv), { title: fv >= 0.97 ? 'Рідна позиція' : fv >= 0.85 ? 'Може зіграти' : 'Не його позиція' })]),
-        el('div.slot-extra', [varSel, insSel]),
+        el('div.slot-extra', [varSel, insSel, i === 0 ? null : el('select.tiny', { 'aria-label': 'Обов’язок', title: 'Обов’язок: оборона — більше допомагає позаду, атака — частіше йде вперед і б’є', onchange: (e) => { t.duty = t.duty || {}; if (e.target.value === 'auto') delete t.duty[i]; else t.duty[i] = e.target.value; save(); } },
+          [['auto', `Обов’язок: ${FM.DUTY_UK[FM.dutyOf({ role: x.slot.role })]} (звично)`], ['D', 'Обов’язок: оборона'], ['S', 'Обов’язок: підтримка'], ['A', 'Обов’язок: атака']].map(([v, l]) => el('option', { value: v, selected: ((t.duty || {})[i] || 'auto') === v || null }, l)))]),
+        i === 0 ? null : piDetails(t, i, save),
       ]);
     });
 
@@ -1892,16 +1898,68 @@
       benchPanel(t, side, save),
       oppInstrPanel(t, save),
       el('div.panel', [
-        el('h3', 'Командні інструкції'),
-        el('div.instr', ['mentality', 'pressing', 'passing'].map((g) => el('div.field', [
-          el('b', { mentality: 'Ментальність', pressing: 'Пресинг', passing: 'Передачі' }[g]),
-          segmented(g, t[g], (v) => { t[g] = v; save(); }),
+        el('h3', 'Стиль гри'),
+        el('div.instr', ['mentality', 'fluid', 'pressing', 'passing'].map((g) => el('div.field', [
+          el('b', { mentality: 'Ментальність', fluid: 'Плинність', pressing: 'Пресинг', passing: 'Передачі' }[g]),
+          segmented(g, t[g] || (g === 'fluid' ? 'balanced' : null), (v) => { t[g] = v; save(); }),
           el('small.muted', TACTIC_HELP[g]),
         ]))),
       ]),
+      teamInstrPanel(t, save),
       tipsPanel(8),
       el('div.panel', [el('h3', 'Сила ліній'), compareBarsSingle([['Атака', side.units.att], ['Контроль м’яча', side.units.mid], ['Оборона', side.units.def], ['Воротар', side.units.gk]])]),
     ];
+  }
+
+  // ---------------- Командні інструкції й інструкції гравцям (як у жанрі) ----------------
+  const TI_DEF = [
+    ['З м’ячем', [
+      ['possession', 'Тримати м’яч', 'Менше ризику й довгих передач — м’яч у вас довше.'],
+      ['tempo', 'Темп', 'Вищий — швидші рішення й більше передач уперед; нижчий — терпляче.', [[-1, 'нижчий'], [0, 'звичайний'], [1, 'вищий']]],
+      ['width', 'Ширина атаки', 'Ширше — розтягнути оборону, вужче — грати компактно.', [[-1, 'вужче'], [0, 'звичайна'], [1, 'ширше']]],
+      ['focus', 'Атаки', 'Через фланги — більше навісів і передач на краї; через центр — комбінації посередині.', [[null, 'усюди'], ['flanks', 'через фланги'], ['middle', 'через центр']]],
+      ['playOut', 'Гра від воротаря', 'Воротар розігрує коротко замість довгого вибивання.'],
+      ['workBox', 'Вводити м’яч у штрафний', 'Рідше бити здалеку — шукати удар ближче.'],
+      ['shootSight', 'Бити при нагоді', 'Частіше бити з-за меж штрафного.'],
+      ['crossMore', 'Більше навісів', 'Флангові частіше подають у штрафний.'],
+      ['counter', 'Контратаки', 'Щойно відібрали — швидко вперед.'],
+    ]],
+    ['Без м’яча', [
+      ['line', 'Лінія оборони', 'Вища — тиснемо вище, але простір за спиною; нижча — надійніше, але суперник ближче до воріт.', [[-1, 'нижча'], [0, 'звичайна'], [1, 'вища']]],
+      ['offside', 'Офсайдна пастка', 'Частіше ловимо в офсайд, але прорив за спину — небезпечніший.'],
+      ['preventGK', 'Не давати воротарю розіграш', 'Нападники тиснуть на воротаря суперника.'],
+    ]],
+    ['Інше', [
+      ['timeWaste', 'Затягувати час', 'Коли ведемо після 70-ї — повільно відновлюємо гру.'],
+      ['discipline', 'Поведінка', 'Свобода — більше імпровізації й ризику; дисципліна — менше фолів і помилок.', [[-1, 'дисципліна'], [0, 'звичайна'], [1, 'свобода']]],
+    ]],
+  ];
+  function teamInstrPanel(t, save) {
+    t.ti = t.ti || {};
+    const on = Object.entries(t.ti).filter(([, v]) => v != null && v !== 0 && v !== false).length;
+    return el('div.panel', [el('h3', `Командні інструкції${on ? ` · обрано ${on}` : ''}`),
+      ...TI_DEF.map(([group, items]) => el('div.ti-group', [el('b', group), el('div.ti-list', items.map(([k, label, help, opts]) => {
+        if (opts) return el('div.ti-item', [el('span', { title: help }, label), el('div.tabs', opts.map(([v, l]) => el('button', { type: 'button', title: help, 'aria-pressed': String((t.ti[k] ?? (typeof v === 'number' ? 0 : null)) === v), onclick: () => { if (v == null || v === 0) delete t.ti[k]; else t.ti[k] = v; save(); } }, l)))]);
+        return el('label.check.ti-item', { title: help }, [el('input', { type: 'checkbox', checked: t.ti[k] || null, onchange: (e) => { if (e.target.checked) t.ti[k] = true; else delete t.ti[k]; save(); } }), ' ', label, el('small.muted', ` — ${help}`)]);
+      }))])),
+      el('div.actions', [on ? el('button.btn.link', { type: 'button', onclick: () => { t.ti = {}; save(); } }, 'Скинути інструкції') : null])]);
+  }
+  const PI_DEF = [
+    ['shoot', 'Удари', [[-1, 'рідше'], [0, 'звично'], [1, 'частіше']]], ['dribble', 'Дриблінг', [[-1, 'менше'], [0, 'звично'], [1, 'більше']]],
+    ['cross', 'Навіси', [[-1, 'рідше'], [0, 'звично'], [1, 'частіше']]], ['wide', 'Ширина', [[-1, 'зміщуватися в центр'], [0, 'звично'], [1, 'триматися краю']]],
+    ['press', 'Тиск', [[-1, 'не тиснути'], [0, 'звично'], [1, 'тиснути сильніше']]], ['tackle', 'Відбір', [[-1, 'обережно'], [0, 'звично'], [1, 'жорсткіше']]],
+  ];
+  /** Інструкції гравцю на позиції i (зберігаються в тактиці, діють у детальному рушії). */
+  function piDetails(t, i, save) {
+    t.pi = t.pi || {};
+    const cur = t.pi[i] || {};
+    const n = Object.values(cur).filter((v) => v).length;
+    return el('details.pi', [el('summary', `Інструкції гравцю${n ? ` (${n})` : ''}`),
+      el('div.pi-grid', PI_DEF.map(([k, label, opts]) => el('label', [el('small.muted', label), el('select.tiny', { onchange: (e) => {
+        const v = Number(e.target.value); t.pi[i] = { ...(t.pi[i] || {}) }; if (v) t.pi[i][k] = v; else delete t.pi[i][k];
+        if (!Object.keys(t.pi[i]).length) delete t.pi[i];
+        save();
+      } }, opts.map(([v, l]) => el('option', { value: String(v), selected: (cur[k] || 0) === v || null }, l)))])))]);
   }
 
   /** Поради асистента: що варто виправити перед наступним матчем. */
@@ -2141,7 +2199,7 @@
 
   function engineSide(side, manual) {
     return { club: { ...side.club, name: clubName(side.club) }, players: side.players, formation: side.formation, lineup: side.lineup,
-      mentality: side.mentality, pressing: side.pressing, passing: side.passing, takers: side.takers, setp: side.setp, oppi: side.oppi, familiarity: side.familiarity, manual };
+      mentality: side.mentality, pressing: side.pressing, passing: side.passing, takers: side.takers, setp: side.setp, oppi: side.oppi, familiarity: side.familiarity, fluid: side.fluid, ti: side.ti, manual };
   }
 
   function startFriendly() {
