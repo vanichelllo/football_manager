@@ -2291,15 +2291,14 @@
   // Налаштування трансляції (як прийнято в жанрі): швидкість під час моментів і між ними, які моменти показувати,
   // поділений екран, повтори, інформація про матч між моментами.
   const BC_KEY = 'golovnyi-trener:bcast';
-  const BC_DURING = [[30000, 'У темпі гри'], [6400, 'Дуже повільно'], [3900, 'Повільно'], [1950, 'Звичайно'], [970, 'Швидко'], [320, 'Дуже швидко']];
-  const BC_BETWEEN = [[1950, 'Звичайно'], [970, 'Швидко'], [320, 'Дуже швидко'], [0, 'Миттєво']];
+  const BC_DURING = [[60000, 'Реальний час (1×)'], [40000, '1,5×'], [30000, '2×'], [20000, '3×'], [12000, '5×'], [6000, '10×']];
+  const BC_BETWEEN = [[6000, '10×'], [3000, '20×'], [1000, '60×'], [0, 'Миттєво']];
   const BC_HL = [['key', 'Ключові'], ['ext', 'Розширені'], ['full', 'Повні'], ['all', 'Весь матч']];
   const BC_HL_HINT = { key: 'Голи, великі моменти, пенальті, вилучення.', ext: 'Ще всі удари, картки й травми.', full: 'Ще атаки й стандарти — майже вся гра.', all: 'Кожна хвилина в однаковому темпі.' };
   const BC_SIDE = [['table', 'Таблиця ліги'], ['stats', 'Статистика'], ['squad', 'Мої гравці'], ['others', 'Інші матчі'], ['events', 'Події']];
   let bc = (() => {
-    const def = { during: 1950, between: 0, hl: 'ext', split: true, side: 'right', panel: 'table', replays: 'goals', info: true };
-    try { const v = JSON.parse(localStorage.getItem(BC_KEY) || 'null'); if (v) return { ...def, ...v }; } catch (_) { /* приватне вікно */ }
-    try { const old = localStorage.getItem('golovnyi-trener:speed'); if (old === 'key') return { ...def, hl: 'key' }; if (old && Number(old)) return { ...def, during: Number(old) }; } catch (_) { /* приватне вікно */ }
+    const def = { v: 2, during: 40000, between: 0, hl: 'ext', split: true, side: 'right', panel: 'table', replays: 'goals', info: true };
+    try { const v = JSON.parse(localStorage.getItem(BC_KEY) || 'null'); if (v) return v.v === 2 ? { ...def, ...v } : { ...def, ...v, v: 2, during: def.during, between: def.between }; } catch (_) { /* приватне вікно */ }
     return def;
   })();
   const saveBc = () => { try { localStorage.setItem(BC_KEY, JSON.stringify(bc)); } catch (_) { /* приватне вікно */ } };
@@ -2761,7 +2760,7 @@
         else if (SIMV) { /* м'яч показує сам рушій */ }
         else if (out === 'wide') moveBall(k === 0 ? 99 : 1, sy < 50 ? 30 : 70);
         else if (out === 'post') moveBall(k === 0 ? 97 : 3, 44);
-      }, 1000));
+      }, SIMV ? 0 : 1000));
       hlTimers.push(setTimeout(() => { hlBar.hidden = true; hlActive = false; if (e.hl.out === 'goal' && !SIMV) { possK = 1 - k; carrier = null; moveBall(50, 50); drawDots(); } }, e.hl.out === 'goal' ? 4200 : 3000));
     }
     // ---- 2D-поле (як у FM): гравці бігають за м'ячем, м'яч ходить передачами, на голах — повтор ----
@@ -2895,15 +2894,23 @@
     }
     if (mode3) ensure3d();
     drawViewBar();
-    function drawFrame(f) {
+    /** Кадр між двома кадрами рушія (для 2D — по прямій). */
+    function lerpFrame(a, b, k) {
+      if (!b || b === a || !k) return a;
+      const ib = new Map(); for (let i = 0; i < b.pos.length; i += 4) ib.set(b.pos[i], i);
+      const pos = a.pos.slice();
+      for (let i = 0; i < pos.length; i += 4) { const j = ib.get(pos[i]); if (j == null) continue; const dx = b.pos[j + 1] - pos[i + 1], dy = b.pos[j + 2] - pos[i + 2]; if (Math.abs(dx) > 15 || Math.abs(dy) > 20) continue; pos[i + 1] += dx * k; pos[i + 2] += dy * k; }
+      return { ...a, pos, bx: a.bx + (b.bx - a.bx) * k, by: a.by + (b.by - a.by) * k, h: k > 0.5 ? b.h : a.h };
+    }
+    function drawFrame(f, nf, frac = 0, spf = 0) {
       if (!f) return;
       if (mode3 && v3) {
-        v3.show(f);
+        v3.show(f, nf, frac, spf);
         const hp = f.h && (shirt.get(f.h) || (() => { const x = info3(f.h); const pl = M.sides[x.k].onPitch.find((y) => y.p.id === f.h); if (pl) shirt.set(f.h, pl.p); return pl && pl.p; })());
         holderEl.textContent = hp ? `⚽ ${nameOf(hp)}` : ' ';
         return;
       }
-      draw2d(f);
+      draw2d(lerpFrame(f, nf, frac));
     }
     function draw2d(f) {
       if (!f) return;
@@ -2933,10 +2940,11 @@
         if (!rp || replaying) return;
         replaying = true; replayTag.hidden = false; miniPitch.classList.add('replaying'); v3wrap.classList.add('replaying');
         if (v3 && mode3) v3.replay(true);
-        let i = 0;
+        let i = Math.max(0, rp.length - 16); // останні 8 секунд перед голом і сам гол
         const stepR = () => {
           if (i >= rp.length) { setTimeout(() => { replaying = false; replayTag.hidden = true; miniPitch.classList.remove('replaying'); v3wrap.classList.remove('replaying'); if (v3) v3.replay(false); if (frames.length) drawFrame(frames[Math.min(frames.length - 1, fIdx)]); }, 700); return; }
-          drawFrame(rp[i++]); setTimeout(stepR, 160);
+          const RS = 560; // мс на кадр повтору (≈0,9 реального часу)
+          drawFrame(rp[i], rp[i + 1], 0, RS); i++; setTimeout(stepR, RS);
         };
         stepR();
         return;
@@ -2961,7 +2969,7 @@
     const motK = () => (state ? 0.7 + FM.career.attr(state, 'mot') * 0.03 : 1);
     const REACT_CLS = { inspired: 'ok', focused: 'ok', neutral: 'info', nervous: 'bad', complacent: 'warn' };
     const TICK = 100;
-    const msPerMin = () => bc.during;
+    const msPerMin = () => Math.max(320, bc.during / 20); // класичний рушій: без кадрів — швидше
     const pct = (v) => v + '%';
     const f2 = (v) => String(v).replace('.', ',');
 
@@ -3028,13 +3036,13 @@
         const team = e.team == null ? null : e.team === 0 ? hs.club : as.club;
         const big = e.hl && e.hl.xg >= 0.25 && e.type !== 'goal';
         feed.prepend(el('li.ev.ev-' + e.type + (myK != null && e.team === myK ? '.ours' : '') + (e.type === 'goal' ? '.flash' : '') + (big ? '.big' : ''), [el('span.min', e.min + '′'), team ? badge(team) : el('span.dot'), el('span', (big ? '⚡ ' : '') + e.text)]));
-        if (shouldHl(e) && !finished) { highlight(e); hold = Math.max(hold, e.hl.out === 'goal' ? 3800 : 2600); moveBall.last = e; }
+        if (shouldHl(e) && !finished) { highlight(e); if (!SIMV) hold = Math.max(hold, e.hl.out === 'goal' ? 3800 : 2600); moveBall.last = e; }
         else if (SIMV && e.type === 'goal' && !finished && bc.replays !== 'off') setTimeout(() => replay(), 900);
         scoreEl.textContent = e.score.join(':') + (e.so ? ` (пен. ${e.so.join(':')})` : '');
         if (e.type === 'goal' || String(e.score) !== String(curScore)) { curScore = e.score.slice(); if (bc.panel === 'table') drawSide(); }
         // звук і анімація
-        if (v3 && mode3 && !finished) { if (e.type === 'goal') { v3.celebrate(e.team); v3.cue('goal', e.team); } else if (e.hl) v3.cue('shot', e.team); }
-        if (e.type === 'goal') { hold = 2200; FM.sound.goal(myK == null || e.team === myK); if (!finished) vibe(myK == null || e.team === myK ? [90, 50, 90, 50, 160] : 250); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
+        if (v3 && mode3 && !finished && e.type === 'goal') { const k3 = e.team; setTimeout(() => { if (v3) v3.celebrate(k3); }, Math.round(0.8 * bc.during / 60)); } // трибуни — коли м'яч у сітці
+        if (e.type === 'goal') { hold = SIMV ? 0 : 2200; FM.sound.goal(myK == null || e.team === myK); if (!finished) vibe(myK == null || e.team === myK ? [90, 50, 90, 50, 160] : 250); scoreEl.classList.remove('pulse'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse'); }
         else if (e.type === 'chance' || e.type === 'miss') FM.sound.chance();
         else if (e.type === 'kickoff') { FM.sound.whistle(1); FM.sound.ambient(true); }
         else if (e.type === 'half' && String(e.min).startsWith('45')) FM.sound.whistle(2);
@@ -3167,7 +3175,22 @@
     }
 
     let pc = 0;
-    let frames = [], fIdx = 0, shownMin = null, wins = [], minEvents = [], betweenNow = false;
+    let frames = [], fIdx = 0, shownMin = null, wins = [], minEvents = [], betweenNow = false, curWin = -1, previewOn = false;
+    /** Смуга над полем на початку моменту: «Небезпечна атака», «Кутовий», «Штрафний», «Пенальті» — ще до удару. */
+    function previewHl() {
+      const wi = wins.findIndex(([a, b]) => fIdx >= a && fIdx < b);
+      if (wi === -1) { if (previewOn && !hlActive) hlBar.hidden = true; previewOn = false; curWin = -1; return; }
+      if (wi === curWin || hlMode === 'none' || bc.hl === 'all') return;
+      curWin = wi;
+      const [a, b] = wins[wi], DTs = M.sim.DT;
+      const e = minEvents.find((x) => x.sec != null && x.team != null && x.sec / DTs >= a && x.sec / DTs <= b && (x.hl || x.type === 'goal'));
+      if (!e) return;
+      const team = e.team === 0 ? hs.club : as.club, kind = e.hl && e.hl.kind;
+      hlTimers.forEach(clearTimeout); hlTimers = [];
+      hlBar.hidden = false; hlBar.className = 'hl-bar hl-attack'; hlBar.style.borderLeftColor = team.colors[0];
+      hlBar.replaceChildren(el('b', `⚡ ${kind === 'pen' ? 'Пенальті' : kind === 'corner' ? 'Кутовий' : kind === 'freekick' ? 'Штрафний' : 'Небезпечна атака'} — ${clubName(team)}`));
+      previewOn = true;
+    }
     /** Годинник трансляції: хвилини й секунди (у доданий час — «45+2′»). */
     function drawClock() {
       if (!frames.length) return;
@@ -3202,7 +3225,7 @@
             M.step();
             frames = M.sim.frames; shownMin = M.minute;
             minEvents = M.events.slice(ev0);
-            wins = hlWindows(minEvents, frames.length, M.sim.DT, bc.hl);
+            wins = hlWindows(minEvents, frames.length, M.sim.DT, bc.hl); curWin = -1;
             if (myK != null && M.minuteNum % 5 === 0) drawControl();
             if ((skipping || bc.between === 0) && bc.hl !== 'all') {
               if (wins.length) { acc = Math.max(acc, wins[0][0] / Math.max(1, frames.length)); break; }
@@ -3210,9 +3233,12 @@
               if (++guard >= 4) break;
             } else break;
           }
-          fIdx = Math.max(0, Math.min(frames.length - 1, Math.floor(acc * frames.length)));
+          const posF = Math.max(0, Math.min(frames.length - 1, acc * frames.length));
+          fIdx = Math.floor(posF);
           betweenNow = bc.hl !== 'all' && !wins.some(([a, b]) => fIdx >= a && fIdx < b);
-          if (!replaying) drawFrame(frames[fIdx]);
+          const spfNow = (betweenNow ? (skipping ? 0 : bc.between) : bc.during) / Math.max(1, frames.length);
+          if (!replaying) drawFrame(frames[fIdx], frames[fIdx + 1], posF - fIdx, spfNow);
+          previewHl();
           flush(fIdx * M.sim.DT);
           drawClock();
           drawInfo(betweenNow && !paused);

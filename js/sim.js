@@ -53,7 +53,7 @@
       vis.q.push(a);
     }
     function updVis() {
-      while (vis.q.length && clock >= vis.q[0].t1) { const a = vis.q.shift(); vis.x = a.x1; vis.y = a.y1; vis.z = a.z1; vis.rest = ball.dead > 0; }
+      while (vis.q.length && clock >= vis.q[0].t1) { const a = vis.q.shift(); visHist.push(a); if (visHist.length > 4) visHist.shift(); vis.x = a.x1; vis.y = a.y1; vis.z = a.z1; vis.rest = ball.dead > 0; }
       if (vis.q.length) {
         const a = vis.q[0];
         if (clock < a.t0) return;
@@ -68,6 +68,17 @@
       if (f && (f.kind === 'long' || f.res === 'loose' && f.kind !== 'pass')) { const k = clamp((clock - f.t0) / (f.t1 - f.t0), 0, 1), d = Math.hypot(f.tx - f.x0, f.ty - f.y0); vis.z = 4 * Math.min(9, d * 0.16) * k * (1 - k); }
       else vis.z = 0;
     }
+    const visHist = []; // завершені анімації м'яча (для проміжних точок кадру)
+    /** Де видимий м'яч у момент tq (між кадрами) — для точної дуги удару; null — рухається рівно. */
+    function visAt(tq) {
+      for (const a of visHist.concat(vis.q)) if (tq >= a.t0 && tq <= a.t1) { const k = (tq - a.t0) / (a.t1 - a.t0 || 1); return [a.x0 + (a.x1 - a.x0) * k, a.y0 + (a.y1 - a.y0) * k, a.z0 + (a.z1 - a.z0) * k + 4 * a.h * k * (1 - k)]; }
+      return null;
+    }
+    let acts = []; // дії цього такту для 3D: [id, вид, бік, сила/висота]
+    const act2 = (x, type, a = 0, b = 0) => { if (x && x.p) acts.push([x.p.id, type, Math.round(a * 100) / 100, Math.round(b * 100) / 100]); };
+    const sched = []; // відкладені дії: воротар стрибає, коли м'яч долітає; удар головою після навісу
+    const later = (dt, fn) => sched.push({ at: clock + Math.max(0, dt), fn });
+    let celeb = null; // святкування гола: автор біжить до кутового прапорця, партнери — за ним
     let pendingReplay = null;
     let clock = 0; // секунд від початку матчу
     let frames = [], replay = [], recent = [];
@@ -122,8 +133,18 @@
       const r = x.slot.role, v8 = x.slot.variant, ins = x.slot.instr;
       if (r === 'GK') {
         const sweep = v8 === 'sweeper' ? 5 : 0;
-        const u = attack ? clamp(bu * 0.22 + 2 + sweep, 4, 22 + sweep) : clamp(bu * 0.09 + 2 + sweep * 0.5, 2, 12 + sweep);
-        return [X(t.k, u), Y(t.k, WD / 2 + (bv - WD / 2) * 0.22)];
+        if (attack) return [X(t.k, clamp(bu * 0.22 + 2 + sweep, 4, 22 + sweep)), Y(t.k, WD / 2 + (bv - WD / 2) * 0.22)];
+        const dG = Math.hypot(bu, bv - WD / 2);
+        if (dG > 32) return [X(t.k, clamp(bu * 0.09 + 2 + sweep * 0.5, 2, 12 + sweep)), Y(t.k, WD / 2 + (bv - WD / 2) * 0.22)];
+        // м'яч близько: стати на лінії «м'яч — центр воріт», скоротити кут
+        let d = clamp(1 + dG * 0.1, 1, 4.2);
+        const h = ball.hold;
+        if (h && !ball.dead && dG < 20 && sides[1 - t.k].onPitch.includes(h)) { // один на один: між нападником і воротами нікого
+          const between = live(t).some((y) => y.slot.role !== 'GK' && U(t, y) < bu && Math.abs(V(t, y) - bv) < 5 && Math.hypot(y.px - h.px, y.py - h.py) < dG);
+          if (!between) d = clamp(dG * 0.42, 1.5, 5 + at(x, 'one', x.p.attrs.pos) * 0.15);
+        }
+        const ang = Math.atan2(bv - WD / 2, Math.max(0.5, bu));
+        return [X(t.k, Math.max(0.4, d * Math.cos(ang))), Y(t.k, WD / 2 + d * Math.sin(ang))];
       }
       let a = x.anc.a, b = x.anc.b;
       const vm = VAR(x), duty = DUTY(x), pi = PI(x), ti = TI(t), fl = FLUID(t);
@@ -211,8 +232,16 @@
             if (best) { taken.add(best); marks.set(x, best); }
           }
         }
+        const plan = ball.dead > 0 && ball.restart && ball.restart.sp ? ball.restart.sp.plan : null;
+        const cel = celeb && ball.dead > 0 && clock >= celeb.from && clock < celeb.until ? celeb : null;
         for (const x of L1) {
           if (ball.hold === x) continue;
+          if (x.dive && x.dive.until > clock) { moveTo(x, x.dive.tx, x.dive.ty, 6.5); continue; }
+          if (plan && plan.has(x)) { const [px2, py2] = plan.get(x); moveTo(x, px2, py2, vmax(x) * 0.8); continue; }
+          if (cel && cel.k === t.k && x.slot.role !== 'GK') {
+            if (x === cel.x) { moveTo(x, cel.cx, cel.cy, vmax(x) * 0.85); continue; }
+            if (Math.hypot(x.px - cel.x.px, x.py - cel.x.py) < 32) { moveTo(x, cel.x.px - (cel.x.px - x.px) * 0.08, cel.x.py - (cel.x.py - x.py) * 0.08, vmax(x) * 0.7); continue; }
+          }
           if (ball.fl && ball.fl.to === x && !ball.dead) { moveTo(x, ball.fl.tx, ball.fl.ty, vmax(x)); continue; }
           if (ball.loose && !ball.dead && ball.loose.cands.includes(x)) { moveTo(x, ball.x, ball.y, vmax(x)); continue; }
           if (pressers.includes(x)) { moveTo(x, pbx, pby, vmax(x) * (0.85 + 0.015 * at(x, 'wor'))); continue; }
@@ -223,7 +252,7 @@
             const gx = X(t.k, 0), gy = WD / 2, dd = Math.hypot(gx - pbx, gy - pby) || 1, k2 = Math.min(dd - 1, 2.2 + (blockers.size > 1 ? 1.5 : 0) * [...blockers].indexOf(x));
             moveTo(x, pbx + ((gx - pbx) / dd) * k2, pby + ((gy - pby) / dd) * k2, vmax(x) * 0.95); continue;
           }
-          let [tx, ty] = base(t, x, attack, bu(t.k), bv(t.k));
+          let [tx, ty] = base(t, x, attack || (plan && t.k === ball.team), bu(t.k), bv(t.k));
           const mk = marks.get(x);
           if (mk) { // стати між суперником і своїми воротами
             const gx = X(t.k, 0), gy = WD / 2, dd = Math.hypot(gx - mk.px, gy - mk.py) || 1;
@@ -402,7 +431,10 @@
       ball.x = px; ball.y = py; ball.restart = { kind, t };
     }
     function restart() {
-      const { kind, t } = ball.restart; ball.restart = null; ball.dead = 0;
+      const { kind, t, sp } = ball.restart;
+      if (kind === 'sp') return takeSp(t, sp);
+      if (kind === 'wait') { ball.restart = null; ball.dead = 0; return; } // м'яч у повітрі після подачі — далі вирішить відкладена дія
+      ball.restart = null; ball.dead = 0;
       const L1 = live(t);
       let x;
       if (kind === 'gk') x = L1.find((y) => y.slot.role === 'GK');
@@ -415,6 +447,7 @@
     const perf = (t, x) => t.perf.get(x.p.id);
     function startPass(t, x, op) {
       const pf = perf(t, x); pf.passes = (pf.passes || 0) + 1;
+      act2(x, 'kick', 0, op.kind === 'long' ? 0.8 : 0.4);
       // результат відомий одразу, м'яч летить потрібний час
       let res = 'ok', to = op.y, tx = op.tx, ty = op.ty, inter = null;
       if (R.chance(op.pInt)) {
@@ -470,7 +503,7 @@
       const bu = ballU(t.k);
       ball.x = clamp(ball.x, 0, L); ball.y = clamp(ball.y, 0, WD);
       if (bu >= L) return deadBall('gk', o, X(o.k, 5.5), WD / 2, 8 + R.int(6)); // за лінією воріт суперника — від воріт
-      if (bu <= 0) return after(ctx.corner(o, t), o, t); // власна лінія воріт — кутовий суперника
+      if (bu <= 0) return spDead('corner', o, { side: ball.y < WD / 2 ? 0 : 1 }); // власна лінія воріт — кутовий суперника
       return deadBall('throw', o, ball.x, ball.y < 1 ? 0.5 : WD - 0.5, 4 + R.int(5)); // аут
     }
     function shoot(t, x, op, kind, assist) {
@@ -479,24 +512,191 @@
       const pos = { x: Math.round((u / L) * 100), y: Math.round((v / WD) * 100) };
       const g0 = ctx.shoot(t, o, x, assist, kind, op.q, pos);
       const res = g0 && typeof g0 === 'object' ? g0 : { goal: !!g0, out: g0 ? 'goal' : 'saved' };
-      ball.hold = null;
-      shotAnim(t, x, res.out, kind === 'header');
-      if (res.goal) { recordReplay(); return deadBall('kick', o, L / 2, WD / 2, 25 + R.int(15)); }
-      return deadBall('gk', o, X(o.k, 5.5), WD / 2, 7 + R.int(6));
+      ball.hold = null; x.carry = null;
+      act2(x, kind === 'header' ? 'head' : 'kick', 0, 1);
+      const end = shotAnim(t, x, res.out, kind === 'header', res.follow, null, res);
+      return afterShot(t, x, res, end);
     }
-    /** Видимий політ удару: гол — у сітку, сейв — до воротаря, повз — за лінію, стійка — відскок, блок — у захисника. */
-    function shotAnim(t, x, out, header) {
+    /** Що після удару: гол — святкування й розіграш з центру; кутовий; відскок (м'яч живий); воротар з м'ячем; від воріт. */
+    function afterShot(t, x, res, end) {
+      const o = sides[1 - t.k];
+      if (res.goal) { recordReplay(); celebrate(t, x, end.t); return deadBall('kick', o, L / 2, WD / 2, end.t - clock + 26 + R.int(10)); }
+      const f = res.follow;
+      if (f === 'corner') return spDead('corner', t, { side: end.py < WD / 2 ? 0 : 1, delay: end.t - clock + 8 + R.int(5) });
+      if (f === 'parry' || f === 'loose') { // м'яч живий: хто перший до відскоку
+        ball.dead = 0; ball.restart = null; ball.hold = null;
+        ball.fl = { from: x, to: null, tx: clamp(end.px, 0.5, L - 0.5), ty: clamp(end.py, 0.5, WD - 0.5), t0: clock, t1: Math.max(clock + DT, end.t), x0: ball.x, y0: ball.y, res: 'loose', team: t, kind: 'shot' };
+        return true;
+      }
+      if (f === 'catch' && end.gk) return deadBall('gk', o, end.px, end.py, end.t - clock + 2.5 + R.int(4));
+      return deadBall('gk', o, X(o.k, 5.5), WD / 2, end.t - clock + 7 + R.int(6));
+    }
+    function celebrate(t, x, at) {
+      const cx = X(t.k, L - 1.5), cy = x.py < WD / 2 ? 2 : WD - 2;
+      celeb = { k: t.k, x, cx, cy, from: at, until: at + 9 };
+      later(at - clock + 0.5, () => act2(x, 'celebrate', 0, 1));
+    }
+    /**
+     * Видимий політ удару й реакція воротаря. from — звідки б'ють (за замовчуванням — з місця гравця).
+     * Повертає { t — коли м'яч зупиниться, px, py — де, gk — воротар, якщо м'яч у нього }.
+     */
+    function shotAnim(t, x, out, header, follow, from, info = {}) {
       const o = sides[1 - t.k], gx = X(t.k, L), dir = t.k === 0 ? 1 : -1;
-      const dist = Math.hypot(gx - x.px, WD / 2 - x.py), dur = Math.max(0.35, dist / 26);
-      const side = R.next() < 0.5 ? -1 : 1, aimY = WD / 2 + side * (1 + R.next() * 2.4);
+      const sx = from ? from[0] : x.px, sy = from ? from[1] : x.py;
+      const dist = Math.hypot(gx - sx, WD / 2 - sy), dur = Math.max(0.3, dist / (header ? 15 : dist > 20 ? 27 : 23));
+      const side = R.next() < 0.5 ? -1 : 1;
       const gk = live(o).find((y) => y.slot.role === 'GK');
-      const z0 = header ? 2.1 : 0.1, hArc = header ? 0.2 : dist > 18 ? 1.1 : 0.5;
-      if (out === 'goal') { animBall(gx + dir * 1.2, aimY, dur, hArc, 0.4 + R.next() * 1.6); }
-      else if (out === 'saved' && gk) { animBall(gk.px, gk.py + (aimY - WD / 2) * 0.4, dur * 0.9, hArc, 0.9); animBall(gk.px - dir * 0.5, gk.py, 0.3, 0.1, 0); }
-      else if (out === 'post') { animBall(gx, WD / 2 + side * G, dur, hArc, 1.2); animBall(gx - dir * 6, WD / 2 + side * (G + 4), 0.5, 0.4, 0); }
-      else if (out === 'blocked') { animBall(x.px + dir * 2.5, x.py + (R.next() - 0.5) * 2, 0.25, 0.2, 0.3); animBall(x.px + dir * 1, x.py + (R.next() - 0.5) * 6, 0.4, 0.5, 0); }
-      else { animBall(gx + dir * 3, WD / 2 + side * (G + 1.5 + R.next() * 4), dur, hArc + 0.8, 1.5 + R.next() * 2); }
-      vis.z = z0;
+      const gkY = gk ? gk.py : WD / 2, gkX = gk ? gk.px : X(o.k, 1);
+      vis.q = []; vis.x = sx; vis.y = sy; vis.z = header ? 2.1 : 0.15;
+      const arc = header ? 0.15 : dist > 18 ? 0.8 : 0.3;
+      const dive = (ty, tz, frac, short) => { // воротар кидається, коли м'яч на підльоті
+        if (!gk) return;
+        const reach = short ? gkY + (ty - gkY) * 0.65 : ty;
+        later(dur * frac, () => { act2(gk, Math.abs(ty - gkY) > 1.2 || tz > 1.9 ? 'dive' : 'catch', (ty - gkY) * (o.k === 0 ? 1 : -1), tz); gk.dive = { tx: gkX, ty: clamp(reach, WD / 2 - G - 0.5, WD / 2 + G + 0.5), until: clock + 1.6 }; });
+      };
+      if (out === 'goal') {
+        const ay = WD / 2 + side * (1.3 + R.next() * 2.1), az = 0.25 + R.next() * 1.9;
+        animBall(gx + dir * 0.9, ay, dur, arc, az); animBall(gx + dir * 1.8, ay + side * 0.2, 0.35, 0.05, 0);
+        dive(ay, az, 0.45, true);
+        return { t: clock + dur + 0.35, px: gx + dir * 1.8, py: ay };
+      }
+      if (out === 'saved') {
+        const ay = clamp(gkY + side * (0.3 + R.next() * 2.4), WD / 2 - G + 0.3, WD / 2 + G - 0.3), az = 0.3 + R.next() * 1.8;
+        const sxp = gkX + dir * 0.2;
+        animBall(sxp, ay, dur * 0.92, arc, az);
+        dive(ay, az, 0.3, false);
+        if (follow === 'parry') { const px = X(o.k, 6 + R.next() * 7), py = clamp(ay + (ay < WD / 2 ? -1 : 1) * (3 + R.next() * 9), WD / 2 - 16, WD / 2 + 16); animBall(px, py, 0.6, 0.5, 0); return { t: clock + dur * 0.92 + 0.6, px, py }; }
+        if (follow === 'corner') { const py = ay + (ay < WD / 2 ? -1 : 1) * (6 + R.next() * 6); animBall(gx + dir * 2.5, py, 0.55, 1.2, 0); return { t: clock + dur * 0.92 + 0.55, px: gx, py }; }
+        animBall(gkX, ay, 0.25, 0.05, 1.0); // у руках
+        return { t: clock + dur * 0.92 + 0.25, px: gkX, py: ay, gk };
+      }
+      if (out === 'post') {
+        const py = info.bar ? WD / 2 + side * R.next() * 2.5 : WD / 2 + side * G, az = info.bar ? 2.44 : 0.6 + R.next() * 1.6;
+        animBall(gx, py, dur, arc, az);
+        dive(py, az, 0.5, true);
+        const rx = X(t.k, L - 5 - R.next() * 7), ry = clamp(py + side * (R.next() * 6) - side * 3, 2, WD - 2);
+        animBall(rx, ry, 0.6, 0.6, 0);
+        return { t: clock + dur + 0.6, px: rx, py: ry };
+      }
+      if (out === 'blocked') { // захисник на лінії удару — підкат або блок корпусом
+        const bl = live(o).filter((y) => y.slot.role !== 'GK').sort((a, b) => Math.hypot(a.px - sx, a.py - sy) - Math.hypot(b.px - sx, b.py - sy))[0];
+        const bx = bl ? clamp(bl.px, Math.min(sx, gx), Math.max(sx, gx)) : sx + dir * 2, by = bl ? bl.py : sy;
+        if (bl) { act2(bl, Math.hypot(bl.px - sx, bl.py - sy) > 2 ? 'slide' : 'block', 0, 1); bl.px = sx + (bx - sx) * 0.9 + dir * 1.2; bl.py = sy + (by - sy) * 0.9; }
+        animBall(sx + dir * 1.8, sy + (by - sy) * 0.3, 0.2, 0.15, 0.4);
+        if (follow === 'corner') { const py = sy < WD / 2 ? 0.5 + R.next() * 8 : WD - 0.5 - R.next() * 8; animBall(gx + dir * 2, py, 0.9, 2, 0); return { t: clock + 1.1, px: gx, py }; }
+        const rx = clamp(sx + dir * (2 + R.next() * 6), 1, L - 1), ry = clamp(sy + (R.next() - 0.5) * 14, 1, WD - 1);
+        animBall(rx, ry, 0.55, 0.6, 0);
+        return { t: clock + 0.75, px: rx, py: ry };
+      }
+      // повз ворота або над поперечиною
+      const over = info.over != null ? info.over : R.chance(0.35);
+      const py = over ? WD / 2 + side * R.next() * (G - 0.5) : WD / 2 + side * (G + 0.6 + R.next() * 4), az = over ? 2.7 + R.next() * 1.5 : 0.4 + R.next() * 2.2;
+      animBall(gx + dir * 3, py, dur, arc + (over ? 0.5 : 0.3), az); animBall(gx + dir * 8, py + side * 1.5, 0.6, 0.3, 0);
+      if (Math.abs(py - gkY) < 4.5 && R.chance(0.6)) dive(py, az, 0.5, true);
+      return { t: clock + dur + 0.6, px: gx + dir * 8, py };
+    }
+    // ---------- стандарти на полі: кутовий, штрафний (стінка), пенальті ----------
+    const airOf = (x) => x.p.attrs.hea + x.p.attrs.str / 2;
+    /** Поставити стандарт: м'яч мертвий, гравці займають позиції (план), виконання — коли час вийде. */
+    function spDead(kind, t, o2 = {}) {
+      const o = sides[1 - t.k], sp = t.setp || {};
+      const tk = ctx.taker ? ctx.taker(t, kind === 'corner' ? 'corner' : kind === 'fk' ? 'fk' : 'pen') : null;
+      const plan = new Map(), P = (x, u, v, k = t.k) => { if (x && !plan.has(x)) plan.set(x, [X(k, clamp(u, 0.3, L - 0.3)), Y(k, clamp(v, 0.3, WD - 0.3))]); };
+      const At = live(t).filter((x) => x.slot.role !== 'GK'), Df = live(o).filter((x) => x.slot.role !== 'GK');
+      const gkO = live(o).find((x) => x.slot.role === 'GK');
+      let bu, bv, delay;
+      if (kind === 'corner') {
+        const sd = o2.side ?? (ball.y < WD / 2 ? 0 : 1);
+        bu = L - 0.3; bv = (t.k === 0 ? sd : 1 - sd) ? WD - 0.3 : 0.3; delay = o2.delay ?? 9 + R.int(5);
+        const nr = bv > WD / 2 ? 1 : -1; // ближня стійка — з боку кутового
+        P(tk, L - 0.4, bv + nr * 0.6);
+        const box = At.filter((x) => x !== tk && (sp.cbUp !== false || x.slot.role !== 'CB')).sort((a, b) => airOf(b) - airOf(a)).slice(0, 5);
+        const spots = [[L - 5.5, WD / 2 + nr * 3], [L - 10.5, WD / 2 - nr * 1], [L - 6.5, WD / 2 - nr * 4], [L - 4, WD / 2], [L - 9, WD / 2 + nr * 6]];
+        box.forEach((x, i) => P(x, spots[i][0] + (R.next() - 0.5), spots[i][1] + (R.next() - 0.5)));
+        At.filter((x) => !plan.has(x)).slice(0, 2).forEach((x, i) => P(x, L - 19, WD / 2 + (i ? 7 : -7)));
+        // оборона: воротар на лінії, біля ближньої стійки, опіка кожного в штрафному
+        if (gkO) plan.set(gkO, [X(t.k, L - 0.7), Y(t.k, WD / 2 + nr * 0.6)]);
+        const order = Df.slice().sort((a, b) => airOf(b) - airOf(a));
+        const near = order.pop(); if (near) plan.set(near, [X(t.k, L - 0.6), Y(t.k, WD / 2 + nr * 3.6)]);
+        box.forEach((x) => { const d = order.shift(); if (d) { const [ax, ay] = plan.get(x); plan.set(d, [ax + (t.k === 0 ? 0.9 : -0.9), ay + (WD / 2 - ay) * 0.08]); } });
+        order.slice(0, 2).forEach((d, i) => plan.set(d, [X(t.k, L - 17), Y(t.k, WD / 2 + (i ? 5 : -5))]));
+      } else if (kind === 'fk') {
+        bu = U(t, o2.at || { px: ball.x, py: ball.y }); bv = V(t, o2.at || { px: ball.x, py: ball.y }); delay = 11 + R.int(5);
+        const d = Math.hypot(L - bu, WD / 2 - bv), ux = (L - bu) / d, uy = (WD / 2 - bv) / d;
+        P(tk, bu - ux * 1.6, bv - uy * 1.6);
+        const n = d < 20 ? 4 : d < 26 ? 3 : 2;
+        const wall = Df.slice().sort((a, b) => (['CB', 'FB'].includes(a.slot.role) ? 1 : 0) - (['CB', 'FB'].includes(b.slot.role) ? 1 : 0)).slice(0, n);
+        const cx = bu + ux * 9.15, cy = bv + uy * 9.15 + (bv < WD / 2 ? -0.5 : 0.5);
+        wall.forEach((x, i) => { const off = (i - (n - 1) / 2) * 0.65; plan.set(x, [X(t.k, cx - uy * off), Y(t.k, cy + ux * off)]); });
+        if (gkO) plan.set(gkO, [X(t.k, L - 0.7), Y(t.k, WD / 2 + (bv < WD / 2 ? 1.2 : -1.2))]);
+        const box = At.filter((x) => x !== tk).sort((a, b) => airOf(b) - airOf(a)).slice(0, 4);
+        box.forEach((x, i) => P(x, L - 15 - R.next(), WD / 2 + (i - 1.5) * 5));
+        Df.filter((x) => !plan.has(x)).slice(0, 4).forEach((x, i) => plan.set(x, [X(t.k, L - 13.5), Y(t.k, WD / 2 + (i - 1.5) * 5 + 0.8)]));
+      } else { // пенальті: усі за межами штрафного, виконавець біля точки, воротар на лінії
+        bu = L - 11; bv = WD / 2; delay = 13 + R.int(4);
+        P(tk, L - 13, WD / 2);
+        if (gkO) plan.set(gkO, [X(t.k, L - 0.2), Y(t.k, WD / 2)]);
+        [...At.filter((x) => x !== tk), ...Df].sort((a, b) => Math.abs(a.py - WD / 2) - Math.abs(b.py - WD / 2)).forEach((x, i) => { // уздовж лінії штрафного й за дугою
+          const v = WD / 2 + (i % 2 ? 1 : -1) * (4 + Math.floor(i / 2) * 2.5);
+          P(x, L - 17.8 - (Math.abs(v - WD / 2) < 9.5 ? 3 : 0) - (i % 3) * 0.6, clamp(v, 6, WD - 6));
+        });
+      }
+      deadBall('sp', t, X(t.k, bu), Y(t.k, bv), delay);
+      ball.restart.sp = { kind, plan, victim: o2.victim || null, taker: tk };
+      return true;
+    }
+    /** Виконати стандарт: результат вирішує спільна логіка (js/match.js) у момент удару — коментар збігається з картинкою. */
+    function takeSp(t, sp) {
+      const o = sides[1 - t.k], bx = ball.x, by = ball.y;
+      ball.restart = null; ball.dead = 0;
+      if (sp.kind === 'pen') {
+        const g = ctx.penalty(t, o, sp.victim && !sp.victim.out ? sp.victim : sp.taker);
+        const info = ctx.lastShot ? ctx.lastShot() : null;
+        const tk = (info && info.shooter) || sp.taker;
+        if (!tk) return deadBall('gk', o, X(o.k, 5.5), WD / 2, 6);
+        tk.px = bx - (t.k === 0 ? 1.2 : -1.2); tk.py = by;
+        act2(tk, 'kick', 0, 1);
+        const out = info ? info.out : g === t.k ? 'goal' : 'saved';
+        const end = shotAnim(t, tk, out, false, info && info.follow, [bx, by], info || {});
+        return afterShot(t, tk, { goal: g === t.k, out, follow: info && info.follow }, end);
+      }
+      const g = sp.kind === 'fk' ? ctx.freekick(t, o) : ctx.corner(t, o);
+      const info = ctx.lastShot ? ctx.lastShot() : null;
+      if (sp.kind === 'fk' && info && info.kind === 'freekick') { // прямий удар через стінку
+        const tk = info.shooter; tk.px = bx - (t.k === 0 ? 0.8 : -0.8); tk.py = by;
+        act2(tk, 'kick', 0, 1);
+        const end = shotAnim(t, tk, info.out, false, info.follow, [bx, by], info);
+        return afterShot(t, tk, { goal: g === t.k, out: info.out, follow: info.follow }, end);
+      }
+      if (sp.kind === 'fk' && !info) { const tk = sp.taker || live(t)[1]; tk.px = bx; tk.py = by; return give(tk, t); } // розіграли коротко
+      // навіс (кутовий або штрафний): м'яч летить у штрафний, там — удар головою або винос
+      const tk = (info && info.assister) || sp.taker;
+      act2(tk, 'kick', 0, 0.8);
+      vis.q = []; vis.x = bx; vis.y = by; vis.z = 0;
+      const hd = info && info.shooter && t.onPitch.includes(info.shooter) ? info.shooter : null;
+      const keep = sp; // гравці тримають позиції, поки м'яч у повітрі
+      if (hd && !hd.out) {
+        const land = Math.hypot(hd.px - X(t.k, L), hd.py - WD / 2) < 22 ? [hd.px, hd.py] : [X(t.k, L - 8), WD / 2 + (R.next() - 0.5) * 8];
+        hd.px = land[0]; hd.py = land[1];
+        animBall(land[0], land[1], 1.1, 5, 2.1);
+        deadBall('wait', t, bx, by, 1.6); ball.restart.sp = keep;
+        later(1.0, () => {
+          const head = info.kind === 'header' || info.kind === 'corner';
+          act2(hd, head ? 'head' : 'kick', 0, 1);
+          const end = shotAnim(t, hd, info.out, head, info.follow, [land[0], land[1]], info);
+          afterShot(t, hd, { goal: g === t.k, out: info.out, follow: info.follow }, end);
+        });
+        return true;
+      }
+      // ніхто не пробив: захисник вибиває головою
+      const spot = [X(t.k, L - 7 - R.next() * 4), WD / 2 + (R.next() - 0.5) * 10];
+      const d = live(o).filter((y) => y.slot.role !== 'GK').sort((a, b) => Math.hypot(a.px - spot[0], a.py - spot[1]) - Math.hypot(b.px - spot[0], b.py - spot[1]))[0];
+      if (d) { d.px = spot[0] + (t.k === 0 ? 0.6 : -0.6); d.py = spot[1]; later(1.0, () => act2(d, 'head', 0, 1)); note(t, 'crossClear', { a: tk, d }); }
+      animBall(spot[0], spot[1], 1.1, 5, 2.1);
+      const cx = X(t.k, L - 26 - R.next() * 12), cy = clamp(spot[1] + (R.next() - 0.5) * 30, 3, WD - 3);
+      animBall(cx, cy, 1.2, 3, 0);
+      ball.hold = null; ball.fl = { from: tk, to: null, tx: cx, ty: cy, t0: clock, t1: clock + 2.3, x0: bx, y0: by, res: 'loose', team: o, kind: 'long' };
+      return true;
     }
     function assistOf(t, x) { return lastPass && lastPass.team === t.k && lastPass.to === x && clock - lastPass.at < 6 && lastPass.from !== x ? lastPass.from : null; }
     function act(t, x) {
@@ -531,6 +731,7 @@
       }
       if (op.kind === 'clear') {
         perf(t, x).passes = (perf(t, x).passes || 0) + 1;
+        act2(x, 'kick', 0, 1);
         ball.hold = null;
         const tx = X(t.k, 50 + R.next() * 20), ty = clamp(x.py + (R.next() - 0.5) * 40, 2, WD - 2);
         ball.fl = { from: x, to: null, tx, ty, t0: clock, t1: clock + 2, x0: x.px, y0: x.py, res: 'loose', team: t, kind: 'long' };
@@ -539,13 +740,13 @@
       if (op.kind === 'cross') {
         const pf = perf(t, x); pf.passes = (pf.passes || 0) + 1;
         const target = op.y, defs = live(o).filter((d) => d.slot.role !== 'GK' && Math.hypot(d.px - target.px, d.py - target.py) < 5);
-        vis.x = x.px; vis.y = x.py; animBall(target.px, target.py, 0.9, 5.5, 2.1); // навіс по дузі
+        vis.x = x.px; vis.y = x.py; vis.q = []; animBall(target.px, target.py, 0.9, 5.5, 2.1); act2(x, 'kick', 0, 0.7); // навіс по дузі
         const gk = live(o).find((d) => d.slot.role === 'GK');
         const claim = gk ? 0.12 + (at(gk, 'aer') - 10) * 0.012 : 0;
         const claimed = R.chance(claim);
         if (!R.chance(op.pS / 0.7) || claimed) { // воротар забрав або подача невдала
           if (claimed && gk) note(t, 'crossFail', { a: x, gk });
-          if (R.chance(0.3)) return after(ctx.corner(t, o), t, o);
+          if (R.chance(0.3)) return spDead('corner', t, { side: target.py < WD / 2 ? 0 : 1, delay: 8 + R.int(4) });
           ball.x = target.px; ball.y = target.py; return deadBall('gk', o, X(o.k, 6), WD / 2, 5);
         }
         // боротьба в повітрі
@@ -559,7 +760,7 @@
           return shoot(t, target, { q }, 'header', x);
         }
         if (defs[0]) note(t, 'crossClear', { a: x, d: defs[0] });
-        if (R.chance(0.35)) return after(ctx.corner(t, o), t, o);
+        if (R.chance(0.35)) return spDead('corner', t, { side: target.py < WD / 2 ? 0 : 1, delay: 8 + R.int(4) });
         ball.x = X(t.k, L - 22); ball.y = WD / 2 + (R.next() - 0.5) * 30; ball.hold = null; return loose();
       }
       // передача: офсайд перевіряємо в момент удару по м'ячу
@@ -591,20 +792,22 @@
       const piT = PI(y).tackle || 0;
       const pWin = clamp(0.5 + 0.028 * (tacE - driE) + 0.05 * hard + 0.07 * Math.min(3, cover) + 0.035 * piT, 0.15, 0.9);
       const won = R.chance(pWin);
+      if (won && R.chance(0.15)) act2(y, 'slide', 0, 1);
       const pf = perf(o, y);
       const foulP = 0.018 * (piT > 0 ? 1.4 : piT < 0 ? 0.6 : 1) * (TI(o).discipline > 0 ? 1.15 : TI(o).discipline < 0 ? 0.85 : 1) * (hard > 0 ? 1.45 : hard < 0 ? 0.65 : 1) * (tm.cards || 1) * (ctx.derby ? 1.25 : 1)
         * (((FM.VARIANTS[y.slot.role] || {})[y.slot.variant] || {}).cards || 1) * (y.p.traits && y.p.traits.includes('tackler') ? 1.25 : 1) * (won ? 0.6 : 1.5) * (y.yellow ? 0.6 : 1);
       const uA = U(t, x), inBox = uA > L - 16.5 && Math.abs(V(t, x) - WD / 2) < 20.16;
       if (R.chance(foulP * (inBox ? 0.35 : uA > L - 30 ? 0.7 : 1))) { // біля своїх воріт захисники обережніші
         dbg('foul');
+        act2(y, 'slide', 0, 1); act2(x, 'fall', 0, 1);
         ctx.foul(o, y, t, x);
         if (x.out) return true;
         const u = U(t, x), v = V(t, x);
         if (u > L - 16.5 && Math.abs(v - WD / 2) < 20.16) {
           if (!R.chance(Math.min(1, 0.55 + 0.4 * (ctx.refK ? ctx.refK() : 1)))) { give(x, t); return true; } // арбітр не побачив — гра триває
-          return after(ctx.penalty(t, o, x), t, o);
+          return spDead('pen', t, { victim: x });
         }
-        if (Math.hypot(L - u, v - WD / 2) < 27 && R.chance(0.6)) return after(ctx.freekick(t, o), t, o); // штрафний у зоні удару
+        if (Math.hypot(L - u, v - WD / 2) < 27 && R.chance(0.6)) return spDead('fk', t, { at: { px: x.px, py: x.py } }); // штрафний у зоні удару — зі стінкою
         deadBall('fk', t, x.px, x.py, 6 + R.int(5));
         return true;
       }
@@ -635,12 +838,17 @@
     function tick() {
       clock += DT;
       ctx.setSec(Math.floor(clock % 60));
+      acts = [];
+      for (let i = 0; i < sched.length;) { if (sched[i].at <= clock + 1e-6) { const job = sched.splice(i, 1)[0]; job.fn(); } else i++; }
+      if (celeb && clock > celeb.until) celeb = null;
+      if (ball.restart && ball.restart.kind === 'wait' && !ball.dead) ball.restart = null;
       if (ball.dead > 0) {
         dbg('deadT', DT);
         ball.dead -= DT; moveAll();
-        if (ball.dead <= 0) restart();
+        if (ball.dead <= 0 && ball.restart) restart();
         return;
       }
+      if (ball.restart && ball.restart.kind === 'wait') return moveAll(); // чекаємо удару після навісу
       if (ball.fl) {
         const f = ball.fl, k = clamp((clock - f.t0) / (f.t1 - f.t0), 0, 1);
         ball.x = f.x0 + (f.tx - f.x0) * k; ball.y = f.y0 + (f.ty - f.y0) * k;
@@ -675,7 +883,13 @@
     function snap() {
       const pos = [];
       for (const t of sides) for (const x of live(t)) pos.push(x.p.id, Math.round(x.px / L * 1000) / 10, Math.round(x.py / WD * 1000) / 10, t.k);
-      return { c: clock, bx: Math.round(vis.x / L * 1000) / 10, by: Math.round(vis.y / WD * 1000) / 10, bz: Math.round(vis.z * 10) / 10, h: ball.hold && !vis.q.length ? ball.hold.p.id : null, pos };
+      const f = { c: clock, bx: Math.round(vis.x / L * 1000) / 10, by: Math.round(vis.y / WD * 1000) / 10, bz: Math.round(vis.z * 10) / 10, h: ball.hold && !vis.q.length ? ball.hold.p.id : null, pos };
+      if (acts.length) f.a = acts;
+      // м'яч летить (удар, навіс, сейв): проміжні точки між кадрами — для точної дуги
+      const bs = [];
+      for (let i = 1; i <= 4; i++) { const p = visAt(clock - DT + (DT * i) / 5); if (!p) { bs.length = 0; break; } bs.push(Math.round(p[0] / L * 1000) / 10, Math.round(p[1] / WD * 1000) / 10, Math.round(p[2] * 10) / 10); }
+      if (bs.length) f.bs = bs;
+      return f;
     }
     function recordReplay() { pendingReplay = clock + 2; }
 
@@ -717,6 +931,9 @@
         ball.hold = null; ball.x = spotX + (L - 0.2 - spotX) * Math.min(1, bk * 1.3); ball.y = WD / 2 + (ty - WD / 2) * Math.min(1, bk * 1.3);
         if (out === 'saved' && bk > 0.75) { ball.x = L - 3; ball.y = gkTo + 2; }
         vis.q = []; vis.x = ball.x; vis.y = ball.y; vis.z = bk > 0 && bk < 0.77 ? 0.2 + 1.4 * Math.min(1, bk * 1.3) * (out === 'wide' ? 1.6 : 1) : 0;
+        acts = [];
+        if (i === 7) act2(x, 'kick', 0, 1);
+        if (i === 8 && gk) act2(gk, 'dive', (gkTo - WD / 2) * (gk.px > L / 2 ? -1 : 1), 0.7);
         frames.push(snap());
       }
     }

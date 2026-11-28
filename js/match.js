@@ -483,6 +483,7 @@
     }
     /** Записати удар для підсумку матчу (координати умовні: 100 — ворота суперника). */
     let shotAt = null; // місце удару з детального рушія ({ x, y } у відсотках поля)
+    let lastShot = null; // детальний рушій: хто бив, чим закінчилось і що далі (кутовий, відскок, воротар з м'ячем)
     function logShot(t, kind, q, goal) {
       const R2 = R.next(), R3 = R.next();
       let x = kind === 'pen' ? 89 : kind === 'header' || kind === 'corner' ? 88 + R2 * 7 : kind === 'through' ? 80 + R2 * 12 : kind === 'freekick' ? 70 + R2 * 10 : 68 + R2 * 16;
@@ -531,14 +532,16 @@
       t.stats.xg += 0.76;
       const goal = R.chance(0.68 + tk.p.attrs.fin * 0.008);
       logShot(t, 'pen', 0.76, goal);
+      const saved = !goal && R.chance(0.72);
       if (goal) {
         t.stats.goals++; t.stats.onTarget++; tPerf.goals++; t.stats.spGoals++;
         if (gkX) o.perf.get(gkX.p.id).conceded++;
         say(min, 'goal', t, 'penGoal', { p: name(tk.p) }, shotMeta('goal'));
       } else {
-        if (gkX) o.perf.get(gkX.p.id).saves++;
-        say(min, 'miss', t, 'penMiss', { p: name(tk.p), gk: gkName }, shotMeta('pen'));
+        if (gkX && saved) o.perf.get(gkX.p.id).saves++;
+        say(min, 'miss', t, [fill(T.penMiss[saved ? 0 : 1], { p: name(tk.p), gk: gkName })], {}, shotMeta('pen'));
       }
+      lastShot = { shooter: tk, out: goal ? 'goal' : saved ? 'saved' : 'wide', goal, kind: 'pen', follow: goal ? null : saved ? (R.chance(0.3) ? 'corner' : R.chance(0.35) ? 'parry' : 'catch') : 'gk' };
       return goal;
     }
 
@@ -564,6 +567,7 @@
         const meta = shotMeta('goal');
         if (wow) meta.special = spKind === 'gk' ? 'gk' : 'wonder';
         say(min, 'goal', t, [lead, ' ', fill(R.pick(usable(T.goal, vars)), vars), assister ? fill(R.pick(usable(T.goalAssist, vars)), vars) : '', wow, goalContext(t, sPerf, vars)], {}, meta);
+        lastShot = { shooter, assister, out: 'goal', goal: true, kind };
         if (sPerf.goals === 3) say(min, 'info', t, [`ХЕТ-ТРИК! ${vars.p} забиває втретє в цьому матчі!`]);
         momentum(t, o);
         return true;
@@ -575,6 +579,7 @@
           if (gkX) o.perf.get(gkX.p.id).conceded++;
           ownGoals[t.k]++;
           say(min, 'goal', t, [lead, ` М'яч рикошетить від ${G(og.p) || name(og.p)} — і в сітку! Автогол.`], {}, { ...shotMeta('goal'), og: true });
+          lastShot = { shooter, assister, out: 'goal', goal: true, kind, og };
           return true;
         }
       } else {
@@ -584,8 +589,24 @@
           const bl = R.weighted(o.onPitch.filter((x) => !x.out && x.slot.role !== 'GK'), (x) => ({ CB: 3, DM: 2, FB: 1.5, CM: 1 }[x.slot.role] || 0.3) * x.p.attrs.pos);
           if (bl) o.perf.get(bl.p.id).blocks = (o.perf.get(bl.p.id).blocks || 0) + 1;
         }
+        if (sim) { // детальний рушій сам розіграє, що далі: кутовий, відскок у штрафному, воротар з м'ячем, від воріт; текст — під картинку
+          const han = gkX ? gkX.p.attrs.han || 10 : 10;
+          const follow = out === 'saved' ? (R.chance(0.05 + Math.max(0, 12 - han) * 0.01) ? 'parry' : R.chance(0.66) ? 'corner' : 'catch')
+            : out === 'blocked' ? (R.chance(0.66) ? 'corner' : 'loose') : out === 'wide' ? (R.chance(0.15) ? 'corner' : 'gk') : 'loose';
+          const SAY = {
+            saved: { corner: ['{gk} відбиває на кутовий.', 'Сейв! {gk} переводить м’яч за лінію воріт — кутовий.', 'Чудовий сейв {gkG} — кутовий!'],
+              catch: ['Сейв! {gk} на місці.', '{gk} забирає м’яч у руки.', 'Воротар {gk} рятує команду й накриває м’яч!', 'Чудовий сейв {gkG}!'],
+              parry: ['{gk} відбиває перед собою — відскок у штрафному!', '{gk} не втримав м’яч — відскок у штрафному!'] },
+            blocked: { corner: ['Удар заблоковано — м’яч рикошетить на кутовий.', 'Захисники кидаються під м’яч — кутовий.'], loose: ['Удар заблоковано.', 'Захисники кидаються під м’яч.'] },
+          };
+          const pool = (SAY[out] && SAY[out][follow]) || T[out];
+          const txt = R.pick(usable(pool, vars));
+          say(min, 'chance', t, [lead, ' ', fill(txt, vars)], {}, shotMeta(out));
+          lastShot = { shooter, assister, out, goal: false, kind, follow, over: /Вище/.test(txt), bar: /поперечин/.test(txt) };
+          return false;
+        }
         say(min, 'chance', t, [lead, ' ', fill(R.pick(usable(T[out], vars)), vars)], {}, shotMeta(out));
-        // детальний рушій: воротар не втримав — добивання
+        // класичний рушій: воротар не втримав — добивання
         if (sim && out === 'saved' && spKind !== 'rebound' && gkX && R.chance(0.03 + Math.max(0, 12 - (gkX.p.attrs.han || 10)) * 0.008)) {
           const rb = pickShooter(t);
           if (rb) {
@@ -653,6 +674,7 @@
     /** Кутовий: подача й удар головою найкращого в повітрі. */
     function corner(t, o, min) {
       t.stats.corners++;
+      lastShot = null;
       const sp = t.setp;
       // схема кутового: на ближню — частіше удар, але слабший; на дальню — до найкращого в повітрі; коротко — рідше, зате без контратак
       const tryP = { near: 0.25, far: 0.22, short: 0.14 }[sp.corner] || 0.22;
@@ -684,6 +706,7 @@
 
     /** Прямий штрафний. */
     function freekick(t, o, min) {
+      lastShot = null;
       const tk = taker(t, 'fk');
       if (!tk) return;
       const gkX = o.onPitch.find((x) => !x.out && x.slot.role === 'GK');
@@ -995,8 +1018,10 @@
           const g0 = t.stats.goals, n0 = events.length;
           finishChance(t, o, current, kind, x, assist, q, gkX, gkX ? name(gkX.p) : 'воротар');
           const ev = events.slice(n0).find((e) => e.hl);
-          return { goal: t.stats.goals > g0, out: ev ? ev.hl.out : 'saved' };
+          return { goal: t.stats.goals > g0, out: ev ? ev.hl.out : 'saved', follow: lastShot && lastShot.follow, over: lastShot && lastShot.over, bar: lastShot && lastShot.bar };
         },
+        lastShot: () => lastShot,
+        taker: (t, kind) => taker(t, kind),
         corner: (t, o) => scored(() => corner(t, o, current)),
         freekick: (t, o) => scored(() => freekick(t, o, current)),
         penalty: (t, o, x) => scored(() => penalty(t, o, current, x)),

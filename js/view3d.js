@@ -310,6 +310,7 @@
     /** Людська фігура. kit: { shirt, trim, shorts, socks, num }. */
     function makeFigure(id, kit) {
       const g = new THREE.Group();
+      g.rotation.order = 'YXZ';
       const add = (geo, m, x, y, z, parent = g) => { const mm = new THREE.Mesh(geo, m); mm.position.set(x, y, z); mm.castShadow = shadowOn; parent.add(mm); return mm; };
       const shirtM = kit.num != null ? new THREE.MeshLambertMaterial({ map: shirtTexture(THREE, kit.num, kit.shirt, kit.trim) }) : mat(kit.shirt);
       add(GEO.torso, shirtM, 0, 1.24, 0);
@@ -346,7 +347,8 @@
       const vx = (nx - P.x) / Math.max(dt, 1e-3), vz = (nz - P.z) / Math.max(dt, 1e-3);
       const sp = Math.hypot(vx, vz);
       P.speed = P.speed + (sp - P.speed) * 0.2;
-      if (sp > 0.4) { const want = Math.atan2(vx, vz); let d = want - P.head; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; P.head += d * Math.min(1, dt * 8); }
+      if (P.lock != null) { let d = P.lock - P.head; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; P.head += d * Math.min(1, dt * 12); }
+      else if (sp > 0.4) { const want = Math.atan2(vx, vz); let d = want - P.head; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; P.head += d * Math.min(1, dt * 8); }
       else if (P.face != null) { let d = P.face - P.head; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; P.head += d * Math.min(1, dt * 3); }
       P.x = nx; P.z = nz;
       P.phase += dt * (3 + Math.min(P.speed, 40) * 0.3);
@@ -356,7 +358,62 @@
       P.aL.sh.rotation.x = -s * sw * 0.9; P.aR.sh.rotation.x = s * sw * 0.9;
       P.aL.el.rotation.x = -0.25 - sw * 0.9; P.aR.el.rotation.x = -0.25 - sw * 0.9;
       P.g.position.set(P.x, Math.abs(s) * sw * 0.07, P.z);
+      P.g.rotation.x = 0; P.g.rotation.z = 0;
+      P.aL.sh.rotation.z = 0; P.aR.sh.rotation.z = 0;
+      if (P.act) pose(P);
       P.g.rotation.y = P.head;
+    }
+
+    // ---- пози дій (удар, гра головою, кидок воротаря, підкат, падіння, святкування) ----
+    let nowMs = performance.now(), rate = 1; // rate — скільки ігрових секунд за секунду показу
+    const DUR = { kick: 0.45, head: 0.7, dive: 1.7, catch: 1.0, slide: 1.1, block: 0.6, fall: 1.5, celebrate: 3.4 };
+    function startAct(id, type, a, b) {
+      const P = players.get(id);
+      if (!P || !DUR[type]) return;
+      P.act = { type, a, b, t0: nowMs, dur: (DUR[type] / clamp(rate, 0.25, 4)) * 1000 };
+      if (type === 'dive' || type === 'catch') P.lock = P.x < 0 ? Math.PI / 2 : -Math.PI / 2; // воротар дивиться в поле
+    }
+    const ease = (t) => t * t * (3 - 2 * t);
+    function pose(P) {
+      const A = P.act, t = (nowMs - A.t0) / A.dur;
+      if (t >= 1 || t < 0) { P.act = null; P.lock = null; return; }
+      const hipR = P.lR.hip, kneeR = P.lR.knee;
+      if (A.type === 'kick') { // замах і удар правою
+        const pw = 0.6 + 0.4 * (A.b || 0.5);
+        hipR.rotation.x = t < 0.4 ? ease(t / 0.4) * 0.8 : t < 0.6 ? 0.8 - ease((t - 0.4) / 0.2) * (0.8 + 1.3 * pw) : -1.3 * pw * (1 - ease((t - 0.6) / 0.4));
+        kneeR.rotation.x = t < 0.4 ? ease(t / 0.4) * 1.3 : t < 0.6 ? 1.3 * (1 - ease((t - 0.4) / 0.2)) : 0.05;
+        P.aL.sh.rotation.z = -0.7 * Math.sin(Math.PI * t); P.aR.sh.rotation.z = 0.5 * Math.sin(Math.PI * t);
+        P.g.rotation.x = -0.12 * pw * Math.sin(Math.PI * t);
+      } else if (A.type === 'head') { // стрибок і кивок головою
+        P.g.position.y = Math.sin(Math.PI * t) * 0.55;
+        P.g.rotation.x = Math.sin(Math.PI * Math.min(1, t * 1.4)) * 0.35;
+        P.aL.sh.rotation.z = -0.9 * Math.sin(Math.PI * t); P.aR.sh.rotation.z = 0.9 * Math.sin(Math.PI * t);
+        P.lL.knee.rotation.x = P.lR.knee.rotation.x = 0.6 * Math.sin(Math.PI * t);
+      } else if (A.type === 'dive') { // кидок у бік удару: тіло в повітрі, руки витягнуті
+        const sd = Math.sign(A.a || 1), up = Math.min(1, t / 0.28);
+        P.g.rotation.z = sd * ease(up) * 1.35;
+        P.g.position.y = t < 0.45 ? Math.sin(Math.PI * (t / 0.45)) * (0.35 + 0.35 * clamp(A.b / 2.2, 0, 1)) : 0.15;
+        P.aL.sh.rotation.x = P.aR.sh.rotation.x = -2.9 * ease(up); P.aL.el.rotation.x = P.aR.el.rotation.x = 0;
+        P.lL.knee.rotation.x = 0.4; P.lR.knee.rotation.x = 0.2;
+      } else if (A.type === 'catch') { // ловить: руки вперед, присів
+        const k2 = Math.sin(Math.PI * Math.min(1, t * 1.3));
+        P.aL.sh.rotation.x = P.aR.sh.rotation.x = -(1.5 + clamp(A.b / 2.2, 0, 1) * 1.1) * k2; P.aL.el.rotation.x = P.aR.el.rotation.x = -0.3 * k2;
+        P.lL.knee.rotation.x = P.lR.knee.rotation.x = 0.5 * k2; P.lL.hip.rotation.x = P.lR.hip.rotation.x = -0.35 * k2;
+        P.g.position.y = -0.12 * k2;
+      } else if (A.type === 'slide') { // підкат: нахил назад, нога вперед
+        const k2 = t < 0.7 ? ease(Math.min(1, t / 0.2)) : 1 - ease((t - 0.7) / 0.3);
+        P.g.rotation.x = -1.05 * k2; P.g.position.y = 0.05; hipR.rotation.x = -1.4 * k2; kneeR.rotation.x = 0.05; P.lL.knee.rotation.x = 1.4 * k2; P.lL.hip.rotation.x = -0.3 * k2;
+        P.aL.sh.rotation.x = P.aR.sh.rotation.x = 0.6 * k2;
+      } else if (A.type === 'block') { // блок корпусом: руки за спиною, розворот
+        P.aL.sh.rotation.x = P.aR.sh.rotation.x = 0.7 * Math.sin(Math.PI * t); P.g.rotation.x = 0.2 * Math.sin(Math.PI * t);
+      } else if (A.type === 'fall') { // падає після фолу й підводиться
+        const k2 = t < 0.6 ? ease(Math.min(1, t / 0.25)) : 1 - ease((t - 0.6) / 0.4);
+        P.g.rotation.x = 1.45 * k2; P.g.position.y = 0.05; P.aL.sh.rotation.x = P.aR.sh.rotation.x = -1.6 * k2;
+      } else if (A.type === 'celebrate') { // руки вгору, підстрибує
+        const w = Math.sin(nowMs / 90);
+        P.aL.sh.rotation.x = -2.8 + w * 0.25; P.aR.sh.rotation.x = -2.8 - w * 0.25; P.aL.el.rotation.x = P.aR.el.rotation.x = 0;
+        P.g.position.y = Math.abs(Math.sin(nowMs / 160)) * 0.22;
+      }
     }
 
     const players = new Map();
@@ -428,28 +485,61 @@
     }
     function celebrate(k) { cheer = { k, t0: performance.now() }; const n = nets.find((x) => x.side === (k === 0 ? 1 : -1)); if (n) n.shake = 1; }
 
-    /** Новий кадр рушія: цілі для плавного руху. */
+    /**
+     * Кадри рушія: f — поточний, nf — наступний, frac — де ми між ними (0–1), spf — мілісекунд показу на кадр.
+     * Між викликами позиції рівно інтерполюються в кожному кадрі екрана; дії (удар, стрибок) — на початку відрізка.
+     */
     let lastShow = 0, idle = 0;
-    function show(f) {
+    let F0 = null, F1 = null, fr0 = 0, frT = 0, spf = 0, idx1 = new Map(), seenActs = new WeakSet();
+    function show(f, nf, frac = 0, msPerFrame = 0) {
       if (!f) return;
       lastShow = performance.now();
+      nf = nf || f;
+      if (nf !== F1) { idx1 = new Map(); for (let i = 0; i < nf.pos.length; i += 4) idx1.set(nf.pos[i], i); }
+      F0 = f; F1 = nf; fr0 = clamp(frac, 0, 1); frT = lastShow; spf = msPerFrame;
+      rate = msPerFrame > 0 ? 500 / msPerFrame : 1;
       const seen = new Set();
       for (let i = 0; i < f.pos.length; i += 4) {
         const id = f.pos[i];
         const P = players.get(id) || makePlayer(id);
-        const x = (f.pos[i + 1] / 100) * L - L / 2, z = (f.pos[i + 2] / 100) * WD - WD / 2;
-        if (P.x == null || Math.hypot(x - P.x, z - P.z) > 18) { P.x = x; P.z = z; } // телепорт (розстановка) — без ковзання
-        P.tx = x; P.tz = z; P.g.visible = true;
-        seen.add(id);
+        P.g.visible = true; P.i0 = i; seen.add(id);
       }
       for (const [id, P] of players) if (!seen.has(id)) P.g.visible = false;
-      if (f.h !== B.holder) { if (B.holder) { B.last = B.holder; B.lastAt = performance.now(); } B.holder = f.h; }
-      B.tx = (f.bx / 100) * L - L / 2; B.tz = (f.by / 100) * WD - WD / 2; B.ty = 0.22 + (f.bz || 0);
+      nowMs = lastShow;
+      for (const fr of [nf]) if (fr.a && !seenActs.has(fr)) { seenActs.add(fr); for (const [id, type, a, b] of fr.a) startAct(id, type, a, b); }
+      const h = fr0 > 0.5 ? nf.h : f.h;
+      if (h !== B.holder) { if (B.holder) { B.last = B.holder; B.lastAt = performance.now(); } B.holder = h; }
+    }
+    /** Позиції в момент між кадрами: гравці — по прямій, м'яч — за проміжними точками удару (якщо є). */
+    function place(now) {
+      if (!F0) return;
+      const fr = spf > 0 ? clamp(fr0 + (now - frT) / spf, 0, 1) : fr0;
+      const wx = (p) => (p / 100) * L - L / 2, wz = (p) => (p / 100) * WD - WD / 2;
+      for (const [id, P] of players) {
+        if (!P.g.visible || P.i0 == null || F0.pos[P.i0] !== id) continue;
+        const x0 = wx(F0.pos[P.i0 + 1]), z0 = wz(F0.pos[P.i0 + 2]);
+        const j = idx1.get(id);
+        let x1 = x0, z1 = z0;
+        if (j != null) { x1 = wx(F1.pos[j + 1]); z1 = wz(F1.pos[j + 2]); }
+        if (Math.hypot(x1 - x0, z1 - z0) > 12) { x1 = x0; z1 = z0; } // перестановка (розіграш з центру) — без ковзання
+        const tx = x0 + (x1 - x0) * fr, tz = z0 + (z1 - z0) * fr;
+        if (P.x == null || Math.hypot(tx - P.x, tz - P.z) > 18) { P.x = tx; P.z = tz; }
+        P.tx = tx; P.tz = tz;
+      }
+      // м'яч: по проміжних точках (удар, навіс) або по прямій
+      const pts = [[F0.bx, F0.by, F0.bz || 0]];
+      if (F1.bs) for (let i = 0; i < F1.bs.length; i += 3) pts.push([F1.bs[i], F1.bs[i + 1], F1.bs[i + 2]]);
+      pts.push([F1.bx, F1.by, F1.bz || 0]);
+      const seg = fr * (pts.length - 1), si = Math.min(pts.length - 2, Math.floor(seg)), sk = seg - si;
+      const a = pts[si], b = pts[si + 1];
+      let bx = a[0] + (b[0] - a[0]) * sk, by = a[1] + (b[1] - a[1]) * sk;
+      if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 45) { bx = b[0]; by = b[1]; } // м'яч перенесли (новий розіграш)
+      B.tx = wx(bx); B.tz = wz(by); B.ty = 0.22 + a[2] + (b[2] - a[2]) * sk;
       if (Math.hypot(B.tx - B.x, B.tz - B.z) > 30) { B.x = B.tx; B.z = B.tz; }
     }
     function setCamera(mode) { camMode = mode; dir.mode = 'tv'; cut = true; }
     function setReplayCamera(mode) { replayCam = mode; }
-    function replay(on) { replaying = on; cut = true; }
+    function replay(on) { replaying = on; cut = true; seenActs = new WeakSet(); }
 
     function resize() {
       const w = container.clientWidth || 640, h = container.clientHeight || 360;
@@ -476,7 +566,9 @@
       // пауза (нових кадрів понад 2 с) — малюємо рідко, щоб берегти батарею
       if (now - lastShow > 2000 && !cheer && (idle++ % 12) !== 0) { last = now; raf = root.requestAnimationFrame(frame); return; }
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
-      const k = 1 - Math.exp(-dt * 9); // плавність: наздогнати ціль за ~0,3 с
+      nowMs = now;
+      place(now);
+      const k = 1 - Math.exp(-dt * 22); // позиції вже плавні (інтерполяція) — лише згладити дрібні ривки
       for (const [id, P] of players) {
         if (!P.g.visible || P.x == null) continue;
         animate(P, dt, k);
@@ -494,7 +586,7 @@
         animate(o, dt, kk);
       }
       // м'яч: котиться й обертається
-      const bk = 1 - Math.exp(-dt * 12);
+      const bk = 1 - Math.exp(-dt * 40);
       const ox = B.x, oz = B.z;
       B.x += (B.tx - B.x) * bk; B.z += (B.tz - B.z) * bk; B.y += (B.ty - B.y) * bk;
       ball.position.set(B.x, B.y, B.z);
