@@ -59,3 +59,29 @@ test('класичний рушій лишився для решти ліг', ()
   const r = FM.match.play({ home: side(by('Dynamo Kyiv')), away: side(by('Shakhtar Donetsk')), seed: 'c1', name: (p) => p.name });
   assert.ok(!r.events.some((e) => e.sec != null));
 });
+
+test('детальний рушій: моменти видно — замахи, стрибки воротаря, дуга м’яча, розстановка на кутовому', () => {
+  const M = FM.match.create({ home: side(by('Arsenal')), away: side(by('Burnley')), seed: 'vis1', name: (p) => p.name, engine: 'sim' });
+  const acts = {};
+  let arcs = 0, cornerSetup = 0;
+  while (!M.done) {
+    M.step();
+    for (const f of M.sim.frames) {
+      for (const a of f.a || []) acts[a[1]] = (acts[a[1]] || 0) + 1;
+      if (f.bs) arcs++;
+      // м'яч біля кутового прапорця: у штрафному мають стояти гравці
+      const atCorner = (f.bx < 1 || f.bx > 99) && (f.by < 2 || f.by > 98);
+      if (atCorner) {
+        const goalX = f.bx < 50 ? 0 : 100;
+        let inBox = 0;
+        for (let i = 0; i < f.pos.length; i += 4) if (Math.abs(f.pos[i + 1] - goalX) < 16 && Math.abs(f.pos[i + 2] - 50) < 30) inBox++;
+        if (inBox >= 8) cornerSetup++;
+      }
+    }
+  }
+  const r = M.result();
+  assert.ok(acts.kick > 300, `замахів ${acts.kick}`);
+  assert.ok((acts.dive || 0) + (acts.catch || 0) > 0, 'воротар реагує на удари');
+  assert.ok(arcs > 10, `кадрів із дугою ${arcs}`);
+  if (r.stats[0].corners + r.stats[1].corners > 0) assert.ok(cornerSetup > 0, 'на кутовому гравці в штрафному');
+});
